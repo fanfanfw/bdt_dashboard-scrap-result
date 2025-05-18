@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Admin Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        .header { display: flex; justify-content: space-between; align-items: center; }
+        .logout { font-size: 0.9rem; }
+        .content { margin-top: 2rem; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Admin Dashboard</h1>
+        <div>
+            Hello, {{ username }} |
+            <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="background:none;border:none;color:#007bff;cursor:pointer;padding:0;">Logout</button>
+            </form>
+        </div>
+    </div>
+    <div class="content">
+        <p>{{ message }}</p>
+        <!-- Tambahkan fitur manajemen dashboard di sini nanti -->
+         <form id="sync-form" style="margin-top: 1rem;">
+            {% csrf_token %}
+            <button type="submit" style="background-color:#28a745; color:white; padding:0.5rem 1rem; border:none; border-radius:4px;">
+                🔄 Sinkronisasi Data Sekarang
+            </button>
+        </form>
+        <div id="sync-status" style="margin-top: 1rem; font-weight: bold;"></div>
+
+    </div>
+
+<script>
+// Setup WebSocket untuk notifikasi
+const ws_scheme = window.location.protocol === "https:" ? "wss://" : "ws://";
+const socket = new WebSocket(ws_scheme + window.location.host + '/ws/sync_notify/');
+
+socket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    document.getElementById('sync-status').innerText = data.detail;
+    alert(data.detail);
+};
+
+socket.onerror = function(e) {
+    console.error('WebSocket error:', e);
+};
+
+// Submit form via AJAX fetch, jangan reload page
+document.getElementById('sync-form').addEventListener('submit', function(event) {
+    event.preventDefault();
+    document.getElementById('sync-status').innerText = '⏳ Sinkronisasi sedang berjalan...';
+
+    fetch("{% url 'trigger_sync' username=username %}", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Request gagal dengan status ' + response.status);
+        return response.json();
+    })
+    .then(data => {
+        // Bisa update status di sini juga jika perlu
+        console.log('Sinkronisasi dimulai:', data);
+    })
+    .catch(error => {
+        document.getElementById('sync-status').innerText = '❌ Sinkronisasi gagal: ' + error.message;
+        alert('Sinkronisasi gagal: ' + error.message);
+    });
+});
+</script>
+
+</body>
+</html>

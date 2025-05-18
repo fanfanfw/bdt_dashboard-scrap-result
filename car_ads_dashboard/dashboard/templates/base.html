@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{% block title %}ScrapResultDash{% endblock %}</title>
+    {% load static %}
+    <link href="{% static 'js/app.css' %}" rel="stylesheet">
+  </head>
+  <body class="bg-gray-100 text-gray-900">
+    <header class="p-4 bg-white shadow-md flex justify-between items-center mb-6">
+      <h1 class="text-xl font-bold">ScrapResultDash</h1>
+          <nav class="space-x-4">
+            <a href="{% url 'dashboard_user' %}" class="text-blue-600 hover:underline">Home</a>
+            <a href="{% url 'data_listing' %}" class="text-blue-600 hover:underline">Data Listing</a>
+            <a href="{% url 'rank_price' %}" class="text-blue-600 hover:underline">Rank Price</a>
+          </nav>
+        {% if user.is_authenticated %}
+      <div class="text-sm text-right p-2">
+        <span class="mr-2">Welcome, {{ user.username }}</span>
+        <form action="{% url 'logout' %}" method="post" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit" class="text-blue-600 hover:underline bg-transparent border-none cursor-pointer">
+            Logout
+          </button>
+        </form>
+      </div>
+    {% endif %}
+    </header>
+
+
+    <main class="p-4">
+      {% block content %}
+      {% endblock %}
+    </main>
+    <script src="{% static 'js/app.js' %}"></script>
+  </body>
+</html>

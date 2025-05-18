@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>User Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        .header { display: flex; justify-content: space-between; align-items: center; }
+        .logout { font-size: 0.9rem; }
+        .content { margin-top: 2rem; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>User Dashboard</h1>
+        <div>
+            Hello, {{ username }} |
+            <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="background:none;border:none;color:#007bff;cursor:pointer;padding:0;">Logout</button>
+            </form>
+        </div>
+    </div>
+    <div class="content">
+        <p>{{ message }}</p>
+        <!-- Tambahkan grafik dan data analisis di sini nanti -->
+    </div>
+</body>
+</html>

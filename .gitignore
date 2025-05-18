@@ -1,0 +1,83 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Django stuff:
+*.log
+*.pot
+*.pyc
+*.pyo
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# Ignore migrations except for initial ones if needed
+*/migrations/*.py
+!*/migrations/__init__.py
+
+# Ignore environment variables files
+.env
+.env.*
+
+# VSCode
+.vscode/
+
+# PyCharm
+.idea/
+
+# Celery beat schedule file
+celerybeat-schedule
+
+# Coverage reports
+htmlcov/
+.coverage
+
+# Unit test / coverage reports
+*.cover
+*.py,cover
+.cache
+nosetests.xml
+coverage.xml
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Logs
+logs/
+*.log
+
+# PostgreSQL specific
+*.psql_history
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Static files collected
+/static/
+
+# If you store secrets locally, e.g. AWS keys
+secret_keys.json
+
+envdjango/
+
+car_ads_dashboard/*.csv
+
+note.txt

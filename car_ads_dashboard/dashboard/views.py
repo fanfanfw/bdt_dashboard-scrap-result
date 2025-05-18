@@ -10,6 +10,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import connection
+from django.db.models import Count
 
 class CustomLoginView(LoginView):
     def dispatch(self, request, *args, **kwargs):
@@ -35,10 +36,33 @@ class CustomLoginView(LoginView):
 @group_required('User')
 @user_is_owner_or_admin
 def user_dashboard(request, username):
+    source = request.GET.get('source', 'mudahmy')
+    if source not in ['mudahmy', 'carlistmy']:
+        source = 'mudahmy'
+
+    if source == 'carlistmy':
+        from .models import CarsCarlistmy as CarModel
+    else:
+        from .models import CarsMudahmy as CarModel
+
+    # Ambil 10 brand/model dengan iklan terbanyak
+    top_ads = (
+        CarModel.objects.values('brand')
+        .annotate(total=Count('id'))
+        .order_by('-total')
+    )
+    chart_labels = [item['brand'] or 'Unknown' for item in top_ads[:10]]
+    chart_data = [item['total'] for item in top_ads[:10]]
+    top_ads_list = [(item['brand'] or 'Unknown', item['total']) for item in top_ads]
+
     context = {
         'username': request.user.username,
         'role': 'User',
-        'message': 'Welcome to User Dashboard! Here you can view the analysis.'
+        'message': f'Welcome to User Dashboard! Showing data from {source}.',
+        'source': source,
+        'chart_labels': chart_labels,
+        'chart_data': chart_data,
+        'top_ads': top_ads_list,  # <-- gunakan ini di template
     }
     return render(request, 'dashboard/user_dashboard.html', context)
 
@@ -67,42 +91,11 @@ def trigger_sync(request, username):
 @login_required
 @group_required('User')
 @user_is_owner_or_admin
-def api_price_vs_mileage(request, username):
-    # Ambil filter dari query params
-    brand = request.GET.get('brand')
-    model = request.GET.get('model')
-    variant = request.GET.get('variant')
-    year = request.GET.get('year')
-
-    params = []
-    query = """
-        SELECT brand, price, mileage, year
-        FROM dashboard_carscarlistmy
-        WHERE 1=1
-    """
-
-    if brand:
-        query += " AND brand ILIKE %s"
-        params.append(f"%{brand}%")
-    if model:
-        query += " AND model ILIKE %s"
-        params.append(f"%{model}%")
-    if variant:
-        query += " AND variant ILIKE %s"
-        params.append(f"%{variant}%")
-    if year and year.isdigit():
-        query += " AND year = %s"
-        params.append(int(year))
-
-    query += " ORDER BY brand, price"
-
-    with connection.cursor() as cursor:
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-
-    data = [
-        {"brand": row[0], "price": row[1], "mileage": row[2], "year": row[3]}
-        for row in rows
-    ]
-
-    return JsonResponse({"data": data})
+def data_listing(request, username):
+    # Contoh: ambil semua data dari CarsCarlistmy
+    from .models import CarsCarlistmy
+    listings = CarsCarlistmy.objects.all()[:100]  # batasi 100 data untuk contoh
+    return render(request, 'dashboard/data_listing.html', {
+        'username': username,
+        'listings': listings,
+    })

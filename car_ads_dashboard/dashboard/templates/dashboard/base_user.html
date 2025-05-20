@@ -1,4 +1,5 @@
 {% load static %}
+{% load humanize %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,6 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}ScrapResultDash{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <style>
     body {
       padding-top: 56px; /* space for fixed navbar */
@@ -28,10 +30,10 @@
     .navbar-nav > .dropdown:hover > .dropdown-menu {
       display: block;
     }
-    /* Nonaktifkan hover untuk dropdown user */
+    {% comment %} /* Nonaktifkan hover untuk dropdown user */
     .user-dropdown:hover > .dropdown-menu {
       display: none;
-    }
+    } {% endcomment %}
     /* Simple dark mode styles */
     .dark-mode {
       background-color: #181D27 !important;
@@ -63,6 +65,56 @@
       background-color: transparent !important;
       color: #CED2D9 !important;
     }
+    {% comment %} data listing {% endcomment %}
+    .dark-mode .table,
+    .dark-mode .table-bordered,
+    .dark-mode .table-bordered th,
+    .dark-mode .table-bordered td,
+    .dark-mode .dataTable,
+    .dark-mode .dataTable th,
+    .dark-mode .dataTable td {
+      background-color: #232a36 !important;
+      color: #CED2D9 !important;
+      border-color: #2c3442 !important;
+    }
+
+    .dark-mode .table-striped > tbody > tr:nth-of-type(odd) {
+      background-color: #232a36 !important;
+    }
+    .dark-mode .table-striped > tbody > tr:nth-of-type(even) {
+      background-color: #1F2631 !important;
+    }
+    .dark-mode .table thead th,
+    .dark-mode .dataTable thead th {
+      background-color: #1F2631 !important;
+      color: #CED2D9 !important;
+      border-color: #2c3442 !important;
+    }
+    .dark-mode .dataTables_wrapper .dataTables_paginate .paginate_button {
+      color: #CED2D9 !important;
+      background: #232a36 !important;
+      border-color: #2c3442 !important;
+    }
+    .dark-mode .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+    .dark-mode .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+      background: #1F2631 !important;
+      color: #fff !important;
+    }
+    .dark-mode .dataTables_wrapper .dataTables_filter input,
+    .dark-mode .dataTables_wrapper .dataTables_length select {
+      background-color: #232a36 !important;
+      color: #CED2D9 !important;
+      border-color: #2c3442 !important;
+    }
+    .dark-mode .dataTables_wrapper .dataTables_info {
+      color: #CED2D9 !important;
+    }
+    .dark-mode table.dataTable.no-footer {
+      border-bottom: 1px solid #2c3442 !important;
+    }
+    .dark-mode table.dataTable tbody tr {
+      border-color: #2c3442 !important;
+    }
   </style>
 </head>
 <body>
@@ -87,28 +139,48 @@
       <div class="collapse navbar-collapse" id="navbarContent">
         <!-- Left menu -->
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <li class="nav-item dropdown">
-            <a 
-              class="nav-link dropdown-toggle" 
-              href="#" 
-              role="button" 
-              data-bs-toggle="dropdown" 
-              aria-expanded="false"
-            >
-              Home
-            </a>
-            <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="{% url 'user_dashboard' username %}?source=mudahmy">Mudah.my</a></li>
-              <li><a class="dropdown-item" href="{% url 'user_dashboard' username %}?source=carlistmy">Carlist.my</a></li>
-            </ul>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'data_listing' username %}">Data Listing</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="#">Rank Price</a>
-          </li>
-        </ul>
+        <li class="nav-item dropdown">
+          <a 
+            class="nav-link dropdown-toggle" 
+            href="#" 
+            role="button" 
+            data-bs-toggle="dropdown" 
+            aria-expanded="false"
+          >
+            Home
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'user_dashboard' username %}?source=mudahmy">Mudah.my</a></li>
+            <li><a class="dropdown-item" href="{% url 'user_dashboard' username %}?source=carlistmy">Carlist.my</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a 
+            class="nav-link dropdown-toggle" 
+            href="#" 
+            role="button" 
+            data-bs-toggle="dropdown" 
+            aria-expanded="false"
+          >
+            Data Listing
+          </a>
+          <ul class="dropdown-menu">
+            <li>
+              <a class="dropdown-item" href="{% url 'data_listing' username %}?source=mudahmy">
+                Mudah.my
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'data_listing' username %}?source=carlistmy">
+                Carlist.my
+              </a>
+            </li>
+          </ul>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#">Rank Price</a>
+        </li>
+      </ul>
         <!-- Right menu -->
         <ul class="navbar-nav ms-auto align-items-center">
           <li class="nav-item d-flex align-items-center">
@@ -183,5 +255,7 @@
     });
   });
   </script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 </body>
 </html>

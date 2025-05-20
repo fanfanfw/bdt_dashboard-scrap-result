@@ -1,31 +1,301 @@
 {% extends "dashboard/base_user.html" %}
-
+{% load humanize %}
 {% block title %}Data Listing{% endblock %}
 
 {% block content %}
-<h5 class="mb-4">Data Listing</h5>
-<table class="table table-striped table-bordered">
-  <thead>
-    <tr>
-      <th>Brand</th>
-      <th>Model</th>
-      <th>Variant</th>
-      <th>Price</th>
-      <th>Year</th>
-      <th>Mileage</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for car in listings %}
-    <tr>
-      <td>{{ car.brand }}</td>
-      <td>{{ car.model }}</td>
-      <td>{{ car.variant }}</td>
-      <td>{{ car.price|default:"-" }}</td>
-      <td>{{ car.year|default:"-" }}</td>
-      <td>{{ car.mileage|default:"-" }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<style>
+ .dataTables_paginate .paginate_button {
+    padding: 0.375rem 0.75rem;
+    margin: 0 2px;
+    border: 1px solid #dee2e6;
+    background-color: #fff;
+    color: #0d6efd;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .dataTables_paginate .paginate_button:hover {
+    background-color: #e9ecef;
+    border-color: #dee2e6;
+    color: #0a58ca;
+  }
+  
+  .dataTables_paginate .paginate_button.current {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+  }
+  
+  .dataTables_paginate .paginate_button.disabled {
+    color: #6c757d;
+    pointer-events: none;
+    background-color: #fff;
+    border-color: #dee2e6;
+  }
+</style>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0">
+    Data Listing {{ source|title }} <span class="badge bg-primary">{{ total_data|intcomma }}</span>
+  </h5>
+</div>
+
+<!-- Filter Form -->
+<div class="card mb-4">
+  <div class="card-body">
+    <form id="filterForm" class="row g-3">
+      <!-- Brand (Required) -->
+      <div class="col-md-3">
+        <label class="form-label">Brand <span class="text-danger">*</span></label>
+        <select class="form-select" name="brand" id="brandSelect" required>
+          <option value="">Pilih Brand</option>
+          {% for brand in brands %}
+            <option value="{{ brand }}">{{ brand }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <!-- Model (Optional) -->
+      <div class="col-md-3">
+        <label class="form-label">Model</label>
+        <select class="form-select" name="model" id="modelSelect">
+          <option value="">Semua Model</option>
+        </select>
+      </div>
+      
+      <!-- Variant (Optional) -->
+      <div class="col-md-3">
+        <label class="form-label">Variant</label>
+        <select class="form-select" name="variant" id="variantSelect">
+          <option value="">Semua Variant</option>
+        </select>
+      </div>
+      
+      <div class="col-md-3">
+        <label class="form-label">Tahun</label>
+        <select class="form-select" name="year" id="yearSelect">
+          <option value="">Semua Tahun</option>
+          {% for year in years %}
+            {% if year %}  <!-- Only show if year is not null -->
+              <option value="{{ year }}">{{ year }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary">Cari</button>
+        <button type="reset" class="btn btn-secondary">Reset</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Results Table -->
+<div class="card">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table id="listingTable" class="table table-striped table-bordered align-middle w-100">
+        <thead>
+          <tr>
+            <th>Img</th>
+            <th>Year</th>
+            <th>Brand</th>
+            <th>Model</th>
+            <th>Variant</th>
+            <th>Transmisi</th>
+            <th>Mileage (km)</th>
+            <th>Starting (RM)</th>
+            <th>Latest (RM)</th>
+            <th>Iklan Tayang</th>
+            <th>Status</th>
+            <th>Terjual Dalam</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script>
+$(document).ready(function() {
+  // Initialize DataTable
+  var table = $('#listingTable').DataTable({
+    processing: true,
+    serverSide: true,
+    responsive: true,
+    dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+         '<"row"<"col-sm-12"tr>>' +
+         '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+    ajax: {
+      url: "{% url 'get_listing_data' username %}",
+      type: "GET",
+      dataType: "json",
+      data: function(d) {
+        d.source = "{{ source }}";
+        d.brand = $('#brandSelect').val();
+        d.model = $('#modelSelect').val();
+        d.variant = $('#variantSelect').val();
+        d.year = $('#yearSelect').val();
+      },
+      error: function(xhr, error, thrown) {
+        console.error('DataTables error:', error);
+        alert('Error loading data. Please try again.');
+      }
+    },
+    columns: [
+      { 
+        data: 'img',
+        orderable: false,
+        searchable: false
+      },
+      { data: 'year' },
+      { data: 'brand' },
+      { data: 'model' },
+      { data: 'variant' },
+      { data: 'transmission' },
+      { 
+        data: 'mileage',
+        render: function(data) {
+          return data === '-' ? data : data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+      },
+      { data: 'starting' },
+      { data: 'latest' },
+      { data: 'created_at' },
+      { data: 'status' },
+      { data: 'sold_duration' }
+    ],
+    pageLength: 25,
+    lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+    order: [[1, "desc"]],
+    language: {
+      processing: '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>',
+      search: "Pencarian:",
+      lengthMenu: "Tampilkan _MENU_ data",
+      info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+      infoEmpty: "Menampilkan 0 sampai 0 dari 0 data",
+      infoFiltered: "(disaring dari _MAX_ total data)",
+      zeroRecords: "Tidak ada data yang cocok",
+      emptyTable: "Tidak ada data tersedia",
+      paginate: {
+        first: '<i class="fas fa-angle-double-left"></i>',
+        previous: '<i class="fas fa-angle-left"></i>',
+        next: '<i class="fas fa-angle-right"></i>',
+        last: '<i class="fas fa-angle-double-right"></i>'
+      }
+    },
+    drawCallback: function(settings) {
+      $('.paginate_button').addClass('btn btn-sm');
+    }
+  });
+
+  // Debug logs
+  console.log("Source:", "{{ source }}");
+  console.log("Username:", "{{ username }}");
+
+  // Populate dropdowns on brand change
+  $('#brandSelect').change(function() {
+    const brand = $(this).val();
+    console.log("Selected brand:", brand);
+    
+    // Reset model dan variant saat brand berubah
+    $('#modelSelect').html('<option value="">Semua Model</option>');
+    $('#variantSelect').html('<option value="">Semua Variant</option>');
+    
+    if (brand) {
+      $.ajax({
+        url: "{% url 'get_models' %}",
+        type: "GET",
+        dataType: "json",
+        data: { 
+          brand: brand, 
+          source: "{{ source }}" 
+        },
+        success: function(response) {
+          console.log("Models response:", response);
+          $('#modelSelect').html('<option value="">Semua Model</option>');
+          if (response.models && response.models.length > 0) {
+            response.models.forEach(function(model) {
+              if (model) {
+                $('#modelSelect').append(`<option value="${model}">${model}</option>`);
+              }
+            });
+          }
+        },
+        error: function(xhr, status, error) {
+          console.error("Error fetching models:", error);
+          console.error("Status:", status);
+          console.error("Response:", xhr.responseText);
+        }
+      });
+    }
+  });
+
+  // Populate variants when model is selected
+  $('#modelSelect').change(function() {
+    const brand = $('#brandSelect').val();
+    const model = $(this).val();
+    console.log("Selected model:", model);
+    
+    // Reset variant saat model berubah
+    $('#variantSelect').html('<option value="">Semua Variant</option>');
+    
+    if (model) {
+      $.ajax({
+        url: "{% url 'get_variants' %}",
+        type: "GET",
+        dataType: "json",
+        data: { 
+          brand: brand, 
+          model: model, 
+          source: "{{ source }}" 
+        },
+        success: function(response) {
+          console.log("Variants response:", response);
+          $('#variantSelect').html('<option value="">Semua Variant</option>');
+          if (response.variants && response.variants.length > 0) {
+            response.variants.forEach(function(variant) {
+              if (variant) {
+                $('#variantSelect').append(`<option value="${variant}">${variant}</option>`);
+              }
+            });
+          }
+        },
+        error: function(xhr, status, error) {
+          console.error("Error fetching variants:", error);
+          console.error("Status:", status);
+          console.error("Response:", xhr.responseText);
+        }
+      });
+    }
+  });
+  
+  // Handle form submission
+  $('#filterForm').on('submit', function(e) {
+    e.preventDefault();
+    console.log("Form submitted with values:", {
+      brand: $('#brandSelect').val(),
+      model: $('#modelSelect').val(),
+      variant: $('#variantSelect').val(),
+      year: $('#yearSelect').val()
+    });
+    table.ajax.reload();
+  });
+
+  // Handle form reset
+  $('#filterForm').on('reset', function() {
+    console.log("Form reset triggered");
+    setTimeout(function() {
+      $('#brandSelect').val('');
+      $('#modelSelect').html('<option value="">Semua Model</option>');
+      $('#variantSelect').html('<option value="">Semua Variant</option>');
+      $('#yearSelect').val('');
+      table.ajax.reload();
+    }, 1);
+  });
+});
+</script>
 {% endblock %}

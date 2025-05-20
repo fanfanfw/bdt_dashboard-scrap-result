@@ -7,4 +7,7 @@ urlpatterns = [
     path('listing/<str:username>/', views.data_listing, name='data_listing'),
     path('admin/<str:username>/', views.admin_dashboard, name='admin_dashboard'),
     path('admin/<str:username>/sync/', trigger_sync, name='trigger_sync'),
+    path('get-models/', views.get_models, name='get_models'),
+    path('get-variants/', views.get_variants, name='get_variants'),
+    path('listing/<str:username>/data/', views.get_listing_data, name='get_listing_data'),
 ]

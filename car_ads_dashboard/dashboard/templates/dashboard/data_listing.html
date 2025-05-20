@@ -102,6 +102,83 @@
   overflow-y: auto;
   padding-right: 0.5rem;
 }
+.table-responsive {
+  overflow-x: auto;
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .brand-item {
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .model-item {
+    padding: 0.3rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .form-label {
+    font-size: 0.9rem;
+  }
+
+  .form-select {
+    font-size: 0.9rem;
+  }
+
+  #brandsList {
+    max-height: 300px;
+  }
+
+  .table {
+    font-size: 0.85rem;
+  }
+
+  .card-body {
+    padding: 0.75rem;
+  }
+
+  .btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+  }
+
+  .dataTables_length,
+  .dataTables_filter,
+  .dataTables_info,
+  .dataTables_paginate {
+    font-size: 0.85rem;
+  }
+
+  /* Hide less important columns on mobile */
+  .table td:nth-child(5),
+  .table th:nth-child(5),
+  .table td:nth-child(6),
+  .table th:nth-child(6),
+  .table td:nth-child(10),
+  .table th:nth-child(10) {
+    display: none;
+  }
+}
+
+/* Tambahan untuk form filter di mobile */
+@media (max-width: 576px) {
+  .col-md-3 {
+    margin-bottom: 1rem;
+  }
+  
+  #toggleSidebar {
+    display: block;
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+  
+  .sidebar-mobile-hidden {
+    display: none !important;
+  }
+}
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -110,10 +187,15 @@
   </h5>
 </div>
 
+<!-- Toggle Sidebar Button for Mobile -->
+<button class="btn btn-primary d-md-none w-100 mb-3" id="toggleSidebar">
+  <i class="fas fa-bars"></i> Toggle Brand Filter
+</button>
+
 <!-- Main Content Row -->
 <div class="row">
   <!-- Brand Statistics Card -->
-  <div class="col-md-3 mb-4">
+  <div class="col-12 col-md-3 mb-4" id="sidebarContainer">
     <div class="card">
       <div class="card-header"><h6>Brand & Model Statistics</h6></div>
       <div class="card-body p-0">
@@ -123,7 +205,7 @@
   </div>
 
   <!-- Main Content Column -->
-  <div class="col-md-9">
+  <div class="col-12 col-md-9">
     <!-- Filter Form -->
     <div class="card mb-4">
       <div class="card-body">
@@ -208,6 +290,16 @@
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script>
 $(document).ready(function() {
+  // Toggle sidebar di mobile
+  $('#toggleSidebar').on('click', function() {
+    $('#sidebarContainer').toggleClass('sidebar-mobile-hidden');
+  });
+  
+  // Sembunyikan sidebar secara default di mobile
+  if (window.innerWidth <= 768) {
+    $('#sidebarContainer').addClass('sidebar-mobile-hidden');
+  }
+  
   // Initialize DataTable
   var table = $('#listingTable').DataTable({
     processing: true,

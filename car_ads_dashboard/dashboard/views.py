@@ -12,6 +12,7 @@ from django.db import connection
 from django.db.models import Count
 from django.core.paginator import Paginator
 from django.db.models import Q
+from .models import CarsMudahmy, CarsCarlistmy
 
 class CustomLoginView(LoginView):
     def dispatch(self, request, *args, **kwargs):
@@ -245,3 +246,45 @@ def get_listing_data(request, username):
         return JsonResponse({
             'error': str(e)
         }, status=500)
+
+@login_required
+def get_brand_stats(request):
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source == 'carlistmy':
+            CarModel = CarsCarlistmy
+        else:
+            CarModel = CarsMudahmy
+        
+        brand_stats = (
+            CarModel.objects
+            .filter(status__in=['active', 'sold'])
+            .values('brand')
+            .annotate(total=Count('id'))
+            .order_by('-total')
+        )
+        return JsonResponse({'brands': list(brand_stats)})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def get_model_stats(request):
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        brand = request.GET.get('brand')
+        if source == 'carlistmy':
+            CarModel = CarsCarlistmy
+        else:
+            CarModel = CarsMudahmy
+
+        model_stats = (
+            CarModel.objects
+            .filter(status__in=['active', 'sold'], brand=brand)
+            .values('model')
+            .annotate(total=Count('id'))
+            .order_by('-total')
+        )
+        return JsonResponse({'models': list(model_stats)})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

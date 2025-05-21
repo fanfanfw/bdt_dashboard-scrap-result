@@ -4,7 +4,7 @@ from .views import trigger_sync
 
 urlpatterns = [
     path('user/<str:username>/', views.user_dashboard, name='user_dashboard'),
-    path('listing/<str:username>/', views.data_listing, name='data_listing'),
+    path('listing/<str:username>/', views.user_dataListing, name='user_dataListing'),
     path('admin/<str:username>/', views.admin_dashboard, name='admin_dashboard'),
     path('admin/<str:username>/sync/', trigger_sync, name='trigger_sync'),
     path('get-models/', views.get_models, name='get_models'),

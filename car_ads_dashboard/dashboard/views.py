@@ -93,7 +93,7 @@ def trigger_sync(request, username):
 @login_required
 @group_required('User')
 @user_is_owner_or_admin
-def data_listing(request, username):
+def user_dataListing(request, username):
     source = request.GET.get('source', 'mudahmy')
     if source not in ['mudahmy', 'carlistmy']:
         source = 'mudahmy'
@@ -116,7 +116,7 @@ def data_listing(request, username):
     # Hanya ambil total data
     total_data = CarModel.objects.filter(status__in=['active', 'sold']).count()
 
-    return render(request, 'dashboard/data_listing.html', {
+    return render(request, 'dashboard/user_dataListing.html', {
         'username': username,
         'source': source,
         'total_data': total_data,

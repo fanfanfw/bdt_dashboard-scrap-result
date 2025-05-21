@@ -13,8 +13,17 @@ from django.db.models import Count
 from django.core.paginator import Paginator
 from django.db.models import Q
 from .models import CarsMudahmy, CarsCarlistmy
+from django.contrib.auth.forms import AuthenticationForm
 
 class CustomLoginView(LoginView):
+    form_class = AuthenticationForm
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        for visible in form.visible_fields():
+            visible.field.widget.attrs['class'] = 'form-control'
+            visible.field.widget.attrs['placeholder'] = visible.label
+        return form
+    
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
             if request.user.groups.filter(name='Admin').exists():

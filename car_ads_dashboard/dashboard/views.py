@@ -86,7 +86,7 @@ def user_dashboard(request, username):
     chart_labels_ads = [item['brand'] or 'Unknown' for item in top_ads[:10]]
     chart_data_ads = [item['total'] for item in top_ads[:10]]
 
-    # Top 10 brand berdasarkan penjualan terbanyak (status='sold' saja)
+    # Top 10 brand berdasarkan penjualan terbanyak (status='sold')
     sold_queryset = queryset.filter(status='sold')
     top_sold = (
         sold_queryset.values('brand')
@@ -96,6 +96,34 @@ def user_dashboard(request, username):
     chart_labels_sold = [item['brand'] or 'Unknown' for item in top_sold[:10]]
     chart_data_sold = [item['total'] for item in top_sold[:10]]
 
+    # Distribusi Tahun Produksi
+    year_distribution = (
+        queryset.values('year')
+        .annotate(count=Count('id'))
+        .order_by('year')
+    )
+    years_hist_labels = [item['year'] or 'Unknown' for item in year_distribution]
+    years_hist_data = [item['count'] for item in year_distribution]
+
+    # Distribusi Transmisi
+    transmission_distribution = (
+        queryset.values('transmission')
+        .annotate(count=Count('id'))
+        .order_by('-count')
+    )
+    transmission_labels = [item['transmission'] or 'Unknown' for item in transmission_distribution]
+    transmission_data = [item['count'] for item in transmission_distribution]
+
+    # Distribusi Kapasitas Kursi
+    seat_distribution = (
+        queryset.values('seat_capacity')
+        .annotate(count=Count('id'))
+        .order_by('-count')
+    )
+    seat_labels = [item['seat_capacity'] or 'Unknown' for item in seat_distribution]
+    seat_data = [item['count'] for item in seat_distribution]
+
+    # Data untuk filter dropdown
     brands = CarModel.objects.filter(status__in=['active', 'sold']).values_list('brand', flat=True).distinct().order_by('brand')
     years = CarModel.objects.filter(status__in=['active', 'sold']).values_list('year', flat=True).distinct().order_by('-year')
 
@@ -110,13 +138,17 @@ def user_dashboard(request, username):
         'brands': brands,
         'years': years,
 
-        # Data chart iklan terbanyak
         'chart_labels_ads': chart_labels_ads,
         'chart_data_ads': chart_data_ads,
-
-        # Data chart penjualan terbanyak
         'chart_labels_sold': chart_labels_sold,
         'chart_data_sold': chart_data_sold,
+
+        'years_hist_labels': years_hist_labels,
+        'years_hist_data': years_hist_data,
+        'transmission_labels': transmission_labels,
+        'transmission_data': transmission_data,
+        'seat_labels': seat_labels,
+        'seat_data': seat_data,
     }
     return render(request, 'dashboard/user_dashboard.html', context)
 

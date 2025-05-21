@@ -124,7 +124,7 @@ async def insert_or_update_data_into_local_db(data, table_name, source):
             created_at = parse_datetime(row['created_at'])
             sold_at = parse_datetime(row['sold_at'])
             status = row['status']
-
+            last_status_check = parse_datetime(row['last_status_check'])
             price_int = convert_price(price)
             year_int = int(year) if year else None
             mileage_int = convert_mileage(mileage)
@@ -175,12 +175,12 @@ async def insert_or_update_data_into_local_db(data, table_name, source):
                 INSERT INTO {table_name} (
                     id, listing_url, brand, model, variant, informasi_iklan,
                     lokasi, price, year, mileage, transmission, seat_capacity,
-                    gambar, last_scraped_at, version, created_at, sold_at, status,
+                    gambar, last_scraped_at, version, created_at, sold_at, status, last_status_check,
                     cars_standard_id, source
                 )
                 VALUES (
                     $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-                    $11,$12,$13,$14,$15,$16,$17,$18,$19,$20
+                    $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
                 )
                 ON CONFLICT (id) DO UPDATE SET
                     listing_url = EXCLUDED.listing_url,
@@ -200,12 +200,13 @@ async def insert_or_update_data_into_local_db(data, table_name, source):
                     created_at = EXCLUDED.created_at,
                     sold_at = EXCLUDED.sold_at,
                     status = EXCLUDED.status,
+                    last_status_check = EXCLUDED.last_status_check,
                     cars_standard_id = COALESCE(EXCLUDED.cars_standard_id, {table_name}.cars_standard_id),
                     source = EXCLUDED.source
             """,
             id_, listing_url, brand, model, variant, informasi_iklan,
             lokasi, price_int, year_int, mileage_int, transmission, seat_capacity,
-            gambar, last_scraped_at, version, created_at, sold_at, status,
+            gambar, last_scraped_at, version, created_at, sold_at, status, last_status_check,
             cars_standard_id, source)
 
             inserted_count += 1

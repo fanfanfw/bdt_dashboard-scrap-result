@@ -30,6 +30,7 @@ class CarsCarlistmy(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     sold_at = models.DateTimeField(blank=True, null=True)
     status = models.CharField(max_length=20, default='active')
+    last_status_check = models.DateTimeField(auto_now_add=True, null=True)
     source = models.CharField(max_length=15, blank=True, null=True)
     cars_standard = models.ForeignKey(CarsStandard, on_delete=models.SET_NULL, null=True, blank=True)
 
@@ -66,6 +67,7 @@ class CarsMudahmy(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     sold_at = models.DateTimeField(blank=True, null=True)
     status = models.CharField(max_length=20, default='active')
+    last_status_check = models.DateTimeField(auto_now_add=True, null=True)
     source = models.CharField(max_length=15, blank=True, null=True)
     cars_standard = models.ForeignKey(CarsStandard, on_delete=models.SET_NULL, null=True, blank=True)
 

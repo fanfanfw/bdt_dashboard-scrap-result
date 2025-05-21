@@ -1,50 +1,90 @@
 {% extends "dashboard/base_user.html" %}
-
-{% block title %}User Dashboard{% endblock %}
+{% load humanize %}
+{% block title %}Dashboard - {{ source|capfirst }}{% endblock %}
 
 {% block content %}
-{% load humanize %}
-<h5 class="text-center mb-4">Dashboard - {{ source|capfirst }}</h5>
-<div class="container-fluid p-0">
-  <div class="row g-4 align-items-stretch">
-    <!-- Card Brand Lebar -->
-    <div class="col-lg-6">
-      <div class="card flex-fill" style="border-radius:5px; min-height:400px; overflow:auto;">
-        <div class="card-body d-flex flex-column align-items-center justify-content-start p-3">
-          <strong class="mb-2" style="font-size:1.2rem;">Make</strong>
-          <ul class="mb-0 w-100" style="font-size:1rem; list-style:none; padding-left:0; max-height:350px; overflow:auto;">
-            {% for brand, total in top_ads %}
-              <li class="d-flex justify-content-between border-bottom py-1">
-                <span>{{ brand|default:"Unknown" }}</span>
-                <span class="text-secondary">({{ total|intcomma }})</span>
-              </li>
-            {% endfor %}
-          </ul>
+<div class="container-fluid py-4">
+  <h4 class="mb-4 text-center">Dashboard - {{ source|capfirst }}</h4>
+
+  <!-- Row 1: KPI Cards -->
+  <div class="row mb-4 text-center">
+    <div class="col-md-3 mb-3">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6>Total Semua Listing</h6>
+          <h3 class="text-primary" id="totalAll">{{ total_all|intcomma }}</h3>
         </div>
       </div>
     </div>
-    <!-- Card Chart Kanan -->
-    <div class="col-lg-6">
-      <div class="card h-100" style="border-radius:20px;">
-        <div class="card-body d-flex flex-column justify-content-center align-items-center" style="height:100%;">
-          <canvas id="barChart"></canvas>
+    <div class="col-md-3 mb-3">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6>Total Listing Aktif</h6>
+          <h3 class="text-success" id="totalActive">{{ total_active|intcomma }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6>Total Listing Terjual</h6>
+          <h3 class="text-warning" id="totalSold">{{ total_sold|intcomma }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6>Total Brand</h6>
+          <h3 class="text-info" id="totalBrand">{{ total_brand|intcomma }}</h3>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Row 2: Charts -->
+  <div class="row">
+    <div class="col-lg-6 mb-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header">
+          10 Brand dengan Iklan Terbanyak
+        </div>
+        <div class="card-body">
+          <canvas id="brandBarChartAds"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6 mb-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header">
+          10 Brand dengan Penjualan Terbanyak
+        </div>
+        <div class="card-body">
+          <canvas id="brandBarChartSold"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Placeholder for additional charts -->
+  <div class="row">
+    <!-- Bisa ditambah chart lain seperti tren harga, distribusi tahun, dsb -->
+  </div>
 </div>
 
-<!-- Chart.js CDN -->
+<!-- JQuery dan Chart.js CDN -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  const ctx = document.getElementById('barChart').getContext('2d');
-  const barChart = new Chart(ctx, {
+  // Chart Iklan Terbanyak
+  const ctxAds = document.getElementById('brandBarChartAds').getContext('2d');
+  let brandBarChartAds = new Chart(ctxAds, {
     type: 'bar',
     data: {
-      labels: {{ chart_labels|safe }},
+      labels: {{ chart_labels_ads|safe }},
       datasets: [{
         label: 'Jumlah Iklan',
-        data: {{ chart_data|safe }},
+        data: {{ chart_data_ads|safe }},
         backgroundColor: 'rgba(54, 162, 235, 0.7)',
         borderRadius: 10,
         borderSkipped: false,
@@ -52,15 +92,72 @@
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        title: { display: true, text: '10 Brand dengan Iklan Terbanyak' }
-      },
-      scales: {
-        y: { beginAtZero: true }
-      }
+      plugins: { legend: { display: false }, title: { display: true, text: '10 Brand Teratas - Iklan' }},
+      scales: { y: { beginAtZero: true } }
     }
+  });
+
+  // Chart Penjualan Terbanyak
+  const ctxSold = document.getElementById('brandBarChartSold').getContext('2d');
+  let brandBarChartSold = new Chart(ctxSold, {
+    type: 'bar',
+    data: {
+      labels: {{ chart_labels_sold|safe }},
+      datasets: [{
+        label: 'Jumlah Terjual',
+        data: {{ chart_data_sold|safe }},
+        backgroundColor: 'rgba(75, 192, 192, 0.7)',
+        borderRadius: 10,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, title: { display: true, text: '10 Brand Teratas - Penjualan' }},
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  // Fungsi update dashboard (KPI + charts)
+  function updateDashboard(data) {
+    $('#totalAll').text(data.total_all.toLocaleString());
+    $('#totalActive').text(data.total_active.toLocaleString());
+    $('#totalSold').text(data.total_sold.toLocaleString());
+    $('#totalBrand').text(data.total_brand.toLocaleString());
+
+    // Update Chart Iklan Terbanyak
+    brandBarChartAds.data.labels = data.chart_labels_ads;
+    brandBarChartAds.data.datasets[0].data = data.chart_data_ads;
+    brandBarChartAds.update();
+
+    // Update Chart Penjualan Terbanyak
+    brandBarChartSold.data.labels = data.chart_labels_sold;
+    brandBarChartSold.data.datasets[0].data = data.chart_data_sold;
+    brandBarChartSold.update();
+  }
+
+
+  // Event handler submit form dengan AJAX
+  $('#filterForm').on('submit', function(e) {
+    e.preventDefault();
+    const formData = $(this).serialize();
+
+    $.ajax({
+      url: "{% url 'user_dashboard_data' username %}",
+      method: "GET",
+      data: formData,
+      dataType: "json",
+      success: function(response) {
+        if (!response.error) {
+          updateDashboard(response);
+        } else {
+          alert("Error: " + response.error);
+        }
+      },
+      error: function() {
+        alert("Gagal mengambil data dashboard.");
+      }
+    });
   });
 </script>
 {% endblock %}

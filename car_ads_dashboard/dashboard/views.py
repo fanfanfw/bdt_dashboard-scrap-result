@@ -9,11 +9,12 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import connection
-from django.db.models import Count
+from django.db.models import Count, Q, Avg
 from django.core.paginator import Paginator
-from django.db.models import Q
 from .models import CarsMudahmy, CarsCarlistmy
 from django.contrib.auth.forms import AuthenticationForm
+from django.views.decorators.http import require_GET
+from django.db import models
 
 class CustomLoginView(LoginView):
     form_class = AuthenticationForm
@@ -51,31 +52,116 @@ def user_dashboard(request, username):
     if source not in ['mudahmy', 'carlistmy']:
         source = 'mudahmy'
 
+    brand = request.GET.get('brand')
+    year = request.GET.get('year')
+
     if source == 'carlistmy':
         from .models import CarsCarlistmy as CarModel
     else:
         from .models import CarsMudahmy as CarModel
 
-    # Ambil 10 brand/model dengan iklan terbanyak
+    queryset = CarModel.objects.filter(status__in=['active', 'sold'])
+    if brand:
+        queryset = queryset.filter(brand=brand)
+    if year:
+        try:
+            year_int = int(year)
+            queryset = queryset.filter(year=year_int)
+        except ValueError:
+            pass
+
+    # Statistik umum
+    total_all = queryset.count()
+    total_active = queryset.filter(status='active').count()
+    total_sold = queryset.filter(status='sold').count()
+    total_brand = queryset.values('brand').distinct().count()
+    avg_price = queryset.aggregate(avg=Avg('price'))['avg'] or 0
+
+    # Top 10 brand berdasarkan total listing (active+sold)
     top_ads = (
-        CarModel.objects.values('brand')
+        queryset.values('brand')
+        .annotate(total=Count('id'))
+        .order_by('-total')
+    )
+    chart_labels_ads = [item['brand'] or 'Unknown' for item in top_ads[:10]]
+    chart_data_ads = [item['total'] for item in top_ads[:10]]
+
+    # Top 10 brand berdasarkan penjualan terbanyak (status='sold' saja)
+    sold_queryset = queryset.filter(status='sold')
+    top_sold = (
+        sold_queryset.values('brand')
+        .annotate(total=Count('id'))
+        .order_by('-total')
+    )
+    chart_labels_sold = [item['brand'] or 'Unknown' for item in top_sold[:10]]
+    chart_data_sold = [item['total'] for item in top_sold[:10]]
+
+    brands = CarModel.objects.filter(status__in=['active', 'sold']).values_list('brand', flat=True).distinct().order_by('brand')
+    years = CarModel.objects.filter(status__in=['active', 'sold']).values_list('year', flat=True).distinct().order_by('-year')
+
+    context = {
+        'username': username,
+        'source': source,
+        'total_all': total_all,
+        'total_active': total_active,
+        'total_sold': total_sold,
+        'total_brand': total_brand,
+        'avg_price': int(avg_price),
+        'brands': brands,
+        'years': years,
+
+        # Data chart iklan terbanyak
+        'chart_labels_ads': chart_labels_ads,
+        'chart_data_ads': chart_data_ads,
+
+        # Data chart penjualan terbanyak
+        'chart_labels_sold': chart_labels_sold,
+        'chart_data_sold': chart_data_sold,
+    }
+    return render(request, 'dashboard/user_dashboard.html', context)
+
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def user_dashboard_data(request, username):
+    source = request.GET.get('source', 'mudahmy')
+    brand = request.GET.get('brand')
+    year = request.GET.get('year')
+
+    if source not in ['mudahmy', 'carlistmy']:
+        source = 'mudahmy'
+
+    if source == 'carlistmy':
+        from .models import CarsCarlistmy as CarModel
+    else:
+        from .models import CarsMudahmy as CarModel
+
+    queryset = CarModel.objects.filter(status__in=['active', 'sold'])
+    if brand:
+        queryset = queryset.filter(brand=brand)
+    if year:
+        queryset = queryset.filter(year=year)
+
+    top_ads = (
+        queryset.values('brand')
         .annotate(total=Count('id'))
         .order_by('-total')
     )
     chart_labels = [item['brand'] or 'Unknown' for item in top_ads[:10]]
     chart_data = [item['total'] for item in top_ads[:10]]
-    top_ads_list = [(item['brand'] or 'Unknown', item['total']) for item in top_ads]
 
-    context = {
-        'username': request.user.username,
-        'role': 'User',
-        'message': f'Welcome to User Dashboard! Showing data from {source}.',
-        'source': source,
+    total_active = queryset.filter(status='active').count()
+    total_sold = queryset.filter(status='sold').count()
+    avg_price = queryset.aggregate(avg=models.Avg('price'))['avg'] or 0
+
+    return JsonResponse({
         'chart_labels': chart_labels,
         'chart_data': chart_data,
-        'top_ads': top_ads_list,  # <-- gunakan ini di template
-    }
-    return render(request, 'dashboard/user_dashboard.html', context)
+        'total_active': total_active,
+        'total_sold': total_sold,
+        'avg_price': int(avg_price),
+    })
 
 @login_required
 @group_required('Admin')

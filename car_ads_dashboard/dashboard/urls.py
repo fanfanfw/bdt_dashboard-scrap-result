@@ -12,4 +12,6 @@ urlpatterns = [
     path('listing/<str:username>/data/', views.get_listing_data, name='get_listing_data'),
     path('get-brand-stats/', views.get_brand_stats, name='get_brand_stats'),
     path('get-model-stats/', views.get_model_stats, name='get_model_stats'),
+    path('user/<str:username>/data/', views.user_dashboard_data, name='user_dashboard_data'),
+
 ]

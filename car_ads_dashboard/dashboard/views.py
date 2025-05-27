@@ -7,14 +7,12 @@ from django.urls import reverse
 from .tasks import sync_data_task
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-from django.db import connection
 from django.db.models import Count, Q, Avg
-from django.core.paginator import Paginator
 from .models import CarsMudahmy, CarsCarlistmy
 from django.contrib.auth.forms import AuthenticationForm
 from django.views.decorators.http import require_GET
 from django.db import models
+import pandas as pd
 
 class CustomLoginView(LoginView):
     form_class = AuthenticationForm
@@ -394,7 +392,6 @@ def get_brand_stats(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-
 @login_required
 def get_model_stats(request):
     try:
@@ -415,3 +412,80 @@ def get_model_stats(request):
         return JsonResponse({'models': list(model_stats)})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def get_scatter_data(request, username):
+    source = request.GET.get('source', 'mudahmy')
+    brand = request.GET.get('brand')
+    model = request.GET.get('model')
+    variant = request.GET.get('variant')
+
+    if source == 'carlistmy':
+        CarModel = CarsCarlistmy
+    else:
+        CarModel = CarsMudahmy
+
+    if not brand:
+        return JsonResponse({'error': 'Brand is required'}, status=400)
+
+    queryset = CarModel.objects.filter(status__in=['active', 'sold'], brand=brand)
+    if model:
+        queryset = queryset.filter(model=model)
+    if variant:
+        queryset = queryset.filter(variant=variant)
+
+    queryset = queryset.filter(price__gt=0, mileage__gt=0)
+
+    data = list(
+        queryset.values('brand', 'model', 'variant', 'price', 'mileage')[:500]
+    )
+
+    return JsonResponse(data, safe=False)
+
+@login_required
+def get_avg_mileage_per_year(request, username):
+    source = request.GET.get('source', 'mudahmy')
+    brand = request.GET.get('brand')
+    model = request.GET.get('model')
+    variant = request.GET.get('variant')
+
+    if source == 'carlistmy':
+        CarModel = CarsCarlistmy
+    else:
+        CarModel = CarsMudahmy
+    
+    qs = CarModel.objects.filter(status__in=['active', 'sold'], mileage__isnull=False, year__isnull=False)
+
+    if brand:
+        qs = qs.filter(brand=brand)
+    if model:
+        qs = qs.filter(model=model)
+    if variant:
+        qs = qs.filter(variant=variant)
+
+    data = qs.values('year').annotate(avg_mileage=models.Avg('mileage')).order_by('year')
+
+    result = {
+        'years': [item['year'] for item in data],
+        'avg_mileages': [round(item['avg_mileage'], 2) if item['avg_mileage'] else 0 for item in data],
+    }
+    return JsonResponse(result)
+
+@login_required
+def get_feature_correlation(request, username):
+    source = request.GET.get('source', 'mudahmy')
+    if source == 'carlistmy':
+        CarModel = CarsCarlistmy
+    else:
+        CarModel = CarsMudahmy
+
+    qs = CarModel.objects.filter(status__in=['active', 'sold']).values('price', 'mileage', 'year')
+    df = pd.DataFrame(list(qs))
+
+    if df.empty:
+        return JsonResponse({'error': 'No data'}, status=404)
+
+    corr = df.corr()
+    corr_dict = corr.round(3).to_dict()
+
+    return JsonResponse({'correlation': corr_dict})

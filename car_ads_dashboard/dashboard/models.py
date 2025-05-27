@@ -85,3 +85,19 @@ class PriceHistoryMudahmy(models.Model):
 
     def __str__(self):
         return f"Price change {self.car} at {self.changed_at}"
+
+
+class LocationStandard(models.Model):
+    states = models.CharField(max_length=255)
+    district = models.CharField(max_length=255)
+    town = models.CharField(max_length=255)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, help_text="Latitude coordinate in decimal degrees")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, help_text="Longitude coordinate in decimal degrees")
+    location_raw1 = models.CharField(max_length=255, blank=True, null=True)
+    location_raw2 = models.CharField(max_length=255, blank=True, null=True)
+    location_raw3 = models.CharField(max_length=255, blank=True, null=True)
+    location_raw4 = models.CharField(max_length=255, blank=True, null=True)
+    location_raw5 = models.CharField(max_length=255, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.town}, {self.district}, {self.states}"

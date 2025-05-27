@@ -103,11 +103,67 @@
       </div>
     </div>
   </div>
+
+  <!-- Row 4: Layout Scatterplot kanan besar, grafik & tabel kiri bertumpuk -->
+  <div class="row mt-4">
+    <!-- Kolom Kiri: Grafik Rata-rata Mileage dan Tabel Korelasi bertumpuk -->
+    <div class="col-lg-4 d-flex flex-column gap-4">
+      <div class="card shadow-sm flex-fill">
+        <div class="card-header">Rata-rata Mileage per Tahun</div>
+        <div class="card-body">
+          <canvas id="avgMileageYearChart" style="min-height: 350px;"></canvas>
+        </div>
+      </div>
+      <div class="card shadow-sm flex-fill" style="overflow-x:auto; max-height: 370px;">
+        <div class="card-header">Korelasi Antar Fitur</div>
+        <div class="card-body">
+          <table class="table table-bordered table-striped" id="correlationTable">
+            <thead>
+              <tr>
+                <th>Fitur</th>
+                <th>Price</th>
+                <th>Mileage</th>
+                <th>Year</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Data korelasi akan diisi JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kolom Kanan: Scatter Plot Mileage vs Price -->
+    <div class="col-lg-8">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex flex-wrap align-items-center gap-3">
+          <h5 class="mb-0 flex-grow-1">Mileage vs Price Scatter Plot</h5>
+          <select id="scatterBrand" class="form-select form-select-sm w-auto" required>
+            <option value="">-- Pilih Brand --</option>
+            {% for b in brands %}
+            <option value="{{ b }}">{{ b }}</option>
+            {% endfor %}
+          </select>
+          <select id="scatterModel" class="form-select form-select-sm w-auto" disabled>
+            <option value="">-- Pilih Model --</option>
+          </select>
+          <select id="scatterVariant" class="form-select form-select-sm w-auto" disabled>
+            <option value="">-- Pilih Variant --</option>
+          </select>
+        </div>
+        <div class="card-body">
+          <canvas id="scatterPlot" style="min-height: 500px;"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <!-- JQuery dan Chart.js CDN -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  // Chart Iklan Terbanyak
+  // ==== Chart Bar: Iklan Terbanyak ====
   const ctxAds = document.getElementById('brandBarChartAds').getContext('2d');
   let brandBarChartAds = new Chart(ctxAds, {
     type: 'bar',
@@ -128,7 +184,7 @@
     }
   });
 
-  // Chart Penjualan Terbanyak
+  // ==== Chart Bar: Penjualan Terbanyak ====
   const ctxSold = document.getElementById('brandBarChartSold').getContext('2d');
   let brandBarChartSold = new Chart(ctxSold, {
     type: 'bar',
@@ -149,7 +205,7 @@
     }
   });
 
-  // Distribusi Tahun Produksi
+  // ==== Chart Bar: Distribusi Tahun Produksi ====
   const yearCtx = document.getElementById('yearHistogram').getContext('2d');
   const yearHistogram = new Chart(yearCtx, {
     type: 'bar',
@@ -166,7 +222,7 @@
     options: { responsive: true, plugins: { legend: { display: false } } }
   });
 
-  // Distribusi Transmisi
+  // ==== Chart Bar: Distribusi Transmisi ====
   const transmissionCtx = document.getElementById('transmissionBarChart').getContext('2d');
   const transmissionBarChart = new Chart(transmissionCtx, {
     type: 'bar',
@@ -183,7 +239,7 @@
     options: { responsive: true, plugins: { legend: { display: false } } }
   });
 
-  // Pie Chart Status Listing (Active vs Sold)
+  // ==== Pie Chart Status Listing ====
   const statusCtx = document.getElementById('statusPieChart').getContext('2d');
   const statusPieChart = new Chart(statusCtx, {
     type: 'pie',
@@ -203,5 +259,204 @@
     }
   });
 
+  // ==== Scatter Plot Mileage vs Price + Dropdown cascading ====
+  let scatterChart = null;
+
+  function fetchModels(brand) {
+    $('#scatterModel').prop('disabled', true).html('<option>Loading...</option>');
+    $('#scatterVariant').prop('disabled', true).html('<option>-- Pilih Variant --</option>');
+    $.ajax({
+      url: "{% url 'get_models' %}",
+      data: { brand: brand, source: "{{ source }}" },
+      success: function(data) {
+        let options = '<option value="">-- Pilih Model --</option>';
+        data.models.forEach(m => options += `<option value="${m}">${m}</option>`);
+        $('#scatterModel').html(options).prop('disabled', false);
+      },
+      error: function() {
+        $('#scatterModel').html('<option value="">-- Error Load Model --</option>');
+      }
+    });
+  }
+
+  function fetchVariants(brand, model) {
+    $('#scatterVariant').prop('disabled', true).html('<option>Loading...</option>');
+    $.ajax({
+      url: "{% url 'get_variants' %}",
+      data: { brand: brand, model: model, source: "{{ source }}" },
+      success: function(data) {
+        let options = '<option value="">-- Pilih Variant --</option>';
+        data.variants.forEach(v => options += `<option value="${v}">${v}</option>`);
+        $('#scatterVariant').html(options).prop('disabled', false);
+      },
+      error: function() {
+        $('#scatterVariant').html('<option value="">-- Error Load Variant --</option>');
+      }
+    });
+  }
+
+  function fetchScatterData(brand, model, variant) {
+    $.ajax({
+      url: "{% url 'get_scatter_data' username %}",
+      data: { brand: brand, model: model, variant: variant, source: "{{ source }}" },
+      success: function(data) {
+        if(scatterChart) scatterChart.destroy();
+        const chartData = data.map(item => ({
+          x: item.mileage,
+          y: item.price,
+          label: `${item.brand} ${item.model} ${item.variant}`
+        }));
+        const ctx = document.getElementById('scatterPlot').getContext('2d');
+        scatterChart = new Chart(ctx, {
+          type: 'scatter',
+          data: {
+            datasets: [{
+              label: 'Mileage vs Price',
+              data: chartData,
+              backgroundColor: 'rgba(54, 162, 235, 0.8)'
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const point = context.raw;
+                    return `${point.label}: Mileage ${point.x}, Price RM ${point.y}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: { title: { display: true, text: 'Mileage (km)' }, beginAtZero: true },
+              y: { title: { display: true, text: 'Price (RM)' }, beginAtZero: true }
+            }
+          }
+        });
+      },
+      error: function() {
+        alert('Gagal memuat data scatter plot.');
+      }
+    });
+  }
+
+  // ==== Grafik Rata-rata Mileage per Tahun ====
+  let avgMileageYearChart = null;
+  function renderAvgMileageChart(labels, data) {
+    const ctx = document.getElementById('avgMileageYearChart').getContext('2d');
+    if (avgMileageYearChart) avgMileageYearChart.destroy();
+    avgMileageYearChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Avg Mileage',
+          data: data,
+          borderColor: 'rgba(75, 192, 192, 0.8)',
+          backgroundColor: 'rgba(75, 192, 192, 0.3)',
+          fill: true,
+          tension: 0.3,
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { beginAtZero: true, title: { display: true, text: 'Mileage' } },
+          x: { title: { display: true, text: 'Year' } }
+        }
+      }
+    });
+  }
+  function loadAvgMileagePerYear(brand, model='', variant='') {
+    if(!brand) return;
+    let url = `{% url 'get_avg_mileage_per_year' username %}?source={{ source }}&brand=${brand}`;
+    if(model) url += `&model=${model}`;
+    if(variant) url += `&variant=${variant}`;
+    
+    $.getJSON(url, function(data) {
+      if(data.years && data.avg_mileages) {
+        renderAvgMileageChart(data.years, data.avg_mileages);
+      }
+    });
+  }
+
+  // ==== Render Tabel Korelasi Fitur ====
+  function renderCorrelationTable(corr) {
+    const tbody = $('#correlationTable tbody');
+    tbody.empty();
+    if(!corr) {
+      tbody.append('<tr><td colspan="4" class="text-center">Data korelasi tidak tersedia</td></tr>');
+      return;
+    }
+    const features = Object.keys(corr);
+    features.forEach(rowFeature => {
+      let rowHtml = `<tr><th>${rowFeature}</th>`;
+      features.forEach(colFeature => {
+        const val = corr[rowFeature][colFeature];
+        // Tambah pengecekan jika val undefined/null
+        const displayVal = (val !== undefined && val !== null) ? val.toFixed(3) : '-';
+        const highlightClass = (val >= 0.7 || val <= -0.7) ? 'table-success' : '';
+        rowHtml += `<td class="${highlightClass}">${displayVal}</td>`;
+      });
+      rowHtml += '</tr>';
+      tbody.append(rowHtml);
+    });
+  }
+
+  function loadFeatureCorrelation() {
+    $.getJSON("{% url 'get_feature_correlation' username %}?source={{ source }}", function(data) {
+      if(data.correlation) {
+        renderCorrelationTable(data.correlation);
+      } else {
+        $('#correlationTable tbody').html('<tr><td colspan="4" class="text-center">Data korelasi tidak tersedia</td></tr>');
+      }
+    }).fail(function() {
+      $('#correlationTable tbody').html('<tr><td colspan="4" class="text-center text-danger">Gagal memuat data korelasi</td></tr>');
+    });
+  }
+
+  $(document).ready(function() {
+    loadFeatureCorrelation();
+  });
+
+  // ==== Init semua ====
+  $(document).ready(function() {
+    $('#scatterBrand').change(function() {
+      const brand = $(this).val();
+      if(brand) {
+        fetchModels(brand);
+        fetchScatterData(brand, '', '');
+        loadAvgMileagePerYear(brand);
+      } else {
+        $('#scatterModel').prop('disabled', true).html('<option>-- Pilih Model --</option>');
+        $('#scatterVariant').prop('disabled', true).html('<option>-- Pilih Variant --</option>');
+        if(scatterChart) scatterChart.destroy();
+        if(avgMileageYearChart) avgMileageYearChart.destroy();
+      }
+    });
+
+    $('#scatterModel').change(function() {
+      const brand = $('#scatterBrand').val();
+      const model = $(this).val();
+      if(model) {
+        fetchVariants(brand, model);
+        fetchScatterData(brand, model, '');
+        loadAvgMileagePerYear(brand, model);
+      } else {
+        $('#scatterVariant').prop('disabled', true).html('<option>-- Pilih Variant --</option>');
+        fetchScatterData(brand, '', '');
+        loadAvgMileagePerYear(brand);
+      }
+    });
+
+    $('#scatterVariant').change(function() {
+      const brand = $('#scatterBrand').val();
+      const model = $('#scatterModel').val();
+      const variant = $(this).val();
+      fetchScatterData(brand, model, variant);
+      loadAvgMileagePerYear(brand, model, variant);
+    });
+  });
 </script>
 {% endblock %}

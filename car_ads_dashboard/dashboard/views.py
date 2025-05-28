@@ -344,7 +344,6 @@ def get_listing_data(request, username):
                 sold_duration = f"{duration} hari"
             
             data.append({
-                # Kirim hanya URL gambar, bukan tag <img>
                 'img': car.gambar[0] if car.gambar else '',
                 'year': car.year or '-',
                 'brand': car.brand or '-',
@@ -352,9 +351,8 @@ def get_listing_data(request, username):
                 'variant': car.variant or '-',
                 'transmission': car.transmission or '-',
                 'mileage': f"{car.mileage:,}" if car.mileage else '-',
-                # Harga mulai (starting) dan terbaru (latest) tanpa 'RM' prefix, format angka saja
-                'starting': starting if starting else '-',
-                'latest': car.price if car.price else '-',
+                'starting': starting if starting is not None else '-',
+                'latest': car.price if car.price is not None else '-',
                 'created_at': car.created_at.strftime("%Y-%m-%d") if car.created_at else '-',
                 'status': car.status,
                 'sold_duration': sold_duration

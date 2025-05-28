@@ -220,6 +220,87 @@
     color: #a6d785 !important;            /* Hijau terang */
     font-weight: 600;
   }
+  /* Dark mode untuk container-main dan komponennya */
+.dark-mode .container-main {
+  background-color: transparent; /* biarkan transparan agar sesuai background body */
+  color: #CED2D9;
+}
+
+.dark-mode .title-row {
+  background-color: #1F2631 !important;
+  border-color: #2c3442 !important;
+  color: #CED2D9 !important;
+}
+
+.dark-mode .filter-row {
+  background-color: #232a36 !important;
+  border-color: #2c3442 !important;
+  color: #CED2D9 !important;
+}
+
+.dark-mode .main-content-row {
+  background-color: #232a36 !important;
+  border-color: #2c3442 !important;
+  color: #CED2D9 !important;
+}
+
+.dark-mode .sidebar-wrapper {
+  background-color: #232a36 !important;
+  border-color: #2c3442 !important;
+  color: #CED2D9 !important;
+}
+
+.dark-mode .btn-toggle-sidebar {
+  background-color: #0d6efd !important;
+  color: #fff !important;
+}
+
+.dark-mode .btn-toggle-sidebar:hover {
+  background-color: #084298 !important;
+}
+
+/* Tombol filter */
+.dark-mode .filter-row .form-label,
+.dark-mode .filter-row select,
+.dark-mode .filter-row button {
+  color: #CED2D9 !important;
+  background-color: #1F2631 !important;
+  border-color: #2c3442 !important;
+}
+
+.dark-mode .filter-row select {
+  appearance: none;
+}
+
+/* Scrollbar sidebar di dark mode */
+.dark-mode .sidebar-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dark-mode .sidebar-wrapper::-webkit-scrollbar-track {
+  background: #1F2631;
+}
+
+.dark-mode .sidebar-wrapper::-webkit-scrollbar-thumb {
+  background-color: #0d6efd;
+  border-radius: 10px;
+  border: 2px solid #1F2631;
+}
+
+/* Scrollbar content-wrapper horizontal */
+.dark-mode .content-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.dark-mode .content-wrapper::-webkit-scrollbar-track {
+  background: #1F2631;
+}
+
+.dark-mode .content-wrapper::-webkit-scrollbar-thumb {
+  background-color: #0d6efd;
+  border-radius: 10px;
+  border: 2px solid #1F2631;
+}
   </style>
 </head>
 <body>

@@ -164,19 +164,103 @@
   }
 }
 
-/* Perbaikan baris 3 di card */
+/* Default (light mode) */
 .card-body .row.text-center.mb-3 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
-  flex-wrap: nowrap;  /* Jangan wrap ke baris baru */
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+  color: #212529;  /* teks gelap untuk light mode */
 }
 
 .card-body .row.text-center.mb-3 > .col {
-  flex: 1 1 30%;  /* Set lebar masing-masing kolom kira-kira seimbang */
+  flex: 1 1 30%;
   min-width: 90px;
-  max-width: 120px;
+  max-width: 130px;
+  border-right: 1px solid rgba(33, 37, 41, 0.15); /* garis pemisah soft */
+  padding-right: 0.5rem;
+  color: #212529; /* teks gelap */
+}
+
+/* Hilangkan border kanan di kolom terakhir */
+.card-body .row.text-center.mb-3 > .col:last-child {
+  border-right: none;
+}
+
+/* Label kecil di light mode */
+.card-body .row.text-center.mb-3 small.text-muted {
+  color: #6c757d !important; /* abu gelap */
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+
+/* DARK MODE OVERRIDE */
+.dark-mode .card-body .row.text-center.mb-3 {
+  color: #f1f3f5; /* teks terang di dark mode */
+}
+
+.dark-mode .card-body .row.text-center.mb-3 > .col {
+  border-right: 1px solid rgba(255, 255, 255, 0.3); /* garis pemisah terang */
+  color: #f1f3f5;
+}
+
+.dark-mode .card-body .row.text-center.mb-3 > .col:last-child {
+  border-right: none;
+}
+
+.dark-mode .card-body .row.text-center.mb-3 small.text-muted {
+  color: #adb5bd !important; /* abu terang */
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+.dark-mode .card-body .text-muted {
+  color: #ced4da !important; /* abu terang yang cocok untuk dark mode */
+}
+/* Tambahkan ini di bagian style */
+#gridViewContainer .grid-col {
+    min-width: 300px;  /* diperbesar dari 280px */
+    max-width: 350px;  /* diperbesar dari 320px */
+}
+
+#gridViewContainer .card {
+    transition: transform 0.2s ease;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+#gridViewContainer .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+#gridViewContainer .card-body {
+    padding: 1.25rem;  /* diperbesar dari 1rem */
+}
+
+#gridViewContainer .card-title {
+    font-size: 1.1rem;  /* diperbesar */
+    margin-bottom: 0.75rem;  /* tambahkan spacing */
+    line-height: 1.3;
+}
+
+#gridViewContainer .price-display {
+    font-size: 1.2rem;  /* harga lebih besar */
+    margin-bottom: 0.5rem;
+}
+
+#gridViewContainer .stats-row {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+}
+
+#gridViewContainer .stats-row .col {
+    padding: 0.5rem;
+}
+
+#gridViewContainer .text-muted.small {
+    font-size: 0.85rem;
 }
 </style>
 
@@ -394,75 +478,83 @@ $(document).ready(function() {
 
   // Render grid view cards
   function renderGridView(data) {
-    var container = $('#gridViewContainer');
-    container.empty();
+      var container = $('#gridViewContainer');
+      container.empty();
 
-    if (!data || data.length === 0) {
-      container.append('<div class="col">No data available</div>');
-      return;
-    }
-
-    data.forEach(function(item) {
-      let statusBadgeClass = 'badge bg-secondary';
-      let statusText = item.status.charAt(0).toUpperCase() + item.status.slice(1);
-      if (item.status.toLowerCase() === 'sold') {
-        statusBadgeClass = 'badge bg-danger';
-      } else if (item.status.toLowerCase() === 'active') {
-        statusBadgeClass = 'badge bg-success';
+      if (!data || data.length === 0) {
+          container.append('<div class="col">No data available</div>');
+          return;
       }
 
-      let startingPrice = item.starting && item.starting !== '-' ? item.starting : '-';
-      if (startingPrice !== '-') {
-        if (!startingPrice.toString().startsWith('RM')) {
-          startingPrice = 'RM ' + startingPrice.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        }
+      function formatPrice(price) {
+          if (
+              price === null ||
+              price === undefined ||
+              price === '' ||
+              (typeof price === 'string' && price.trim() === '-')
+          ) {
+              return '-';
+          }
+          let priceStr = price.toString();
+          if (!priceStr.toUpperCase().startsWith('RM')) {
+              priceStr = 'RM ' + priceStr.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+          }
+          return priceStr;
       }
 
-      let latestPrice = item.latest && item.latest !== '-' ? item.latest : '-';
-      if (latestPrice !== '-') {
-        if (!latestPrice.toString().startsWith('RM')) {
-          latestPrice = 'RM ' + latestPrice.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        }
-      }
+      data.forEach(function(item) {
+          let statusBadgeClass = 'badge bg-secondary';
+          let statusText = item.status.charAt(0).toUpperCase() + item.status.slice(1);
+          if (item.status.toLowerCase() === 'sold') {
+              statusBadgeClass = 'badge bg-danger';
+          } else if (item.status.toLowerCase() === 'active') {
+              statusBadgeClass = 'badge bg-success';
+          }
 
-      var card = `
-        <div class="grid-col">  <!-- Ganti dari class="col" -->
-          <div class="card h-100 shadow-sm">
-            <img src="${item.img || 'https://via.placeholder.com/400x250'}" class="card-img-top rounded-top" alt="Car Image" style="width: 100%; height: 250px; object-fit: cover;">
-            <div class="card-body">
-              <div class="d-flex justify-content-between mb-2">
-                <div>
-                  <h6 class="card-title mb-0 fw-bold">${item.year} ${item.brand} ${item.model} ${item.variant}</h6>
-                </div>
-                <div class="text-end">
-                  <div class="fw-bold text-success">${startingPrice}</div>
-                  <div><span class="${statusBadgeClass}">${statusText}</span></div>
-                </div>
-              </div>
+          // Gunakan starting dan latest seperti di list view
+          let startingPrice = formatPrice(item.starting);
+          let latestPrice = formatPrice(item.latest);
 
-              <div class="row text-center mb-3">
-                <div class="col border-end">
-                  <small class="text-muted d-block">Mileage</small>
-                  <span class="fw-semibold">${item.mileage}</span>
-                </div>
-                <div class="col border-end">
-                  <small class="text-muted d-block">Transmission</small>
-                  <span class="fw-semibold">${item.transmission}</span>
-                </div>
-                <div class="col">
-                  <small class="text-muted d-block">Terjual Dalam</small>
-                  <span class="fw-semibold">${item.sold_duration}</span>
-                </div>
-              </div>
+          var card = `
+        <div class="grid-col">
+            <div class="card h-100 shadow-sm">
+                <img src="${item.img || 'https://via.placeholder.com/400x250'}" class="card-img-top" alt="Car Image" style="width:100%; height:200px; object-fit:cover;">
+                <div class="card-body">
+                    <h6 class="card-title fw-bold">${item.year} ${item.brand} ${item.model}</h6>
+                    <p class="text-muted mb-2" style="font-size:0.9rem">${item.variant || ''}</p>
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="price-display text-success fw-bold">
+                            ${latestPrice}
+                        </div>
+                        <span class="${statusBadgeClass}">${statusText}</span>
+                    </div>
 
-              <div class="text-muted small">${item.created_at}</div>
+                    <div class="stats-row row text-center">
+                        <div class="col border-end">
+                            <small class="text-muted d-block">Mileage</small>
+                            <span class="fw-semibold">${item.mileage}</span>
+                        </div>
+                        <div class="col border-end">
+                            <small class="text-muted d-block">Transmission</small>
+                            <span class="fw-semibold">${item.transmission}</span>
+                        </div>
+                        <div class="col">
+                            <small class="text-muted d-block">Terjual</small>
+                            <span class="fw-semibold">${item.sold_duration}</span>
+                        </div>
+                    </div>
+
+                    <div class="text-muted small mt-2">
+                        <i class="far fa-calendar-alt me-1"></i> ${item.created_at}
+                    </div>
+                </div>
             </div>
-          </div>
         </div>
-      `;
-      container.append(card);
+        `;
+        container.append(card);
     });
-  }
+}
 
   /// Toggle List/Grid View
   $('#btnGridView').click(function() {

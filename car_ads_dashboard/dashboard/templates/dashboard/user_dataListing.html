@@ -4,283 +4,236 @@
 
 {% block content %}
 <style>
-.dataTables_paginate .paginate_button {
-  padding: 0.375rem 0.75rem;
-  margin: 0 2px;
-  border: 1px solid #dee2e6;
-  background-color: #fff;
-  color: #0d6efd;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.dataTables_paginate .paginate_button:hover {
-  background-color: #e9ecef;
-  border-color: #dee2e6;
-  color: #0a58ca;
-}
-.dataTables_paginate .paginate_button.current {
-  background-color: #0d6efd;
-  border-color: #0d6efd;
-  color: #fff;
-}
-.dataTables_paginate .paginate_button.disabled {
-  color: #6c757d;
-  pointer-events: none;
-  background-color: #fff;
-  border-color: #dee2e6;
+.container-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.brand-container {
-  border-bottom: 1px solid #dee2e6;
-  margin-bottom: 0.5rem;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+/* Row 1: Judul */
+.title-row {
+  font-weight: 600;
+  font-size: 1.25rem;
+  text-align: left;
+  border: 1px solid #dee2e6;
+  padding: 0.75rem 1rem;
+  border-radius: 0.25rem;
+  background-color: #f8f9fa;
+}
+
+/* Row 2: Filter */
+.filter-row {
+  border: 1px solid #dee2e6;
+  padding: 1rem;
   border-radius: 0.25rem;
   background-color: #fff;
 }
 
-.brand-item {
-  padding: 0.75rem 1rem;
-  cursor: pointer;
+/* Row 3: Main Content */
+.main-content-row {
+  display: flex;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
   background-color: #fff;
-  font-weight: 600;
-  font-size: 1rem;
-  color: #212529;
+  min-height: 600px;
+  position: relative;
+}
+
+/* Wrapper sidebar + toggle button */
+.sidebar-toggle-wrapper {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: background-color 0.3s ease, color 0.3s ease;
-  border-left: 4px solid transparent;
-}
-.brand-item:hover {
-  background-color: #e9f0ff;
-  color: #0d6efd;
-}
-.brand-item.active {
-  background-color: #cfe2ff; /* soft blue */
-  color: #0d6efd; /* bootstrap primary blue */
-  border-left-color: #0d6efd;
-  font-weight: 700;
+  align-items: flex-start;
 }
 
-.brand-item .badge {
-  font-size: 0.85rem;
-  background-color: #0d6efd;
-  color: white;
-  padding: 0.25em 0.6em;
-  border-radius: 9999px;
-}
-
-.models-container {
-  background-color: #f8f9fa;
-  padding-left: 1rem;
-  border-top: 1px solid #dee2e6;
-  border-radius: 0 0 0.25rem 0.25rem;
-}
-
-.model-item {
-  padding: 0.4rem 1.5rem;
-  font-size: 0.9rem;
-  color: #212529;
-  border: none;
+/* Sidebar */
+.sidebar-wrapper {
+  width: 300px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-.model-item:hover {
-  background-color: #e2e6ea;
-}
-
-.model-item .text-muted {
-  font-size: 0.85rem;
-  color: #6c757d !important;
-}
-
-#brandsList {
-  max-height: 600px;
+  flex-direction: column;
+  gap: 1rem;
+  border-right: 1px solid #dee2e6;
+  padding: 1rem;
+  transition: width 0.3s ease, padding 0.3s ease;
   overflow-y: auto;
-  padding-right: 0.5rem;
+  background-color: #fff;
 }
-.table-responsive {
+
+/* Sidebar hidden */
+.sidebar-hidden {
+  width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
+}
+
+/* Toggle button */
+.btn-toggle-sidebar {
+  width: 40px;
+  height: 100px;
+  margin-left: 4px;
+  background-color: #0d6efd;
+  border-radius: 0.25rem;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: margin-left 0.3s ease, background-color 0.2s ease;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.btn-toggle-sidebar:hover {
+  background-color: #084298;
+}
+
+/* Toggle button margin saat sidebar hidden */
+.sidebar-hidden + .btn-toggle-sidebar {
+  margin-left: 0;
+}
+
+/* Content wrapper */
+.content-wrapper {
+  flex-grow: 1;
+  padding: 1rem;
   overflow-x: auto;
 }
 
-/* Mobile Responsive Styles */
-@media (max-width: 768px) {
-  .brand-item {
-    padding: 0.5rem;
-    font-size: 0.9rem;
-    flex-direction: row;
-    justify-content: space-between;
-  }
-
-  .model-item {
-    padding: 0.3rem 1rem;
-    font-size: 0.85rem;
-  }
-
-  .form-label {
-    font-size: 0.9rem;
-  }
-
-  .form-select {
-    font-size: 0.9rem;
-  }
-
-  #brandsList {
-    max-height: 300px;
-  }
-
-  .table {
-    font-size: 0.85rem;
-  }
-
-  .card-body {
-    padding: 0.75rem;
-  }
-
-  .btn {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.9rem;
-  }
-
-  .dataTables_length,
-  .dataTables_filter,
-  .dataTables_info,
-  .dataTables_paginate {
-    font-size: 0.85rem;
-  }
-
-  /* Hide less important columns on mobile */
-  .table td:nth-child(5),
-  .table th:nth-child(5),
-  .table td:nth-child(6),
-  .table th:nth-child(6),
-  .table td:nth-child(10),
-  .table th:nth-child(10) {
-    display: none;
-  }
+/* Cards in sidebar */
+.card-toggle-view, .card-brand-stats {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+  padding: 1rem;
 }
 
-/* Tambahan untuk form filter di mobile */
-@media (max-width: 576px) {
-  .col-md-3 {
-    margin-bottom: 1rem;
+/* Scroll for brand stats */
+.card-brand-stats {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .main-content-row {
+    flex-direction: column;
   }
-  
-  #toggleSidebar {
-    display: block;
-    width: 100%;
-    margin-bottom: 1rem;
+  .sidebar-toggle-wrapper {
+    flex-direction: row;
   }
-  
-  .sidebar-mobile-hidden {
-    display: none !important;
+  .sidebar-wrapper {
+    width: 100% !important;
+    border-right: none;
+    border-bottom: 1px solid #dee2e6;
+    padding: 0.5rem;
+  }
+  .btn-toggle-sidebar {
+    width: 50px;
+    height: 40px;
+    margin-left: 0;
+    margin-top: 4px;
+    border-radius: 0.25rem;
+  }
+  .sidebar-hidden + .btn-toggle-sidebar {
+    margin-left: 0;
   }
 }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h5 class="mb-0">
+<div class="container-main">
+  <!-- Row 1: Title -->
+  <div class="title-row">
     Data Listing {{ source|title }} <span class="badge bg-primary">{{ total_data|intcomma }}</span>
-  </h5>
-</div>
-
-<!-- Toggle Sidebar Button for Mobile -->
-<button class="btn btn-primary d-md-none w-100 mb-3" id="toggleSidebar">
-  <i class="fas fa-bars"></i> Toggle Brand Filter
-</button>
-
-<!-- Main Content Row -->
-<div class="row">
-  <!-- Brand Statistics Card -->
-  <div class="col-12 col-md-3 mb-4" id="sidebarContainer">
-    <div class="card">
-      <div class="card-header"><h6>Brand & Model Statistics</h6></div>
-      <div class="card-body p-0">
-        <div id="brandsList" class="list-group list-group-flush"></div>
-      </div>
-    </div>
   </div>
 
-  <!-- Main Content Column -->
-  <div class="col-12 col-md-9">
-    <!-- Filter Form -->
-    <div class="card mb-4">
-      <div class="card-body">
-        <form id="filterForm" class="row g-3">
-          <!-- Brand (Required) -->
-          <div class="col-md-3">
-            <label class="form-label">Brand <span class="text-danger">*</span></label>
-            <select class="form-select" name="brand" id="brandSelect" required>
-              <option value="">Pilih Brand</option>
-              {% for brand in brands %}
-                <option value="{{ brand }}">{{ brand }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          
-          <!-- Model (Optional) -->
-          <div class="col-md-3">
-            <label class="form-label">Model</label>
-            <select class="form-select" name="model" id="modelSelect">
-              <option value="">Semua Model</option>
-            </select>
-          </div>
-          
-          <!-- Variant (Optional) -->
-          <div class="col-md-3">
-            <label class="form-label">Variant</label>
-            <select class="form-select" name="variant" id="variantSelect">
-              <option value="">Semua Variant</option>
-            </select>
-          </div>
-          
-          <div class="col-md-3">
-            <label class="form-label">Tahun</label>
-            <select class="form-select" name="year" id="yearSelect">
-              <option value="">Semua Tahun</option>
-              {% for year in years %}
-                {% if year %}
-                  <option value="{{ year }}">{{ year }}</option>
-                {% endif %}
-              {% endfor %}
-            </select>
-          </div>
-          
-          <div class="col-12">
-            <button type="submit" class="btn btn-primary">Cari</button>
-            <button type="reset" class="btn btn-secondary">Reset</button>
-          </div>
-        </form>
+  <!-- Row 2: Filter -->
+  <div class="filter-row">
+    <form id="filterForm" class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Brand <span class="text-danger">*</span></label>
+        <select class="form-select" name="brand" id="brandSelect" required>
+          <option value="">Pilih Brand</option>
+          {% for brand in brands %}
+            <option value="{{ brand }}">{{ brand }}</option>
+          {% endfor %}
+        </select>
       </div>
+      <div class="col-md-3">
+        <label class="form-label">Model</label>
+        <select class="form-select" name="model" id="modelSelect">
+          <option value="">Semua Model</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Variant</label>
+        <select class="form-select" name="variant" id="variantSelect">
+          <option value="">Semua Variant</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Tahun</label>
+        <select class="form-select" name="year" id="yearSelect">
+          <option value="">Semua Tahun</option>
+          {% for year in years %}
+            {% if year %}
+              <option value="{{ year }}">{{ year }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary">Cari</button>
+        <button type="reset" class="btn btn-secondary">Reset</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Row 3: Sidebar + Toggle + Content -->
+  <div class="main-content-row">
+    <div class="sidebar-toggle-wrapper">
+      <div id="sidebarWrapper" class="sidebar-wrapper">
+        <div class="card-toggle-view card mb-3">
+          <div class="btn-group w-100" role="group" aria-label="Toggle List/Grid View">
+            <button type="button" class="btn btn-outline-primary active" id="btnListView">
+              <i class="fas fa-list"></i> List View
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="btnGridView">
+              <i class="fas fa-th-large"></i> Grid View
+            </button>
+          </div>
+        </div>
+
+        <div class="card-brand-stats card flex-grow-1">
+          <div id="brandsList"></div>
+        </div>
+      </div>
+
+      <div class="btn-toggle-sidebar" id="btnToggleSidebar" title="Toggle Sidebar">&laquo;</div>
     </div>
 
-    <!-- Results Table -->
-    <div class="card">
-      <div class="card-body">
-        <div class="table-responsive">
-          <table id="listingTable" class="table table-striped table-bordered align-middle w-100">
-            <thead>
-              <tr>
-                <th>Img</th>
-                <th>Year</th>
-                <th>Brand</th>
-                <th>Model</th>
-                <th>Variant</th>
-                <th>Transmisi</th>
-                <th>Mileage (km)</th>
-                <th>Starting (RM)</th>
-                <th>Latest (RM)</th>
-                <th>Iklan Tayang</th>
-                <th>Status</th>
-                <th>Terjual Dalam</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
+    <div id="contentWrapper" class="content-wrapper">
+      <div class="table-responsive">
+        <table id="listingTable" class="table table-striped table-bordered align-middle w-100">
+          <thead>
+            <tr>
+              <th>Img</th>
+              <th>Year</th>
+              <th>Brand</th>
+              <th>Model</th>
+              <th>Variant</th>
+              <th>Transmisi</th>
+              <th>Mileage (km)</th>
+              <th>Starting (RM)</th>
+              <th>Latest (RM)</th>
+              <th>Iklan Tayang</th>
+              <th>Status</th>
+              <th>Terjual Dalam</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -290,17 +243,20 @@
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script>
 $(document).ready(function() {
-  // Toggle sidebar di mobile
-  $('#toggleSidebar').on('click', function() {
-    $('#sidebarContainer').toggleClass('sidebar-mobile-hidden');
+  // Toggle sidebar
+  $('#btnToggleSidebar').click(function() {
+    $('#sidebarWrapper').toggleClass('sidebar-hidden');
+
+    if ($('#sidebarWrapper').hasClass('sidebar-hidden')) {
+      $('#btnToggleSidebar').html('&raquo;');
+    } else {
+      $('#btnToggleSidebar').html('&laquo;');
+    }
+
+    $('#listingTable').DataTable().columns.adjust();
   });
-  
-  // Sembunyikan sidebar secara default di mobile
-  if (window.innerWidth <= 768) {
-    $('#sidebarContainer').addClass('sidebar-mobile-hidden');
-  }
-  
-  // Initialize DataTable
+
+  // Initialize DataTables
   var table = $('#listingTable').DataTable({
     processing: true,
     serverSide: true,
@@ -325,17 +281,13 @@ $(document).ready(function() {
       }
     },
     columns: [
-      { 
-        data: 'img',
-        orderable: false,
-        searchable: false
-      },
+      { data: 'img', orderable: false, searchable: false },
       { data: 'year' },
       { data: 'brand' },
       { data: 'model' },
       { data: 'variant' },
       { data: 'transmission' },
-      { 
+      {
         data: 'mileage',
         render: function(data) {
           return data === '-' ? data : data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -371,7 +323,12 @@ $(document).ready(function() {
     }
   });
 
-  // Load brand & model stats untuk sidebar
+  // Fungsi reload tabel saat filter berubah
+  function reloadTable() {
+    table.ajax.reload(null, false);
+  }
+
+  // Load brand & model stats sidebar
   function loadBrandStats() {
     $.ajax({
       url: "{% url 'get_brand_stats' %}",
@@ -403,18 +360,16 @@ $(document).ready(function() {
 
   loadBrandStats();
 
-  // Event klik brand untuk toggle dan load model
+  // Toggle show/hide models on brand click
   $(document).on('click', '.brand-item', function() {
     const brand = $(this).data('brand');
     const brandSafeId = brand.replace(/\s+/g, '-');
     const modelsContainer = $(`#models-${brandSafeId}`);
 
-    // Toggle active class dan sembunyikan container lain
     $('.brand-item').not(this).removeClass('active');
     $(this).toggleClass('active');
     $('.models-container').not(modelsContainer).slideUp();
 
-    // Jika modelsContainer kosong, load data model
     if (modelsContainer.is(':empty')) {
       $.ajax({
         url: "{% url 'get_model_stats' %}",
@@ -448,13 +403,12 @@ $(document).ready(function() {
     }
   });
 
-  // Event klik model di sidebar untuk filter tabel
+  // Klik model di sidebar filter tabel
   $(document).on('click', '.model-item', function(e) {
     e.preventDefault();
     const brand = $(this).closest('.brand-container').find('.brand-item').data('brand');
     const model = $(this).find('span:first').text().trim();
 
-    // Set brand dan trigger change untuk load model dropdown
     $('#brandSelect').val(brand).trigger('change');
 
     // Tunggu model dropdown termuat sebelum set dan reload tabel
@@ -465,12 +419,11 @@ $(document).ready(function() {
       }
     }, 100);
 
-    // Reset variant dan tahun supaya bersih
     $('#variantSelect').val('');
     $('#yearSelect').val('');
   });
 
-  // Dropdown brand change event: load model options
+  // Dropdown brand change: load model options
   $('#brandSelect').change(function() {
     const brand = $(this).val();
 
@@ -489,17 +442,19 @@ $(document).ready(function() {
               $('#modelSelect').append(`<option value="${model}">${model}</option>`);
             });
           }
+          reloadTable();
         }
       });
+    } else {
+      reloadTable();
     }
   });
 
-  // Dropdown model change event: load variant options & reload tabel
+  // Dropdown model change: load variant options & reload table
   $('#modelSelect').change(function() {
     const brand = $('#brandSelect').val();
     const model = $(this).val();
 
-    // Reset variant saat model berubah
     $('#variantSelect').html('<option value="">Semua Variant</option>');
 
     if (model) {
@@ -518,35 +473,33 @@ $(document).ready(function() {
               $('#variantSelect').append(`<option value="${variant}">${variant}</option>`);
             });
           }
-          // Reload tabel setelah variant diisi
-          table.ajax.reload();
+          reloadTable();
         }
       });
     } else {
-      // Jika model kosong, reload juga
-      table.ajax.reload();
+      reloadTable();
     }
   });
 
-  // Dropdown variant atau tahun ganti reload tabel
+  // Dropdown variant atau tahun change reload table
   $('#variantSelect, #yearSelect').change(function() {
-    table.ajax.reload();
+    reloadTable();
   });
 
-  // Submit form filter (tambahan keamanan)
+  // Form submit reload table (extra safety)
   $('#filterForm').on('submit', function(e) {
     e.preventDefault();
-    table.ajax.reload();
+    reloadTable();
   });
 
-  // Reset form filter
+  // Reset form filter reload table
   $('#filterForm').on('reset', function() {
     setTimeout(function() {
       $('#brandSelect').val('');
       $('#modelSelect').html('<option value="">Semua Model</option>');
       $('#variantSelect').html('<option value="">Semua Variant</option>');
       $('#yearSelect').val('');
-      table.ajax.reload();
+      reloadTable();
     }, 1);
   });
 });

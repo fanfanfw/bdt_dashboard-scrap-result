@@ -325,7 +325,6 @@ def get_listing_data(request, username):
         if year:
             queryset = queryset.filter(year=year)
 
-        # Handle DataTables parameters
         start = int(request.GET.get('start', 0))
         length = int(request.GET.get('length', 10))
         
@@ -335,26 +334,27 @@ def get_listing_data(request, username):
         data = []
         for car in cars:
             price_histories = list(car.price_histories.order_by('changed_at'))
-            starting = price_histories[0].old_price if price_histories else '-'
+            starting = price_histories[0].old_price if price_histories else None
             
-            # Calculate sold duration (sold_at - created_at), ensure non-negative
             sold_duration = '-'
             if car.status == 'sold' and car.sold_at and car.created_at:
                 duration = (car.sold_at.date() - car.created_at.date()).days
                 if duration < 0:
-                    duration = 0  # minimal 0 hari jika tanggal tidak valid
+                    duration = 0
                 sold_duration = f"{duration} hari"
             
             data.append({
-                'img': f'<img src="{car.gambar[0]}" alt="img" style="width:70px; height:50px; object-fit:cover; border-radius:6px;">' if car.gambar else '-',
+                # Kirim hanya URL gambar, bukan tag <img>
+                'img': car.gambar[0] if car.gambar else '',
                 'year': car.year or '-',
                 'brand': car.brand or '-',
                 'model': car.model or '-',
                 'variant': car.variant or '-',
                 'transmission': car.transmission or '-',
                 'mileage': f"{car.mileage:,}" if car.mileage else '-',
-                'starting': f"RM {starting:,}" if isinstance(starting, int) else '-',
-                'latest': f"RM {car.price:,}" if car.price else '-',
+                # Harga mulai (starting) dan terbaru (latest) tanpa 'RM' prefix, format angka saja
+                'starting': starting if starting else '-',
+                'latest': car.price if car.price else '-',
                 'created_at': car.created_at.strftime("%Y-%m-%d") if car.created_at else '-',
                 'status': car.status,
                 'sold_duration': sold_duration
@@ -368,9 +368,7 @@ def get_listing_data(request, username):
         })
     
     except Exception as e:
-        return JsonResponse({
-            'error': str(e)
-        }, status=500)
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 def get_brand_stats(request):

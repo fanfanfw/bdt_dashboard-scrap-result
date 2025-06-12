@@ -27,7 +27,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-
+CSRF_TRUSTED_ORIGINS = [
+    'http://ifcontech.ddns.net:8082',
+    'http://ifcontech.ddns.net',  # jika kamu akses tanpa port juga
+]
 
 # Application definition
 

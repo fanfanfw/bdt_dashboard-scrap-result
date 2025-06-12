@@ -13,15 +13,15 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Konfigurasi database remote VPS dan database lokal Django
-DB_CARLISTMY = os.getenv("DB_CARLISTMY", "scrap_carlistmy")
+DB_CARLISTMY = os.getenv("DB_CARLISTMY", "scrap_carlistmy_old")
 DB_CARLISTMY_USERNAME = os.getenv("DB_CARLISTMY_USERNAME", "fanfan")
 DB_CARLISTMY_PASSWORD = os.getenv("DB_CARLISTMY_PASSWORD", "cenanun")
-DB_CARLISTMY_HOST = os.getenv("DB_CARLISTMY_HOST", "192.168.1.207")
+DB_CARLISTMY_HOST = os.getenv("DB_CARLISTMY_HOST", "127.0.0.1")
 
-DB_MUDAHMY = os.getenv("DB_MUDAHMY", "scrap_mudahmy")
+DB_MUDAHMY = os.getenv("DB_MUDAHMY", "scrap_mudahmy_old")
 DB_MUDAHMY_USERNAME = os.getenv("DB_MUDAHMY_USERNAME", "fanfan")
 DB_MUDAHMY_PASSWORD = os.getenv("DB_MUDAHMY_PASSWORD", "cenanun")
-DB_MUDAHMY_HOST = os.getenv("DB_MUDAHMY_HOST", "192.168.1.207")
+DB_MUDAHMY_HOST = os.getenv("DB_MUDAHMY_HOST", "127.0.0.1")
 
 # Nama tabel lokal Django (sesuaikan dengan migration Anda)
 TB_CARLISTMY = os.getenv("TB_CARLISTMY", "dashboard_carscarlistmy")
@@ -78,11 +78,11 @@ async def get_remote_db_connection(db_name, db_user, db_host, db_password):
 
 # Koneksi database lokal Django
 async def get_local_db_connection():
-    local_db = os.getenv("DB_NAME")
-    local_user = os.getenv("DB_USER")
-    local_password = os.getenv("DB_PASSWORD")
-    local_host = os.getenv("DB_HOST")
-    local_port = os.getenv("DB_PORT")
+    local_db = os.getenv("DB_NAME", "db_dashboard")
+    local_user = os.getenv("DB_USER", "fanfan")
+    local_password = os.getenv("DB_PASSWORD", "cenanun")
+    local_host = os.getenv("DB_HOST", "localhost")
+    local_port = os.getenv("DB_PORT", "5432")
     return await asyncpg.connect(
         user=local_user,
         password=local_password,
@@ -128,6 +128,22 @@ async def insert_or_update_data_into_local_db(data, table_name, source):
             price_int = convert_price(price)
             year_int = int(year) if year else None
             mileage_int = convert_mileage(mileage)
+
+            # Skip jika informasi_iklan = URGENT
+            if informasi_iklan == 'URGENT':
+                skipped_count += 1
+                skipped_records.append({
+                    "source": source,
+                    "id": id_,
+                    "brand": brand,
+                    "model": model,
+                    "variant": variant,
+                    "price": price,
+                    "year": year,
+                    "mileage": mileage,
+                    "reason": "URGENT listing"
+                })
+                continue
 
             # Validasi data wajib
             if not all([brand, model, variant, price_int, mileage_int, year_int]):

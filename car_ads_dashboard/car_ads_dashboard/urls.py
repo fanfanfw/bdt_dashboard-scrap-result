@@ -18,6 +18,8 @@ from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import RedirectView
 from dashboard.views import CustomLoginView
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('', RedirectView.as_view(url='/accounts/login/', permanent=False)),
@@ -26,7 +28,7 @@ urlpatterns = [
     path('dashboard/', include('dashboard.urls')),
     path('accounts/login/', CustomLoginView.as_view(), name='login'),
     path('accounts/', include('django.contrib.auth.urls')),
-]
+] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 
 

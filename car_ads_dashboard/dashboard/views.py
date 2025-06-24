@@ -123,7 +123,9 @@ def user_dashboard(request, username):
 
     # Data untuk filter dropdown
     brands = CarModel.objects.filter(status__in=['active', 'sold']).values_list('brand', flat=True).distinct().order_by('brand')
-    years = CarModel.objects.filter(status__in=['active', 'sold']).values_list('year', flat=True).distinct().order_by('-year')
+    # Dropdown years hanya tampilkan tahun yang ada datanya sesuai filter brand/model/variant
+    years_qs = queryset.values_list('year', flat=True).distinct().order_by('-year')
+    years = [y for y in years_qs if y is not None]
 
     context = {
         'username': username,
@@ -415,6 +417,7 @@ def get_scatter_data(request, username):
     brand = request.GET.get('brand')
     model = request.GET.get('model')
     variant = request.GET.get('variant')
+    year = request.GET.get('year')
 
     if source == 'carlistmy':
         CarModel = CarsCarlistmy
@@ -429,6 +432,12 @@ def get_scatter_data(request, username):
         queryset = queryset.filter(model=model)
     if variant:
         queryset = queryset.filter(variant=variant)
+    if year:
+        try:
+            year_int = int(year)
+            queryset = queryset.filter(year=year_int)
+        except ValueError:
+            pass
 
     queryset = queryset.filter(price__gt=0, mileage__gt=0)
 
@@ -444,6 +453,7 @@ def get_avg_mileage_per_year(request, username):
     brand = request.GET.get('brand')
     model = request.GET.get('model')
     variant = request.GET.get('variant')
+    year = request.GET.get('year')
 
     if source == 'carlistmy':
         CarModel = CarsCarlistmy
@@ -458,6 +468,12 @@ def get_avg_mileage_per_year(request, username):
         qs = qs.filter(model=model)
     if variant:
         qs = qs.filter(variant=variant)
+    if year:
+        try:
+            year_int = int(year)
+            qs = qs.filter(year=year_int)
+        except ValueError:
+            pass
 
     data = qs.values('year').annotate(avg_mileage=models.Avg('mileage')).order_by('year')
 
@@ -485,3 +501,27 @@ def get_feature_correlation(request, username):
     corr_dict = corr.round(3).to_dict()
 
     return JsonResponse({'correlation': corr_dict})
+
+@login_required
+def get_years(request):
+    source = request.GET.get('source', 'mudahmy')
+    brand = request.GET.get('brand')
+    model = request.GET.get('model')
+    variant = request.GET.get('variant')
+
+    if source == 'carlistmy':
+        from .models import CarsCarlistmy as CarModel
+    else:
+        from .models import CarsMudahmy as CarModel
+
+    qs = CarModel.objects.filter(status__in=['active', 'sold'])
+    if brand:
+        qs = qs.filter(brand=brand)
+    if model:
+        qs = qs.filter(model=model)
+    if variant:
+        qs = qs.filter(variant=variant)
+
+    years = list(qs.values_list('year', flat=True).distinct().order_by('-year'))
+    years = [y for y in years if y is not None]
+    return JsonResponse({'years': years})

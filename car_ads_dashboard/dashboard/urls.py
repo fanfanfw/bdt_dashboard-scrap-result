@@ -16,4 +16,5 @@ urlpatterns = [
     path('user/<str:username>/scatter-data/', views.get_scatter_data, name='get_scatter_data'),
     path('user/<str:username>/avg-mileage-year/', views.get_avg_mileage_per_year, name='get_avg_mileage_per_year'),
     path('user/<str:username>/feature-correlation/', views.get_feature_correlation, name='get_feature_correlation'),
+    path('get-years/', views.get_years, name='get_years'),
 ]

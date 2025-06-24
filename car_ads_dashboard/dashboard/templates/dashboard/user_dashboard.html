@@ -151,6 +151,9 @@
           <select id="scatterVariant" class="form-select form-select-sm w-auto" disabled>
             <option value="">-- Pilih Variant --</option>
           </select>
+          <select id="scatterYear" class="form-select form-select-sm w-auto">
+            <option value="">-- Pilih Year --</option>
+          </select>
         </div>
         <div class="card-body">
           <canvas id="scatterPlot" style="min-height: 500px;"></canvas>
@@ -277,6 +280,8 @@
         $('#scatterModel').html('<option value="">-- Error Load Model --</option>');
       }
     });
+    // Update years dropdown
+    fetchYears(brand, '', '');
   }
 
   function fetchVariants(brand, model) {
@@ -293,12 +298,33 @@
         $('#scatterVariant').html('<option value="">-- Error Load Variant --</option>');
       }
     });
+    // Update years dropdown
+    fetchYears(brand, model, '');
   }
 
-  function fetchScatterData(brand, model, variant) {
+  function fetchYears(brand, model, variant) {
+    $.ajax({
+      url: "{% url 'get_years' %}",
+      data: { brand: brand, model: model, variant: variant, source: "{{ source }}" },
+      success: function(data) {
+        let options = '<option value="">-- Pilih Year --</option>';
+        if(data.years && data.years.length > 0) {
+          data.years.forEach(y => options += `<option value="${y}">${y}</option>`);
+        }
+        const prev = $('#scatterYear').val();
+        $('#scatterYear').html(options);
+        // Jika tahun sebelumnya masih ada di list, tetap pilih
+        if(prev && data.years.includes(parseInt(prev))) {
+          $('#scatterYear').val(prev);
+        }
+      }
+    });
+  }
+
+  function fetchScatterData(brand, model, variant, year) {
     $.ajax({
       url: "{% url 'get_scatter_data' username %}",
-      data: { brand: brand, model: model, variant: variant, source: "{{ source }}" },
+      data: { brand: brand, model: model, variant: variant, year: year, source: "{{ source }}" },
       success: function(data) {
         if(scatterChart) scatterChart.destroy();
         const chartData = data.map(item => ({
@@ -368,11 +394,12 @@
       }
     });
   }
-  function loadAvgMileagePerYear(brand, model='', variant='') {
+  function loadAvgMileagePerYear(brand, model='', variant='', year='') {
     if(!brand) return;
     let url = `{% url 'get_avg_mileage_per_year' username %}?source={{ source }}&brand=${brand}`;
     if(model) url += `&model=${model}`;
     if(variant) url += `&variant=${variant}`;
+    if(year) url += `&year=${year}`;
     
     $.getJSON(url, function(data) {
       if(data.years && data.avg_mileages) {
@@ -424,13 +451,19 @@
   $(document).ready(function() {
     $('#scatterBrand').change(function() {
       const brand = $(this).val();
+      const year = $('#scatterYear').val();
       if(brand) {
         fetchModels(brand);
-        fetchScatterData(brand, '', '');
-        loadAvgMileagePerYear(brand);
+        fetchScatterData(brand, '', '', year);
+        loadAvgMileagePerYear(brand, '', '', year);
+        // Reset model, variant, dan year
+        $('#scatterModel').val('');
+        $('#scatterVariant').val('');
+        fetchYears(brand, '', '');
       } else {
         $('#scatterModel').prop('disabled', true).html('<option>-- Pilih Model --</option>');
         $('#scatterVariant').prop('disabled', true).html('<option>-- Pilih Variant --</option>');
+        $('#scatterYear').html('<option value="">-- Pilih Year --</option>');
         if(scatterChart) scatterChart.destroy();
         if(avgMileageYearChart) avgMileageYearChart.destroy();
       }
@@ -439,14 +472,19 @@
     $('#scatterModel').change(function() {
       const brand = $('#scatterBrand').val();
       const model = $(this).val();
+      const year = $('#scatterYear').val();
       if(model) {
         fetchVariants(brand, model);
-        fetchScatterData(brand, model, '');
-        loadAvgMileagePerYear(brand, model);
+        fetchScatterData(brand, model, '', year);
+        loadAvgMileagePerYear(brand, model, '', year);
+        // Reset variant dan year
+        $('#scatterVariant').val('');
+        fetchYears(brand, model, '');
       } else {
         $('#scatterVariant').prop('disabled', true).html('<option>-- Pilih Variant --</option>');
-        fetchScatterData(brand, '', '');
-        loadAvgMileagePerYear(brand);
+        fetchScatterData(brand, '', '', year);
+        loadAvgMileagePerYear(brand, '', '', year);
+        fetchYears(brand, '', '');
       }
     });
 
@@ -454,8 +492,19 @@
       const brand = $('#scatterBrand').val();
       const model = $('#scatterModel').val();
       const variant = $(this).val();
-      fetchScatterData(brand, model, variant);
-      loadAvgMileagePerYear(brand, model, variant);
+      const year = $('#scatterYear').val();
+      fetchScatterData(brand, model, variant, year);
+      loadAvgMileagePerYear(brand, model, variant, year);
+      fetchYears(brand, model, variant);
+    });
+
+    $('#scatterYear').change(function() {
+      const brand = $('#scatterBrand').val();
+      const model = $('#scatterModel').val();
+      const variant = $('#scatterVariant').val();
+      const year = $(this).val();
+      fetchScatterData(brand, model, variant, year);
+      loadAvgMileagePerYear(brand, model, variant, year);
     });
   });
 </script>

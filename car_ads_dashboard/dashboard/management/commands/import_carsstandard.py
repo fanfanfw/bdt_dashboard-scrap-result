@@ -33,8 +33,10 @@ class Command(BaseCommand):
             for row in reader:
                 CarsStandard.objects.create(
                     brand_norm=clean_value(row.get('brand_norm')),
+                    model_group_norm=clean_value(row.get('model_group_norm')),
                     model_norm=clean_value(row.get('model_norm')),
                     variant_norm=clean_value(row.get('variant_norm')),
+                    model_group_raw=clean_value(row.get('model_group_raw')),
                     model_raw=clean_value(row.get('model_raw')),
                     variant_raw=clean_value(row.get('variant_raw')),
                     variant_raw2=clean_value(row.get('variant_raw2')),

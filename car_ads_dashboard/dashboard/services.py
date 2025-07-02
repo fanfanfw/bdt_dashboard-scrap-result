@@ -13,12 +13,12 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Konfigurasi database remote VPS dan database lokal Django
-DB_CARLISTMY = os.getenv("DB_CARLISTMY", "scrap_carlistmy_old")
+DB_CARLISTMY = os.getenv("DB_CARLISTMY", "db_scrap_new")
 DB_CARLISTMY_USERNAME = os.getenv("DB_CARLISTMY_USERNAME", "fanfan")
 DB_CARLISTMY_PASSWORD = os.getenv("DB_CARLISTMY_PASSWORD", "cenanun")
 DB_CARLISTMY_HOST = os.getenv("DB_CARLISTMY_HOST", "127.0.0.1")
 
-DB_MUDAHMY = os.getenv("DB_MUDAHMY", "scrap_mudahmy_old")
+DB_MUDAHMY = os.getenv("DB_MUDAHMY", "db_scrap_new")
 DB_MUDAHMY_USERNAME = os.getenv("DB_MUDAHMY_USERNAME", "fanfan")
 DB_MUDAHMY_PASSWORD = os.getenv("DB_MUDAHMY_PASSWORD", "cenanun")
 DB_MUDAHMY_HOST = os.getenv("DB_MUDAHMY_HOST", "127.0.0.1")
@@ -55,17 +55,28 @@ def parse_datetime(value):
         try:
             return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
         except ValueError:
-            return None
+            try:
+                return datetime.strptime(value, "%Y-%m-%d")
+            except ValueError:
+                return None
     elif isinstance(value, datetime):
         return value
+    return None
+
+def parse_date(value):
+    if isinstance(value, str):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    elif hasattr(value, 'date'):
+        return value.date()
     return None
 
 def clean_and_standardize_variant(text):
     if not text or text.strip() == "-":
         return "NO VARIANT"
-    text = re.sub(r'[^\w\s]', '', text)
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip().upper()
+    return text  # Tidak ada pembersihan, kembalikan apa adanya
 
 # Koneksi database remote VPS
 async def get_remote_db_connection(db_name, db_user, db_host, db_password):
@@ -92,8 +103,12 @@ async def get_local_db_connection():
     )
 
 # Ambil data dari remote table
-async def fetch_data_from_remote_db(conn):
-    query = "SELECT * FROM public.cars"
+async def fetch_data_from_remote_db_carlistmy(conn):
+    query = "SELECT * FROM public.cars_scrap_carlistmy"
+    return await conn.fetch(query)
+
+async def fetch_data_from_remote_db_mudahmy(conn):
+    query = "SELECT * FROM public.cars_scrap_mudahmy"
     return await conn.fetch(query)
 
 # Insert/update data ke lokal, dengan normalisasi cars_standard
@@ -106,36 +121,47 @@ async def insert_or_update_data_into_local_db(data, table_name, source):
     try:
         logger.info(f"🚀 Memulai proses insert/update untuk {source.upper()}...")
         for row in data:
-            id_ = row['id']
+            # Mapping field dari remote ke local (sesuaikan dengan struktur remote Anda)
             listing_url = row['listing_url']
+            condition = row.get('condition')
             brand = row['brand'].upper() if row['brand'] else None
+            model_group = clean_and_standardize_variant(row.get('model_group', ''))
             model = clean_and_standardize_variant(row['model'])
             variant = clean_and_standardize_variant(row['variant'])
-            informasi_iklan = row['informasi_iklan']
-            lokasi = row['lokasi']
+            information_ads = row.get('informasi_iklan') or row.get('information_ads')
+            location = row.get('lokasi') or row.get('location')
             price = row['price']
             year = row['year']
             mileage = row.get('mileage') or row.get('millage')
-            transmission = row['transmission']
-            seat_capacity = row['seat_capacity']
-            gambar = row['gambar']
+            transmission = row.get('transmission')
+            seat_capacity = row.get('seat_capacity')
+            engine_cc = row.get('engine_cc')
+            fuel_type = row.get('fuel_type')
+            images = row.get('gambar') or row.get('images')
             last_scraped_at = parse_datetime(row['last_scraped_at'])
-            version = row['version']
+            version = row.get('version', 1)
             created_at = parse_datetime(row['created_at'])
             sold_at = parse_datetime(row['sold_at'])
-            status = row['status']
-            last_status_check = parse_datetime(row['last_status_check'])
+            status = row.get('status', 'active')
+            last_status_check = parse_datetime(row.get('last_status_check'))
+            information_ads_date = parse_date(row.get('information_ads_date'))
+            # Hanya ambil ads_tag jika source adalah carlistmy
+            ads_tag = row.get('ads_tag') if source == 'carlistmy' else None
+            is_deleted = row.get('is_deleted', False)
+            
+            # Convert values
             price_int = convert_price(price)
             year_int = int(year) if year else None
             mileage_int = convert_mileage(mileage)
 
-            # Skip jika informasi_iklan = URGENT
-            if informasi_iklan == 'URGENT':
+            # Skip jika information_ads = URGENT
+            if information_ads == 'URGENT':
                 skipped_count += 1
                 skipped_records.append({
                     "source": source,
-                    "id": id_,
+                    "listing_url": listing_url,
                     "brand": brand,
+                    "model_group": model_group,
                     "model": model,
                     "variant": variant,
                     "price": price,
@@ -146,12 +172,13 @@ async def insert_or_update_data_into_local_db(data, table_name, source):
                 continue
 
             # Validasi data wajib
-            if not all([brand, model, variant, price_int, mileage_int, year_int]):
+            if not all([brand, model, variant, price_int, year_int]):
                 skipped_count += 1
                 skipped_records.append({
                     "source": source,
-                    "id": id_,
+                    "listing_url": listing_url,
                     "brand": brand,
+                    "model_group": model_group,
                     "model": model,
                     "variant": variant,
                     "price": price,
@@ -161,69 +188,165 @@ async def insert_or_update_data_into_local_db(data, table_name, source):
                 })
                 continue
 
-            if isinstance(gambar, str):
+            # Handle images (convert string to list if needed)
+            if isinstance(images, str):
                 try:
-                    gambar = json.loads(gambar)
+                    images = json.loads(images)
                 except Exception:
-                    gambar = []
-            if not isinstance(gambar, list):
-                gambar = []
+                    images = None
+            if not isinstance(images, (list, type(None))):
+                images = None
 
-            # Cari cars_standard_id sesuai brand, model, variant
-            query_check = f"SELECT cars_standard_id FROM {table_name} WHERE id = $1"
-            existing_standard_id = await conn.fetchval(query_check, id_)
+            # Convert images list to text for storage
+            images_text = json.dumps(images) if images else None
 
-            cars_standard_id = existing_standard_id
-            if not existing_standard_id:
-                norm_query = f"""
-                    SELECT id FROM dashboard_carsstandard
+            # Cari cars_standard_id berdasarkan brand, model_group, model, variant dengan logika bertingkat
+            cars_standard_id = None
+            if brand and model and variant:
+                # Step 1: Cari berdasarkan brand_norm
+                brand_matches = await conn.fetch("""
+                    SELECT id, model_group_norm, model_group_raw, model_norm, model_raw, 
+                           variant_norm, variant_raw, variant_raw2
+                    FROM dashboard_carsstandard
                     WHERE UPPER(brand_norm) = $1
-                      AND (UPPER(model_norm) = $2 OR UPPER(model_raw) = $2)
-                      AND $3 IN (UPPER(variant_norm), UPPER(variant_raw), UPPER(variant_raw2))
-                    LIMIT 1
-                """
-                norm_result = await conn.fetchrow(norm_query, brand, model, variant)
-                if norm_result:
-                    cars_standard_id = norm_result['id']
+                """, brand)
+                
+                for candidate in brand_matches:
+                    # Step 2: Cek model_group - prioritas model_group_norm dulu, lalu model_group_raw
+                    model_group_match = False
+                    if model_group:  # Jika ada model_group dari input
+                        if candidate['model_group_norm'] and candidate['model_group_norm'].strip().upper() == model_group.strip().upper():
+                            model_group_match = True
+                        elif candidate['model_group_raw'] and candidate['model_group_raw'].strip().upper() == model_group.strip().upper():
+                            model_group_match = True
+                    else:  # Jika tidak ada model_group dari input, skip pengecekan model_group
+                        model_group_match = True
+                    
+                    if not model_group_match:
+                        continue
+                    
+                    # Step 3: Cek model - prioritas model_norm dulu, lalu model_raw
+                    model_match = False
+                    if candidate['model_norm'] and candidate['model_norm'].strip().upper() == model.strip().upper():
+                        model_match = True
+                    elif candidate['model_raw'] and candidate['model_raw'].strip().upper() == model.strip().upper():
+                        model_match = True
+                    
+                    if not model_match:
+                        continue
+                    
+                    # Step 4: Cek variant - prioritas variant_norm, lalu variant_raw, lalu variant_raw2
+                    variant_match = False
+                    if candidate['variant_norm'] and candidate['variant_norm'].strip().upper() == variant.strip().upper():
+                        variant_match = True
+                    elif candidate['variant_raw'] and candidate['variant_raw'].strip().upper() == variant.strip().upper():
+                        variant_match = True
+                    elif candidate['variant_raw2'] and candidate['variant_raw2'].strip().upper() == variant.strip().upper():
+                        variant_match = True
+                    
+                    if variant_match:
+                        cars_standard_id = candidate['id']
+                        break  # Keluar dari loop jika sudah ditemukan match
 
-            # Insert/update data utama
-            await conn.execute(f"""
-                INSERT INTO {table_name} (
-                    id, listing_url, brand, model, variant, informasi_iklan,
-                    lokasi, price, year, mileage, transmission, seat_capacity,
-                    gambar, last_scraped_at, version, created_at, sold_at, status, last_status_check,
-                    cars_standard_id, source
-                )
-                VALUES (
-                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-                    $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
-                )
-                ON CONFLICT (id) DO UPDATE SET
-                    listing_url = EXCLUDED.listing_url,
-                    brand = EXCLUDED.brand,
-                    model = EXCLUDED.model,
-                    variant = EXCLUDED.variant,
-                    informasi_iklan = EXCLUDED.informasi_iklan,
-                    lokasi = EXCLUDED.lokasi,
-                    price = EXCLUDED.price,
-                    year = EXCLUDED.year,
-                    mileage = EXCLUDED.mileage,
-                    transmission = EXCLUDED.transmission,
-                    seat_capacity = EXCLUDED.seat_capacity,
-                    gambar = EXCLUDED.gambar,
-                    last_scraped_at = EXCLUDED.last_scraped_at,
-                    version = EXCLUDED.version,
-                    created_at = EXCLUDED.created_at,
-                    sold_at = EXCLUDED.sold_at,
-                    status = EXCLUDED.status,
-                    last_status_check = EXCLUDED.last_status_check,
-                    cars_standard_id = COALESCE(EXCLUDED.cars_standard_id, {table_name}.cars_standard_id),
-                    source = EXCLUDED.source
-            """,
-            id_, listing_url, brand, model, variant, informasi_iklan,
-            lokasi, price_int, year_int, mileage_int, transmission, seat_capacity,
-            gambar, last_scraped_at, version, created_at, sold_at, status, last_status_check,
-            cars_standard_id, source)
+            # Check if record exists based on listing_url
+            existing_record = await conn.fetchrow(f"SELECT cars_standard_id FROM {table_name} WHERE listing_url = $1", listing_url)
+            
+            # Preserve existing cars_standard_id if new one is not found
+            if existing_record and existing_record['cars_standard_id'] and not cars_standard_id:
+                cars_standard_id = existing_record['cars_standard_id']
+
+            # Buat query insert/update berdasarkan source
+            if source == 'carlistmy':
+                # Untuk carlistmy, include ads_tag
+                await conn.execute(f"""
+                    INSERT INTO {table_name} (
+                        listing_url, condition, brand, model_group, model, variant, 
+                        information_ads, location, price, year, mileage, transmission, 
+                        seat_capacity, engine_cc, fuel_type, last_scraped_at, version, 
+                        created_at, sold_at, status, images, last_status_check, 
+                        information_ads_date, ads_tag, is_deleted, source, cars_standard_id
+                    )
+                    VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 
+                        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
+                    )
+                    ON CONFLICT (listing_url) DO UPDATE SET
+                        condition = EXCLUDED.condition,
+                        brand = EXCLUDED.brand,
+                        model_group = EXCLUDED.model_group,
+                        model = EXCLUDED.model,
+                        variant = EXCLUDED.variant,
+                        information_ads = EXCLUDED.information_ads,
+                        location = EXCLUDED.location,
+                        price = EXCLUDED.price,
+                        year = EXCLUDED.year,
+                        mileage = EXCLUDED.mileage,
+                        transmission = EXCLUDED.transmission,
+                        seat_capacity = EXCLUDED.seat_capacity,
+                        engine_cc = EXCLUDED.engine_cc,
+                        fuel_type = EXCLUDED.fuel_type,
+                        last_scraped_at = EXCLUDED.last_scraped_at,
+                        version = EXCLUDED.version,
+                        sold_at = EXCLUDED.sold_at,
+                        status = EXCLUDED.status,
+                        images = EXCLUDED.images,
+                        last_status_check = EXCLUDED.last_status_check,
+                        information_ads_date = EXCLUDED.information_ads_date,
+                        ads_tag = EXCLUDED.ads_tag,
+                        is_deleted = EXCLUDED.is_deleted,
+                        source = EXCLUDED.source,
+                        cars_standard_id = COALESCE(EXCLUDED.cars_standard_id, {table_name}.cars_standard_id)
+                """,
+                listing_url, condition, brand, model_group, model, variant, information_ads,
+                location, price_int, year_int, mileage_int, transmission, seat_capacity,
+                engine_cc, fuel_type, last_scraped_at, version, created_at, sold_at, 
+                status, images_text, last_status_check, information_ads_date, ads_tag, 
+                is_deleted, source, cars_standard_id)
+            else:
+                # Untuk mudahmy, exclude ads_tag
+                await conn.execute(f"""
+                    INSERT INTO {table_name} (
+                        listing_url, condition, brand, model_group, model, variant, 
+                        information_ads, location, price, year, mileage, transmission, 
+                        seat_capacity, engine_cc, fuel_type, last_scraped_at, version, 
+                        created_at, sold_at, status, images, last_status_check, 
+                        information_ads_date, is_deleted, source, cars_standard_id
+                    )
+                    VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 
+                        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
+                    )
+                    ON CONFLICT (listing_url) DO UPDATE SET
+                        condition = EXCLUDED.condition,
+                        brand = EXCLUDED.brand,
+                        model_group = EXCLUDED.model_group,
+                        model = EXCLUDED.model,
+                        variant = EXCLUDED.variant,
+                        information_ads = EXCLUDED.information_ads,
+                        location = EXCLUDED.location,
+                        price = EXCLUDED.price,
+                        year = EXCLUDED.year,
+                        mileage = EXCLUDED.mileage,
+                        transmission = EXCLUDED.transmission,
+                        seat_capacity = EXCLUDED.seat_capacity,
+                        engine_cc = EXCLUDED.engine_cc,
+                        fuel_type = EXCLUDED.fuel_type,
+                        last_scraped_at = EXCLUDED.last_scraped_at,
+                        version = EXCLUDED.version,
+                        sold_at = EXCLUDED.sold_at,
+                        status = EXCLUDED.status,
+                        images = EXCLUDED.images,
+                        last_status_check = EXCLUDED.last_status_check,
+                        information_ads_date = EXCLUDED.information_ads_date,
+                        is_deleted = EXCLUDED.is_deleted,
+                        source = EXCLUDED.source,
+                        cars_standard_id = COALESCE(EXCLUDED.cars_standard_id, {table_name}.cars_standard_id)
+                """,
+                listing_url, condition, brand, model_group, model, variant, information_ads,
+                location, price_int, year_int, mileage_int, transmission, seat_capacity,
+                engine_cc, fuel_type, last_scraped_at, version, created_at, sold_at, 
+                status, images_text, last_status_check, information_ads_date, 
+                is_deleted, source, cars_standard_id)
 
             inserted_count += 1
 
@@ -248,7 +371,7 @@ async def sync_data_from_remote():
     remote_conn_carlistmy = await get_remote_db_connection(DB_CARLISTMY, DB_CARLISTMY_USERNAME, DB_CARLISTMY_HOST, DB_CARLISTMY_PASSWORD)
     logger.info("[CarlistMY] Terkoneksi.")
     
-    data_carlistmy = await fetch_data_from_remote_db(remote_conn_carlistmy)
+    data_carlistmy = await fetch_data_from_remote_db_carlistmy(remote_conn_carlistmy)
     logger.info(f"[CarlistMY] Data diambil: {len(data_carlistmy)}")
 
     inserted_carlistmy, skipped_carlistmy = await insert_or_update_data_into_local_db(data_carlistmy, TB_CARLISTMY, 'carlistmy')
@@ -258,6 +381,8 @@ async def sync_data_from_remote():
     data_price_history_carlistmy = await fetch_price_history_from_remote_db(remote_conn_carlistmy, 'carlistmy')
     await insert_or_update_price_history(data_price_history_carlistmy, TB_PRICE_HISTORY_CARLISTMY)
     logger.info("[CarlistMY] Sinkronisasi price_history selesai.")
+
+    await remote_conn_carlistmy.close()
 
     result_summary['carlistmy'] = {
         'total_fetched': len(data_carlistmy),
@@ -270,7 +395,7 @@ async def sync_data_from_remote():
     remote_conn_mudahmy = await get_remote_db_connection(DB_MUDAHMY, DB_MUDAHMY_USERNAME, DB_MUDAHMY_HOST, DB_MUDAHMY_PASSWORD)
     logger.info("[MudahMY] Terkoneksi.")
     
-    data_mudahmy = await fetch_data_from_remote_db(remote_conn_mudahmy)
+    data_mudahmy = await fetch_data_from_remote_db_mudahmy(remote_conn_mudahmy)
     logger.info(f"[MudahMY] Data diambil: {len(data_mudahmy)}")
 
     inserted_mudahmy, skipped_mudahmy = await insert_or_update_data_into_local_db(data_mudahmy, TB_MUDAHMY, 'mudahmy')
@@ -280,6 +405,8 @@ async def sync_data_from_remote():
     data_price_history_mudahmy = await fetch_price_history_from_remote_db(remote_conn_mudahmy, 'mudahmy')
     await insert_or_update_price_history(data_price_history_mudahmy, TB_PRICE_HISTORY_MUDAHMY)
     logger.info("[MudahMY] Sinkronisasi price_history selesai.")
+
+    await remote_conn_mudahmy.close()
 
     result_summary['mudahmy'] = {
         'total_fetched': len(data_mudahmy),
@@ -292,8 +419,10 @@ async def sync_data_from_remote():
     return result_summary
 
 async def fetch_price_history_from_remote_db(conn, source):
-    if source in ('carlistmy', 'mudahmy'):
-        query = "SELECT car_id, old_price, new_price, changed_at FROM public.price_history_combined"
+    if source == 'carlistmy':
+        query = "SELECT listing_url, old_price, new_price, changed_at FROM public.price_history_scrap_carlistmy"
+    elif source == 'mudahmy':
+        query = "SELECT listing_url, old_price, new_price, changed_at FROM public.price_history_scrap_mudahmy"
     else:
         raise HTTPException(status_code=400, detail="Invalid source for price history.")
     return await conn.fetch(query)
@@ -308,34 +437,34 @@ async def insert_or_update_price_history(data, table_name):
         else:
             raise Exception("Unknown table name for price history.")
 
-        existing_ids = await conn.fetch(f"SELECT id FROM {cars_table}")
-        existing_ids_set = set(row['id'] for row in existing_ids)
+        # Ambil semua listing_url mobil yang ada di lokal
+        cars_rows = await conn.fetch(f"SELECT listing_url FROM {cars_table}")
+        url_set = set(row['listing_url'] for row in cars_rows)
 
         inserted = 0
         skipped = 0
-
         for row in data:
-            car_id = row['car_id']
+            listing_url = row['listing_url']
             old_price = row['old_price']
             new_price = row['new_price']
             changed_at = row['changed_at']
 
-            if car_id not in existing_ids_set:
+            # Pastikan listing_url ada di tabel mobil
+            if listing_url not in url_set:
                 skipped += 1
                 continue
 
+            # Insert/update price history dengan listing_url sebagai foreign key
             await conn.execute(f"""
-                INSERT INTO {table_name} (car_id, old_price, new_price, changed_at)
+                INSERT INTO {table_name} (listing_url, old_price, new_price, changed_at)
                 VALUES ($1, $2, $3, $4)
-                ON CONFLICT (car_id, changed_at) 
+                ON CONFLICT (listing_url, changed_at)
                 DO UPDATE SET 
                     old_price = EXCLUDED.old_price,
-                    new_price = EXCLUDED.new_price,
-                    changed_at = EXCLUDED.changed_at
-            """, car_id, old_price, new_price, changed_at)
+                    new_price = EXCLUDED.new_price
+            """, listing_url, old_price, new_price, changed_at)
             inserted += 1
 
-        logger.info(f"[{table_name}] Inserted {inserted} records, Skipped {skipped} records due to missing cars.")
-
+        logger.info(f"[{table_name}] Inserted {inserted} records, Skipped {skipped} records due to missing listing_url.")
     finally:
         await conn.close()

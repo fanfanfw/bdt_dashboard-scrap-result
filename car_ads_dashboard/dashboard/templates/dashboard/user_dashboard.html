@@ -3,73 +3,227 @@
 {% block title %}Dashboard - {{ source|capfirst }}{% endblock %}
 
 {% block content %}
-{% comment %} <style>
-  #statusPieChart {
-  max-width: 350px;   /* sesuaikan lebar maksimal */
-  height: 350px !important;  /* tinggi dipaksa sama agar lingkaran sempurna */
-  margin: 0 auto;
-  display: block;
-}
 
-</style> {% endcomment %}
 <div class="container-fluid py-4">
   <h4 class="mb-4 text-center">Dashboard - {{ source|capfirst }}</h4>
 
   <!-- Row 1: KPI Cards -->
-  <div class="row mb-4 text-center">
-    <div class="col-md-3 mb-3">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h6>Total Semua Listing</h6>
-          <h3 class="text-primary" id="totalAll">{{ total_all|intcomma }}</h3>
+  <div class="d-flex flex-wrap gap-3 justify-content-center mb-4">
+    <div class="kpi-card card shadow-sm mb-0 kpi-gradient-blue">
+      <div class="card-body d-flex flex-column align-items-center">
+        <div class="kpi-icon mb-2">
+          <!-- Total Semua Listing Icon -->
+          <svg width="32" height="32" fill="#2563eb" viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 8h14v-2H7v2zm0-4h14v-2H7v2zm0-6v2h14V7H7z"/></svg>
         </div>
+        <h6 class="kpi-label">Total Semua Listing</h6>
+        <div class="kpi-value text-primary">{{ total_all|intcomma }}</div>
       </div>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h6>Total Listing Aktif</h6>
-          <h3 class="text-success" id="totalActive">{{ total_active|intcomma }}</h3>
+    <div class="kpi-card card shadow-sm mb-0 kpi-gradient-green">
+      <div class="card-body d-flex flex-column align-items-center">
+        <div class="kpi-icon mb-2">
+          <!-- Aktif Icon -->
+          <svg width="32" height="32" fill="#059669" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 15-5-5 1.41-1.41L11 13.17l5.59-5.59L18 9l-7 8z"/></svg>
         </div>
+        <h6 class="kpi-label">Total Listing Aktif</h6>
+        <div class="kpi-value text-success">{{ total_active|intcomma }}</div>
       </div>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h6>Total Listing Terjual</h6>
-          <h3 class="text-warning" id="totalSold">{{ total_sold|intcomma }}</h3>
+    <div class="kpi-card card shadow-sm mb-0 kpi-gradient-yellow">
+      <div class="card-body d-flex flex-column align-items-center">
+        <div class="kpi-icon mb-2">
+          <!-- Terjual Icon -->
+          <svg width="32" height="32" fill="#eab308" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-5-5 1.41-1.41L11 13.17l5.59-5.59L18 9l-7 8z"/></svg>
         </div>
+        <h6 class="kpi-label">Total Listing Terjual</h6>
+        <div class="kpi-value text-warning">{{ total_sold|intcomma }}</div>
       </div>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h6>Total Brand</h6>
-          <h3 class="text-info" id="totalBrand">{{ total_brand|intcomma }}</h3>
+    <div class="kpi-card card shadow-sm mb-0 kpi-gradient-cyan">
+      <div class="card-body d-flex flex-column align-items-center">
+        <div class="kpi-icon mb-2">
+          <!-- Brand Icon -->
+          <svg width="32" height="32" fill="#06b6d4" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 17.93c-2.83.48-5.78-.3-7.93-2.44C2.37 15.13 2 13.62 2 12c0-1.62.37-3.13 1.07-4.49C6.22 3.37 9.17 2.59 12 3.07V19.93z"/></svg>
         </div>
+        <h6 class="kpi-label">Total Brand</h6>
+        <div class="kpi-value text-info">{{ total_brand|intcomma }}</div>
+      </div>
+    </div>
+    <div class="kpi-card card shadow-sm mb-0 kpi-gradient-red">
+      <div class="card-body d-flex flex-column align-items-center">
+        <div class="kpi-icon mb-2">
+          <!-- Data Terbaru Icon -->
+          <svg width="32" height="32" fill="#dc2626" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H5V8h14v13zm0-15H5V5h14v1z"/></svg>
+        </div>
+        <h6 class="kpi-label">Data Terbaru Hari Ini</h6>
+        <div class="kpi-value text-danger">{{ total_today|intcomma }}</div>
       </div>
     </div>
   </div>
+  <style>
+    :root {
+      --color-bg: #DDDDDD;
+      --color-dark: #222831;
+      --color-blue: #30475E;
+      --color-red: #F05454;
+      --color-card: #fff;
+      --color-card-header: #30475E;
+      --color-card-shadow: 0 2px 12px 0 rgba(48,71,94,0.07);
+      --color-canvas: #fff;
+      --color-label: #30475E;
+      --color-value: #222831;
+    }
+    body { background: var(--color-bg); }
+    .kpi-card {
+      background: var(--color-card);
+      box-shadow: var(--color-card-shadow);
+    }
+    .kpi-label { color: var(--color-label); }
+    .kpi-value { color: var(--color-value); }
+    .modern-card {
+      background: linear-gradient(135deg, #e8eaef 0%, #f3f4f7 100%);
+      box-shadow: var(--color-card-shadow);
+      border: none;
+    }
+    .modern-card .card-header {
+      color: var(--color-card-header);
+      background: transparent;
+    }
+    .modern-canvas {
+      background: var(--color-canvas);
+    }
+    /* KPI Card Gradients with palette */
+    .kpi-gradient-blue { background: linear-gradient(135deg, #30475E 0%, #DDDDDD 100%); }
+    .kpi-gradient-green { background: linear-gradient(135deg, #4ed19e 0%, #DDDDDD 100%); }
+    .kpi-gradient-yellow { background: linear-gradient(135deg, #ffe066 0%, #DDDDDD 100%); }
+    .kpi-gradient-cyan { background: linear-gradient(135deg, #6ec6f0 0%, #DDDDDD 100%); }
+    .kpi-gradient-red { background: linear-gradient(135deg, #F05454 0%, #DDDDDD 100%); }
+    /* Dark mode palette */
+    .dark-mode {
+      --color-bg: #222831;
+      --color-dark: #222831;
+      --color-blue: #30475E;
+      --color-red: #F05454;
+      --color-card: #232a36;
+      --color-card-header: #F05454;
+      --color-card-shadow: 0 2px 12px 0 rgba(48,71,94,0.18);
+      --color-canvas: #232a36;
+      --color-label: #F05454;
+      --color-value: #DDDDDD;
+    }
+    .dark-mode body { background: var(--color-bg) !important; }
+    .dark-mode .kpi-card, .dark-mode .modern-card { background: var(--color-card) !important; }
+    .dark-mode .modern-card .card-header { color: var(--color-card-header) !important; }
+    .dark-mode .modern-canvas { background: var(--color-canvas) !important; }
+    .dark-mode .kpi-label { color: var(--color-label) !important; }
+    .dark-mode .kpi-value { color: var(--color-value) !important; }
+    .dark-mode .kpi-gradient-blue { background: linear-gradient(135deg, #30475E 0%, #222831 100%) !important; }
+    .dark-mode .kpi-gradient-green { background: linear-gradient(135deg, #4ed19e 0%, #222831 100%) !important; }
+    .dark-mode .kpi-gradient-yellow { background: linear-gradient(135deg, #ffe066 0%, #222831 100%) !important; }
+    .dark-mode .kpi-gradient-cyan { background: linear-gradient(135deg, #6ec6f0 0%, #222831 100%) !important; }
+    .dark-mode .kpi-gradient-red { background: linear-gradient(135deg, #F05454 0%, #222831 100%) !important; }
+    .kpi-card {
+      flex: 1 1 200px;
+      max-width: 230px;
+      min-width: 180px;
+      border: none;
+      border-radius: 1.2rem;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 2px 12px 0 rgba(0,0,0,0.07);
+      background: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi-card:hover {
+      transform: translateY(-4px) scale(1.03);
+      box-shadow: 0 6px 24px 0 rgba(0,0,0,0.13);
+      z-index: 2;
+    }
+    .kpi-label {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #444;
+      margin-bottom: 0.2rem;
+      letter-spacing: 0.01em;
+    }
+    .kpi-value {
+      font-size: 2.1rem;
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 0.1rem;
+      letter-spacing: 0.01em;
+    }
+    .kpi-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.04);
+      border-radius: 50%;
+      margin-bottom: 0.2rem;
+    }
+    .modern-card {
+      border-radius: 1.2rem;
+      box-shadow: 0 2px 12px 0 rgba(0,0,0,0.07);
+      background: linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%);
+      border: none;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .modern-card .card-header {
+      font-weight: 700;
+      font-size: 1.1rem;
+      background: transparent;
+      border-bottom: none;
+      color: #334155;
+      letter-spacing: 0.01em;
+      padding-top: 1rem;
+      padding-bottom: 0.5rem;
+    }
+    .modern-card .card-body {
+      padding: 1.2rem 1.5rem 1.5rem 1.5rem;
+    }
+    .modern-canvas {
+      border-radius: 1rem !important;
+      background: #fff;
+      box-shadow: 0 1px 8px 0 rgba(0,0,0,0.04);
+      padding: 0.5rem;
+    }
+    /* Chart.js tooltip & legend improvements */
+    .chartjs-tooltip {
+      border-radius: 0.7rem;
+      background: #fff;
+      color: #222;
+      box-shadow: 0 2px 8px 0 rgba(0,0,0,0.10);
+      padding: 0.7rem 1rem;
+      font-size: 1rem;
+    }
+    @media (max-width: 900px) {
+      .kpi-card { max-width: 100%; min-width: 140px; }
+      .modern-card { padding: 0.5rem; }
+    }
+  </style>
 
   <!-- Row 2: Charts -->
   <div class="row">
     <div class="col-lg-6 mb-4">
-      <div class="card h-100 shadow-sm">
+      <div class="modern-card card h-100 shadow-sm">
         <div class="card-header">
           10 Brand dengan Iklan Terbanyak
         </div>
         <div class="card-body">
-          <canvas id="brandBarChartAds"></canvas>
+          <canvas id="brandBarChartAds" class="modern-canvas"></canvas>
         </div>
       </div>
     </div>
     <div class="col-lg-6 mb-4">
-      <div class="card h-100 shadow-sm">
+      <div class="modern-card card h-100 shadow-sm">
         <div class="card-header">
           10 Brand dengan Penjualan Terbanyak
         </div>
         <div class="card-body">
-          <canvas id="brandBarChartSold"></canvas>
+          <canvas id="brandBarChartSold" class="modern-canvas"></canvas>
         </div>
       </div>
     </div>
@@ -79,26 +233,26 @@
   <div class="row">
     <!-- Kolom Kiri: Pie Chart dan Distribusi Transmisi bertumpuk -->
     <div class="col-lg-4 d-flex flex-column gap-4">
-      <div class="card shadow-sm flex-fill">
+      <div class="modern-card card shadow-sm flex-fill">
         <div class="card-header">Status Listing (Active vs Sold)</div>
         <div class="card-body d-flex justify-content-center align-items-center flex-grow-1">
-          <canvas id="statusPieChart" style="max-width: 250px; max-height: 250px;"></canvas>
+          <canvas id="statusPieChart" class="modern-canvas" style="max-width: 250px; max-height: 250px;"></canvas>
         </div>
       </div>
-      <div class="card shadow-sm flex-fill">
+      <div class="modern-card card shadow-sm flex-fill">
         <div class="card-header">Distribusi Transmisi</div>
         <div class="card-body">
-          <canvas id="transmissionBarChart"></canvas>
+          <canvas id="transmissionBarChart" class="modern-canvas"></canvas>
         </div>
       </div>
     </div>
 
     <!-- Kolom Kanan: Distribusi Tahun Produksi -->
     <div class="col-lg-8">
-      <div class="card shadow-sm h-100 d-flex flex-column">
+      <div class="modern-card card shadow-sm h-100 d-flex flex-column">
         <div class="card-header">Distribusi Tahun Produksi</div>
         <div class="card-body">
-          <canvas id="yearHistogram"></canvas>
+          <canvas id="yearHistogram" class="modern-canvas"></canvas>
         </div>
       </div>
     </div>
@@ -108,13 +262,13 @@
   <div class="row mt-4">
     <!-- Kolom Kiri: Grafik Rata-rata Mileage dan Tabel Korelasi bertumpuk -->
     <div class="col-lg-4 d-flex flex-column gap-4">
-      <div class="card shadow-sm flex-fill">
+      <div class="modern-card card shadow-sm flex-fill">
         <div class="card-header">Rata-rata Mileage per Tahun</div>
         <div class="card-body">
-          <canvas id="avgMileageYearChart" style="min-height: 350px;"></canvas>
+          <canvas id="avgMileageYearChart" class="modern-canvas" style="min-height: 350px;"></canvas>
         </div>
       </div>
-      <div class="card shadow-sm flex-fill" style="overflow-x:auto; max-height: 370px;">
+      <div class="modern-card card shadow-sm flex-fill" style="overflow-x:auto; max-height: 370px;">
         <div class="card-header">Korelasi Antar Fitur</div>
         <div class="card-body">
           <table class="table table-bordered" id="correlationTable">
@@ -136,7 +290,7 @@
 
     <!-- Kolom Kanan: Scatter Plot Mileage vs Price -->
     <div class="col-lg-8">
-      <div class="card shadow-sm mb-4">
+      <div class="modern-card card shadow-sm mb-4">
         <div class="card-header d-flex flex-wrap align-items-center gap-3">
           <h5 class="mb-0 flex-grow-1">Mileage vs Price Scatter Plot</h5>
           <select id="scatterBrand" class="form-select form-select-sm w-auto" required>
@@ -156,11 +310,12 @@
           </select>
         </div>
         <div class="card-body">
-          <canvas id="scatterPlot" style="min-height: 500px;"></canvas>
+          <canvas id="scatterPlot" class="modern-canvas" style="min-height: 500px;"></canvas>
         </div>
       </div>
     </div>
   </div>
+  <!-- ...existing code... -->
 
 <!-- JQuery dan Chart.js CDN -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -168,6 +323,9 @@
 <script>
   // ==== Chart Bar: Iklan Terbanyak ====
   const ctxAds = document.getElementById('brandBarChartAds').getContext('2d');
+  let gradientAds = ctxAds.createLinearGradient(0, 0, 0, 400);
+  gradientAds.addColorStop(0, '#30475E');
+  gradientAds.addColorStop(1, '#DDDDDD');
   let brandBarChartAds = new Chart(ctxAds, {
     type: 'bar',
     data: {
@@ -175,20 +333,30 @@
       datasets: [{
         label: 'Jumlah Iklan',
         data: {{ chart_data_ads|safe }},
-        backgroundColor: 'rgba(54, 162, 235, 0.7)',
-        borderRadius: 10,
+        backgroundColor: gradientAds,
+        borderRadius: 12,
         borderSkipped: false,
+        hoverBackgroundColor: '#F05454',
       }]
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false }, title: { display: true, text: '10 Brand Teratas - Iklan' }},
-      scales: { y: { beginAtZero: true } }
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: '10 Brand Teratas - Iklan', font: { size: 18, weight: 'bold' }, color: '#30475E' }
+      },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#e5e7eb' }, ticks: { color: '#30475E' } },
+        x: { grid: { display: false }, ticks: { color: '#30475E' } }
+      }
     }
   });
 
   // ==== Chart Bar: Penjualan Terbanyak ====
   const ctxSold = document.getElementById('brandBarChartSold').getContext('2d');
+  let gradientSold = ctxSold.createLinearGradient(0, 0, 0, 400);
+  gradientSold.addColorStop(0, '#F05454');
+  gradientSold.addColorStop(1, '#DDDDDD');
   let brandBarChartSold = new Chart(ctxSold, {
     type: 'bar',
     data: {
@@ -196,20 +364,30 @@
       datasets: [{
         label: 'Jumlah Terjual',
         data: {{ chart_data_sold|safe }},
-        backgroundColor: 'rgba(75, 192, 192, 0.7)',
-        borderRadius: 10,
+        backgroundColor: gradientSold,
+        borderRadius: 12,
         borderSkipped: false,
+        hoverBackgroundColor: '#30475E',
       }]
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false }, title: { display: true, text: '10 Brand Teratas - Penjualan' }},
-      scales: { y: { beginAtZero: true } }
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: '10 Brand Teratas - Penjualan', font: { size: 18, weight: 'bold' }, color: '#F05454' }
+      },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#e5e7eb' }, ticks: { color: '#F05454' } },
+        x: { grid: { display: false }, ticks: { color: '#F05454' } }
+      }
     }
   });
 
   // ==== Chart Bar: Distribusi Tahun Produksi ====
   const yearCtx = document.getElementById('yearHistogram').getContext('2d');
+  let gradientYear = yearCtx.createLinearGradient(0, 0, 0, 400);
+  gradientYear.addColorStop(0, '#30475E');
+  gradientYear.addColorStop(1, '#DDDDDD');
   const yearHistogram = new Chart(yearCtx, {
     type: 'bar',
     data: {
@@ -217,16 +395,20 @@
       datasets: [{
         label: 'Jumlah Listing',
         data: {{ years_hist_data|safe }},
-        backgroundColor: 'rgba(153, 102, 255, 0.7)',
-        borderRadius: 5,
+        backgroundColor: gradientYear,
+        borderRadius: 10,
         borderSkipped: false,
+        hoverBackgroundColor: '#F05454',
       }]
     },
-    options: { responsive: true, plugins: { legend: { display: false } } }
+    options: { responsive: true, plugins: { legend: { display: false }, title: { display: false } }, scales: { y: { grid: { color: '#e5e7eb' }, ticks: { color: '#30475E' } }, x: { grid: { display: false }, ticks: { color: '#30475E' } } } }
   });
 
   // ==== Chart Bar: Distribusi Transmisi ====
   const transmissionCtx = document.getElementById('transmissionBarChart').getContext('2d');
+  let gradientTrans = transmissionCtx.createLinearGradient(0, 0, 0, 400);
+  gradientTrans.addColorStop(0, '#30475E');
+  gradientTrans.addColorStop(1, '#F05454');
   const transmissionBarChart = new Chart(transmissionCtx, {
     type: 'bar',
     data: {
@@ -234,30 +416,36 @@
       datasets: [{
         label: 'Jumlah Listing',
         data: {{ transmission_data|safe }},
-        backgroundColor: 'rgba(255, 159, 64, 0.7)',
-        borderRadius: 5,
+        backgroundColor: gradientTrans,
+        borderRadius: 10,
         borderSkipped: false,
+        hoverBackgroundColor: '#F05454',
       }]
     },
-    options: { responsive: true, plugins: { legend: { display: false } } }
+    options: { responsive: true, plugins: { legend: { display: false }, title: { display: false } }, scales: { y: { grid: { color: '#e5e7eb' }, ticks: { color: '#30475E' } }, x: { grid: { display: false }, ticks: { color: '#30475E' } } } }
   });
 
   // ==== Pie Chart Status Listing ====
   const statusCtx = document.getElementById('statusPieChart').getContext('2d');
   const statusPieChart = new Chart(statusCtx, {
-    type: 'pie',
+    type: 'doughnut',
     data: {
       labels: ['Active', 'Sold'],
       datasets: [{
         data: [{{ total_active }}, {{ total_sold }}],
-        backgroundColor: ['#4e73df', '#1cc88a']
+        backgroundColor: ['#30475E', '#F05454'],
+        borderWidth: 2,
+        borderColor: '#DDDDDD',
+        hoverOffset: 10,
       }]
     },
     options: {
+      cutout: '70%',
       responsive: true,
       plugins: {
-        legend: { position: 'bottom' },
-        title: { display: true, text: 'Status Listing' }
+        legend: { position: 'bottom', labels: { font: { size: 15, weight: 'bold' }, color: '#30475E' } },
+        title: { display: true, text: 'Status Listing', font: { size: 18, weight: 'bold' }, color: '#30475E' },
+        tooltip: { enabled: true, backgroundColor: '#fff', titleColor: '#222', bodyColor: '#222', borderColor: '#e5e7eb', borderWidth: 1 }
       }
     }
   });

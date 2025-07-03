@@ -144,7 +144,7 @@ async def insert_or_update_data_into_local_db(data, table_name, source):
             sold_at = parse_datetime(row['sold_at'])
             status = row.get('status', 'active')
             last_status_check = parse_datetime(row.get('last_status_check'))
-            information_ads_date = parse_date(row.get('information_ads_date'))
+            information_ads_date = row.get('information_ads_date')
             # Hanya ambil ads_tag jika source adalah carlistmy
             ads_tag = row.get('ads_tag') if source == 'carlistmy' else None
             is_deleted = row.get('is_deleted', False)

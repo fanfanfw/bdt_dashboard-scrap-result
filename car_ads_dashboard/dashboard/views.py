@@ -13,6 +13,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.views.decorators.http import require_GET
 from django.db import models
 import pandas as pd
+from datetime import date
 
 class CustomLoginView(LoginView):
     form_class = AuthenticationForm
@@ -74,6 +75,8 @@ def user_dashboard(request, username):
     total_sold = queryset.filter(status='sold').count()
     total_brand = queryset.values('brand').distinct().count()
     avg_price = queryset.aggregate(avg=Avg('price'))['avg'] or 0
+    # Tambah: total data terbaru hari ini
+    total_today = queryset.filter(information_ads_date=date.today()).count()
 
     # Top 10 brand berdasarkan total listing (active+sold)
     top_ads = (
@@ -135,6 +138,7 @@ def user_dashboard(request, username):
         'total_sold': total_sold,
         'total_brand': total_brand,
         'avg_price': int(avg_price),
+        'total_today': total_today,
         'brands': brands,
         'years': years,
 

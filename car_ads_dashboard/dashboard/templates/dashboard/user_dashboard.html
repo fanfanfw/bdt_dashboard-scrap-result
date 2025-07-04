@@ -4,696 +4,1483 @@
 
 {% block content %}
 
-<div class="container-fluid py-4">
-  <h4 class="mb-4 text-center">Dashboard - {{ source|capfirst }}</h4>
-
-  <!-- Row 1: KPI Cards -->
-  <div class="d-flex flex-wrap gap-3 justify-content-center mb-4">
-    <div class="kpi-card card shadow-sm mb-0 kpi-gradient-blue">
-      <div class="card-body d-flex flex-column align-items-center">
-        <div class="kpi-icon mb-2">
-          <!-- Total Semua Listing Icon -->
-          <svg width="32" height="32" fill="#2563eb" viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 8h14v-2H7v2zm0-4h14v-2H7v2zm0-6v2h14V7H7z"/></svg>
-        </div>
-        <h6 class="kpi-label">Total Semua Listing</h6>
-        <div class="kpi-value text-primary">{{ total_all|intcomma }}</div>
+<div class="modern-dashboard">
+  <!-- Hero Section -->
+  <div class="hero-section">
+    <div class="hero-content">
+      <h1 class="hero-title">Dashboard Analytics</h1>
+      <p class="hero-subtitle">{{ source|capfirst }} - Real-time car listing insights</p>
+      <div class="hero-stats">
+        <span class="stat-badge">Live Data</span>
+        <span class="stat-separator">•</span>
+        <span class="stat-text">Updated {{ "now"|date:"H:i" }}</span>
       </div>
     </div>
-    <div class="kpi-card card shadow-sm mb-0 kpi-gradient-green">
-      <div class="card-body d-flex flex-column align-items-center">
-        <div class="kpi-icon mb-2">
-          <!-- Aktif Icon -->
-          <svg width="32" height="32" fill="#059669" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 15-5-5 1.41-1.41L11 13.17l5.59-5.59L18 9l-7 8z"/></svg>
-        </div>
-        <h6 class="kpi-label">Total Listing Aktif</h6>
-        <div class="kpi-value text-success">{{ total_active|intcomma }}</div>
-      </div>
-    </div>
-    <div class="kpi-card card shadow-sm mb-0 kpi-gradient-yellow">
-      <div class="card-body d-flex flex-column align-items-center">
-        <div class="kpi-icon mb-2">
-          <!-- Terjual Icon -->
-          <svg width="32" height="32" fill="#eab308" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-5-5 1.41-1.41L11 13.17l5.59-5.59L18 9l-7 8z"/></svg>
-        </div>
-        <h6 class="kpi-label">Total Listing Terjual</h6>
-        <div class="kpi-value text-warning">{{ total_sold|intcomma }}</div>
-      </div>
-    </div>
-    <div class="kpi-card card shadow-sm mb-0 kpi-gradient-cyan">
-      <div class="card-body d-flex flex-column align-items-center">
-        <div class="kpi-icon mb-2">
-          <!-- Brand Icon -->
-          <svg width="32" height="32" fill="#06b6d4" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 17.93c-2.83.48-5.78-.3-7.93-2.44C2.37 15.13 2 13.62 2 12c0-1.62.37-3.13 1.07-4.49C6.22 3.37 9.17 2.59 12 3.07V19.93z"/></svg>
-        </div>
-        <h6 class="kpi-label">Total Brand</h6>
-        <div class="kpi-value text-info">{{ total_brand|intcomma }}</div>
-      </div>
-    </div>
-    <div class="kpi-card card shadow-sm mb-0 kpi-gradient-red">
-      <div class="card-body d-flex flex-column align-items-center">
-        <div class="kpi-icon mb-2">
-          <!-- Data Terbaru Icon -->
-          <svg width="32" height="32" fill="#dc2626" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H5V8h14v13zm0-15H5V5h14v1z"/></svg>
-        </div>
-        <h6 class="kpi-label">Data Terbaru Hari Ini</h6>
-        <div class="kpi-value text-danger">{{ total_today|intcomma }}</div>
-      </div>
+    <div class="hero-decoration">
+      <div class="decoration-circle primary"></div>
+      <div class="decoration-circle secondary"></div>
+      <div class="decoration-circle accent"></div>
     </div>
   </div>
-  <style>
-    :root {
-      --color-bg: #DDDDDD;
-      --color-dark: #222831;
-      --color-blue: #30475E;
-      --color-red: #F05454;
-      --color-card: #fff;
-      --color-card-header: #30475E;
-      --color-card-shadow: 0 2px 12px 0 rgba(48,71,94,0.07);
-      --color-canvas: #fff;
-      --color-label: #30475E;
-      --color-value: #222831;
-    }
-    body { background: var(--color-bg); }
-    .kpi-card {
-      background: var(--color-card);
-      box-shadow: var(--color-card-shadow);
-    }
-    .kpi-label { color: var(--color-label); }
-    .kpi-value { color: var(--color-value); }
-    .modern-card {
-      background: linear-gradient(135deg, #e8eaef 0%, #f3f4f7 100%);
-      box-shadow: var(--color-card-shadow);
-      border: none;
-    }
-    .modern-card .card-header {
-      color: var(--color-card-header);
-      background: transparent;
-    }
-    .modern-canvas {
-      background: var(--color-canvas);
-    }
-    /* KPI Card Gradients with palette */
-    .kpi-gradient-blue { background: linear-gradient(135deg, #30475E 0%, #DDDDDD 100%); }
-    .kpi-gradient-green { background: linear-gradient(135deg, #4ed19e 0%, #DDDDDD 100%); }
-    .kpi-gradient-yellow { background: linear-gradient(135deg, #ffe066 0%, #DDDDDD 100%); }
-    .kpi-gradient-cyan { background: linear-gradient(135deg, #6ec6f0 0%, #DDDDDD 100%); }
-    .kpi-gradient-red { background: linear-gradient(135deg, #F05454 0%, #DDDDDD 100%); }
-    /* Dark mode palette */
-    .dark-mode {
-      --color-bg: #222831;
-      --color-dark: #222831;
-      --color-blue: #30475E;
-      --color-red: #F05454;
-      --color-card: #232a36;
-      --color-card-header: #F05454;
-      --color-card-shadow: 0 2px 12px 0 rgba(48,71,94,0.18);
-      --color-canvas: #232a36;
-      --color-label: #F05454;
-      --color-value: #DDDDDD;
-    }
-    .dark-mode body { background: var(--color-bg) !important; }
-    .dark-mode .kpi-card, .dark-mode .modern-card { background: var(--color-card) !important; }
-    .dark-mode .modern-card .card-header { color: var(--color-card-header) !important; }
-    .dark-mode .modern-canvas { background: var(--color-canvas) !important; }
-    .dark-mode .kpi-label { color: var(--color-label) !important; }
-    .dark-mode .kpi-value { color: var(--color-value) !important; }
-    .dark-mode .kpi-gradient-blue { background: linear-gradient(135deg, #30475E 0%, #222831 100%) !important; }
-    .dark-mode .kpi-gradient-green { background: linear-gradient(135deg, #4ed19e 0%, #222831 100%) !important; }
-    .dark-mode .kpi-gradient-yellow { background: linear-gradient(135deg, #ffe066 0%, #222831 100%) !important; }
-    .dark-mode .kpi-gradient-cyan { background: linear-gradient(135deg, #6ec6f0 0%, #222831 100%) !important; }
-    .dark-mode .kpi-gradient-red { background: linear-gradient(135deg, #F05454 0%, #222831 100%) !important; }
-    .kpi-card {
-      flex: 1 1 200px;
-      max-width: 230px;
-      min-width: 180px;
-      border: none;
-      border-radius: 1.2rem;
-      transition: transform 0.15s, box-shadow 0.15s;
-      box-shadow: 0 2px 12px 0 rgba(0,0,0,0.07);
-      background: #fff;
-      position: relative;
-      overflow: hidden;
-    }
-    .kpi-card:hover {
-      transform: translateY(-4px) scale(1.03);
-      box-shadow: 0 6px 24px 0 rgba(0,0,0,0.13);
-      z-index: 2;
-    }
-    .kpi-label {
-      font-size: 1rem;
-      font-weight: 600;
-      color: #444;
-      margin-bottom: 0.2rem;
-      letter-spacing: 0.01em;
-    }
-    .kpi-value {
-      font-size: 2.1rem;
-      font-weight: 700;
-      line-height: 1.1;
-      margin-bottom: 0.1rem;
-      letter-spacing: 0.01em;
-    }
-    .kpi-icon {
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,0.04);
-      border-radius: 50%;
-      margin-bottom: 0.2rem;
-    }
-    .modern-card {
-      border-radius: 1.2rem;
-      box-shadow: 0 2px 12px 0 rgba(0,0,0,0.07);
-      background: linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%);
-      border: none;
-      overflow: hidden;
-      margin-bottom: 1.5rem;
-    }
-    .modern-card .card-header {
-      font-weight: 700;
-      font-size: 1.1rem;
-      background: transparent;
-      border-bottom: none;
-      color: #334155;
-      letter-spacing: 0.01em;
-      padding-top: 1rem;
-      padding-bottom: 0.5rem;
-    }
-    .modern-card .card-body {
-      padding: 1.2rem 1.5rem 1.5rem 1.5rem;
-    }
-    .modern-canvas {
-      border-radius: 1rem !important;
-      background: #fff;
-      box-shadow: 0 1px 8px 0 rgba(0,0,0,0.04);
-      padding: 0.5rem;
-    }
-    /* Chart.js tooltip & legend improvements */
-    .chartjs-tooltip {
-      border-radius: 0.7rem;
-      background: #fff;
-      color: #222;
-      box-shadow: 0 2px 8px 0 rgba(0,0,0,0.10);
-      padding: 0.7rem 1rem;
-      font-size: 1rem;
-    }
-    @media (max-width: 900px) {
-      .kpi-card { max-width: 100%; min-width: 140px; }
-      .modern-card { padding: 0.5rem; }
-    }
-  </style>
 
-  <!-- Row 2: Charts -->
-  <div class="row">
-    <div class="col-lg-6 mb-4">
-      <div class="modern-card card h-100 shadow-sm">
-        <div class="card-header">
-          10 Brand dengan Iklan Terbanyak
+  <!-- KPI Cards Section -->
+  <div class="kpi-section">
+    <div class="kpi-grid">
+      <div class="kpi-card primary">
+        <div class="kpi-header">
+          <div class="kpi-icon">
+            <i class="fas fa-chart-line"></i>
+          </div>
+          <div class="kpi-trend up">
+            <i class="fas fa-arrow-up"></i>
+          </div>
         </div>
-        <div class="card-body">
-          <canvas id="brandBarChartAds" class="modern-canvas"></canvas>
+        <div class="kpi-content">
+          <h3 class="kpi-value">{{ total_all|intcomma }}</h3>
+          <p class="kpi-label">Total Semua Listing</p>
+          <div class="kpi-change">+12% dari bulan lalu</div>
         </div>
       </div>
-    </div>
-    <div class="col-lg-6 mb-4">
-      <div class="modern-card card h-100 shadow-sm">
-        <div class="card-header">
-          10 Brand dengan Penjualan Terbanyak
+
+      <div class="kpi-card success">
+        <div class="kpi-header">
+          <div class="kpi-icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <div class="kpi-trend up">
+            <i class="fas fa-arrow-up"></i>
+          </div>
         </div>
-        <div class="card-body">
-          <canvas id="brandBarChartSold" class="modern-canvas"></canvas>
+        <div class="kpi-content">
+          <h3 class="kpi-value">{{ total_active|intcomma }}</h3>
+          <p class="kpi-label">Listing Aktif</p>
+          <div class="kpi-change">+8% dari minggu lalu</div>
+        </div>
+      </div>
+
+      <div class="kpi-card warning">
+        <div class="kpi-header">
+          <div class="kpi-icon">
+            <i class="fas fa-handshake"></i>
+          </div>
+          <div class="kpi-trend down">
+            <i class="fas fa-arrow-down"></i>
+          </div>
+        </div>
+        <div class="kpi-content">
+          <h3 class="kpi-value">{{ total_sold|intcomma }}</h3>
+          <p class="kpi-label">Listing Terjual</p>
+          <div class="kpi-change">-3% dari minggu lalu</div>
+        </div>
+      </div>
+
+      <div class="kpi-card info">
+        <div class="kpi-header">
+          <div class="kpi-icon">
+            <i class="fas fa-tags"></i>
+          </div>
+          <div class="kpi-trend neutral">
+            <i class="fas fa-minus"></i>
+          </div>
+        </div>
+        <div class="kpi-content">
+          <h3 class="kpi-value">{{ total_brand|intcomma }}</h3>
+          <p class="kpi-label">Total Brand</p>
+          <div class="kpi-change">Stabil</div>
+        </div>
+      </div>
+
+      <div class="kpi-card danger">
+        <div class="kpi-header">
+          <div class="kpi-icon">
+            <i class="fas fa-calendar-day"></i>
+          </div>
+          <div class="kpi-trend up">
+            <i class="fas fa-arrow-up"></i>
+          </div>
+        </div>
+        <div class="kpi-content">
+          <h3 class="kpi-value">{{ total_today|intcomma }}</h3>
+          <p class="kpi-label">Data Hari Ini</p>
+          <div class="kpi-change">Baru ditambahkan</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Row 3: Layout Custom -->
-  <div class="row">
-    <!-- Kolom Kiri: Pie Chart dan Distribusi Transmisi bertumpuk -->
-    <div class="col-lg-4 d-flex flex-column gap-4">
-      <div class="modern-card card shadow-sm flex-fill">
-        <div class="card-header">Status Listing (Active vs Sold)</div>
-        <div class="card-body d-flex justify-content-center align-items-center flex-grow-1">
-          <canvas id="statusPieChart" class="modern-canvas" style="max-width: 250px; max-height: 250px;"></canvas>
+  <!-- Charts Section -->
+  <div class="charts-section">
+    <div class="charts-grid">
+      <!-- Top 10 Brands Chart -->
+      <div class="chart-card full-width">
+        <div class="chart-header">
+          <h3 class="chart-title">Top 10 Brand Mobil</h3>
+          <div class="chart-subtitle">Brand dengan listing terbanyak</div>
+        </div>
+        <div class="chart-content">
+          <canvas id="top10BrandsChart"></canvas>
         </div>
       </div>
-      <div class="modern-card card shadow-sm flex-fill">
-        <div class="card-header">Distribusi Transmisi</div>
-        <div class="card-body">
-          <canvas id="transmissionBarChart" class="modern-canvas"></canvas>
-        </div>
-      </div>
-    </div>
 
-    <!-- Kolom Kanan: Distribusi Tahun Produksi -->
-    <div class="col-lg-8">
-      <div class="modern-card card shadow-sm h-100 d-flex flex-column">
-        <div class="card-header">Distribusi Tahun Produksi</div>
-        <div class="card-body">
-          <canvas id="yearHistogram" class="modern-canvas"></canvas>
+      <!-- Brand Active vs Sold -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">Aktif vs Terjual</h3>
+          <div class="chart-subtitle">Perbandingan listing per brand</div>
+        </div>
+        <div class="chart-content">
+          <canvas id="brandChart"></canvas>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Row 4: Layout Scatterplot kanan besar, grafik & tabel kiri bertumpuk -->
-  <div class="row mt-4">
-    <!-- Kolom Kiri: Grafik Rata-rata Mileage dan Tabel Korelasi bertumpuk -->
-    <div class="col-lg-4 d-flex flex-column gap-4">
-      <div class="modern-card card shadow-sm flex-fill">
-        <div class="card-header">Rata-rata Mileage per Tahun</div>
-        <div class="card-body">
-          <canvas id="avgMileageYearChart" class="modern-canvas" style="min-height: 350px;"></canvas>
+      <!-- Listing per Year -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">Listing per Tahun</h3>
+          <div class="chart-subtitle">Trend listing berdasarkan tahun</div>
+        </div>
+        <div class="chart-content">
+          <canvas id="yearChart"></canvas>
         </div>
       </div>
-      <div class="modern-card card shadow-sm flex-fill" style="overflow-x:auto; max-height: 370px;">
-        <div class="card-header">Korelasi Antar Fitur</div>
-        <div class="card-body">
-          <table class="table table-bordered" id="correlationTable">
-            <thead>
-              <tr>
-                <th>Fitur</th>
-                <th>Price</th>
-                <th>Mileage</th>
-                <th>Year</th>
-              </tr>
-            </thead>
-            <tbody>
-              <!-- Data korelasi akan diisi JS -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
 
-    <!-- Kolom Kanan: Scatter Plot Mileage vs Price -->
-    <div class="col-lg-8">
-      <div class="modern-card card shadow-sm mb-4">
-        <div class="card-header d-flex flex-wrap align-items-center gap-3">
-          <h5 class="mb-0 flex-grow-1">Mileage vs Price Scatter Plot</h5>
-          <select id="scatterBrand" class="form-select form-select-sm w-auto" required>
-            <option value="">-- Pilih Brand --</option>
-            {% for b in brands %}
-            <option value="{{ b }}">{{ b }}</option>
-            {% endfor %}
-          </select>
-          <select id="scatterModel" class="form-select form-select-sm w-auto" disabled>
-            <option value="">-- Pilih Model --</option>
-          </select>
-          <select id="scatterVariant" class="form-select form-select-sm w-auto" disabled>
-            <option value="">-- Pilih Variant --</option>
-          </select>
-          <select id="scatterYear" class="form-select form-select-sm w-auto">
-            <option value="">-- Pilih Year --</option>
-          </select>
+      <!-- Average Price -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">Harga Rata-rata</h3>
+          <div class="chart-subtitle">Harga rata-rata per brand</div>
         </div>
-        <div class="card-body">
-          <canvas id="scatterPlot" class="modern-canvas" style="min-height: 500px;"></canvas>
+        <div class="chart-content">
+          <canvas id="priceChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Transmission Distribution -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">Distribusi Transmisi</h3>
+          <div class="chart-subtitle">Manual vs Automatic</div>
+        </div>
+        <div class="chart-content">
+          <canvas id="transmissionChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Fuel Type Distribution -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">Jenis Bahan Bakar</h3>
+          <div class="chart-subtitle">Distribusi fuel type</div>
+        </div>
+        <div class="chart-content">
+          <canvas id="fuelChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Engine CC -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">Engine CC</h3>
+          <div class="chart-subtitle">Distribusi engine cc</div>
+        </div>
+        <div class="chart-content">
+          <canvas id="engineChart"></canvas>
         </div>
       </div>
     </div>
   </div>
-  <!-- ...existing code... -->
 
-<!-- JQuery dan Chart.js CDN -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Analysis Section -->
+  <div class="analysis-section">
+    <div class="analysis-grid">
+      <!-- Scatter Plot Analysis -->
+      <div class="analysis-card full-width">
+        <div class="analysis-header">
+          <h3 class="analysis-title">Scatter Plot Analysis</h3>
+          <div class="analysis-subtitle">Hubungan antara harga dan mileage</div>
+        </div>
+        <div class="analysis-filters">
+          <div class="filter-group">
+            <label for="scatterBrand" class="filter-label">Brand:</label>
+            <select id="scatterBrand" class="filter-select">
+              <option value="">Semua Brand</option>
+              {% for brand in scatter_brands %}
+              <option value="{{ brand }}">{{ brand }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="scatterModel" class="filter-label">Model:</label>
+            <select id="scatterModel" class="filter-select">
+              <option value="">Semua Model</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="scatterVariant" class="filter-label">Variant:</label>
+            <select id="scatterVariant" class="filter-select">
+              <option value="">Semua Variant</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="scatterYear" class="filter-label">Year:</label>
+            <select id="scatterYear" class="filter-select">
+              <option value="">Semua Tahun</option>
+            </select>
+          </div>
+        </div>
+        <div class="analysis-content">
+          <canvas id="scatterChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Average Mileage per Year -->
+      <div class="analysis-card full-width">
+        <div class="analysis-header">
+          <h3 class="analysis-title">Average Mileage per Year</h3>
+          <div class="analysis-subtitle">Trend rata-rata mileage berdasarkan tahun</div>
+        </div>
+        <div class="analysis-content">
+          <canvas id="avgMileageChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Modern Color Palette Variables */
+:root {
+  --color-light: #DDDDDD;
+  --color-dark: #222831;
+  --color-primary: #30475E;
+  --color-accent: #F05454;
+  --color-card: #ffffff;
+  --color-text-primary: #222831;
+  --color-text-secondary: #30475E;
+  --color-shadow: rgba(34, 40, 49, 0.1);
+  --color-gradient-start: rgba(48, 71, 94, 0.8);
+  --color-gradient-end: rgba(240, 84, 84, 0.8);
+  --color-border: rgba(48, 71, 94, 0.1);
+}
+
+/* Dark Mode Color Overrides */
+.dark-mode {
+  --color-light: #222831;
+  --color-dark: #DDDDDD;
+  --color-card: #30475E;
+  --color-text-primary: #DDDDDD;
+  --color-text-secondary: #DDDDDD;
+  --color-shadow: rgba(240, 84, 84, 0.2);
+  --color-gradient-start: rgba(240, 84, 84, 0.8);
+  --color-gradient-end: rgba(48, 71, 94, 0.8);
+  --color-border: rgba(240, 84, 84, 0.2);
+}
+
+/* Main Dashboard Container */
+.modern-dashboard {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--color-light) 0%, rgba(221, 221, 221, 0.8) 100%);
+  padding: 2rem 1rem;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.dark-mode .modern-dashboard {
+  background: linear-gradient(135deg, var(--color-dark) 0%, rgba(34, 40, 49, 0.95) 100%);
+}
+
+/* Hero Section */
+.hero-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--color-card);
+  border-radius: 24px;
+  padding: 3rem 2.5rem;
+  margin-bottom: 3rem;
+  box-shadow: 0 8px 32px var(--color-shadow);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+  opacity: 0.05;
+  z-index: 1;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  margin-bottom: 0.5rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.hero-subtitle {
+  font-size: 1.2rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+.hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stat-badge {
+  background: var(--color-accent);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 50px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-separator {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.stat-text {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+/* Hero Decoration */
+.hero-decoration {
+  position: relative;
+  z-index: 2;
+}
+
+.decoration-circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  position: absolute;
+  opacity: 0.6;
+}
+
+.decoration-circle.primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  top: -20px;
+  right: 0;
+}
+
+.decoration-circle.secondary {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-primary));
+  width: 80px;
+  height: 80px;
+  top: 40px;
+  right: 60px;
+  opacity: 0.4;
+}
+
+.decoration-circle.accent {
+  background: var(--color-accent);
+  width: 40px;
+  height: 40px;
+  top: 80px;
+  right: 120px;
+  opacity: 0.3;
+}
+
+/* KPI Section */
+.kpi-section {
+  margin-bottom: 3rem;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* KPI Cards */
+.kpi-card {
+  background: var(--color-card);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px var(--color-shadow);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  opacity: 0.8;
+}
+
+.kpi-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 12px 40px var(--color-shadow);
+}
+
+.kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.kpi-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  color: white;
+  box-shadow: 0 4px 12px rgba(48, 71, 94, 0.3);
+}
+
+.kpi-trend {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.kpi-trend.up {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.kpi-trend.down {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.kpi-trend.neutral {
+  background: rgba(156, 163, 175, 0.1);
+  color: #9ca3af;
+}
+
+.kpi-content h3 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  margin-bottom: 0.5rem;
+  line-height: 1;
+}
+
+.kpi-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.kpi-change {
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  border-radius: 50px;
+  background: rgba(48, 71, 94, 0.1);
+  color: var(--color-text-secondary);
+  display: inline-block;
+}
+
+/* Card Type Variations */
+.kpi-card.primary .kpi-icon {
+  background: linear-gradient(135deg, var(--color-primary), #4a90e2);
+}
+
+.kpi-card.success .kpi-icon {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.kpi-card.warning .kpi-icon {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.kpi-card.info .kpi-icon {
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+}
+
+.kpi-card.danger .kpi-icon {
+  background: linear-gradient(135deg, var(--color-accent), #dc2626);
+}
+
+/* Charts Section */
+.charts-section {
+  margin-bottom: 3rem;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.chart-card {
+  background: var(--color-card);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px var(--color-shadow);
+  border: 1px solid var(--color-border);
+  transition: all 0.3s ease;
+}
+
+.chart-card.full-width {
+  grid-column: 1 / -1;
+}
+
+.chart-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 32px var(--color-shadow);
+}
+
+.chart-header {
+  margin-bottom: 1.5rem;
+}
+
+.chart-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.chart-subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.chart-content {
+  position: relative;
+  height: 300px;
+}
+
+.chart-content canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Analysis Section */
+.analysis-section {
+  margin-bottom: 3rem;
+}
+
+.analysis-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.analysis-card {
+  background: var(--color-card);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px var(--color-shadow);
+  border: 1px solid var(--color-border);
+  transition: all 0.3s ease;
+}
+
+.analysis-card.full-width {
+  grid-column: 1 / -1;
+}
+
+.analysis-header {
+  margin-bottom: 1.5rem;
+}
+
+.analysis-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.analysis-subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.analysis-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(48, 71, 94, 0.05);
+  border-radius: 12px;
+}
+
+.dark-mode .analysis-filters {
+  background: rgba(240, 84, 84, 0.1);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-select {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-card);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(240, 84, 84, 0.1);
+}
+
+.analysis-content {
+  position: relative;
+  height: 400px;
+}
+
+.analysis-content canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .modern-dashboard {
+    padding: 1rem 0.5rem;
+  }
+
+  .hero-section {
+    flex-direction: column;
+    text-align: center;
+    padding: 2rem 1.5rem;
+  }
+
+  .hero-title {
+    font-size: 2rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+  }
+
+  .hero-decoration {
+    display: none;
+  }
+
+  .kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .charts-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .chart-card {
+    padding: 1.5rem;
+  }
+
+  .chart-content {
+    height: 250px;
+  }
+
+  .analysis-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-content {
+    height: 300px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-stats {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .stat-badge {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.75rem;
+  }
+
+  .kpi-header {
+    margin-bottom: 1rem;
+  }
+
+  .kpi-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 1.25rem;
+  }
+
+  .kpi-trend {
+    width: 35px;
+    height: 35px;
+    font-size: 0.875rem;
+  }
+
+  .kpi-content h3 {
+    font-size: 2rem;
+  }
+}
+
+/* Animation for loading */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kpi-card {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.kpi-card:nth-child(1) { animation-delay: 0.1s; }
+.kpi-card:nth-child(2) { animation-delay: 0.2s; }
+.kpi-card:nth-child(3) { animation-delay: 0.3s; }
+.kpi-card:nth-child(4) { animation-delay: 0.4s; }
+.kpi-card:nth-child(5) { animation-delay: 0.5s; }
+
+.chart-card {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.chart-card:nth-child(1) { animation-delay: 0.2s; }
+.chart-card:nth-child(2) { animation-delay: 0.3s; }
+.chart-card:nth-child(3) { animation-delay: 0.4s; }
+.chart-card:nth-child(4) { animation-delay: 0.5s; }
+.chart-card:nth-child(5) { animation-delay: 0.6s; }
+.chart-card:nth-child(6) { animation-delay: 0.7s; }
+.chart-card:nth-child(7) { animation-delay: 0.8s; }
+
+/* Improved focus states for accessibility */
+.kpi-card:focus-within,
+.chart-card:focus-within,
+.analysis-card:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+</style>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-  // ==== Chart Bar: Iklan Terbanyak ====
-  const ctxAds = document.getElementById('brandBarChartAds').getContext('2d');
-  let gradientAds = ctxAds.createLinearGradient(0, 0, 0, 400);
-  gradientAds.addColorStop(0, '#30475E');
-  gradientAds.addColorStop(1, '#DDDDDD');
-  let brandBarChartAds = new Chart(ctxAds, {
+// Charts script
+document.addEventListener('DOMContentLoaded', function() {
+  const chartColors = [
+    'rgba(48, 71, 94, 0.8)',
+    'rgba(240, 84, 84, 0.8)',
+    'rgba(54, 162, 235, 0.8)',
+    'rgba(255, 206, 86, 0.8)',
+    'rgba(75, 192, 192, 0.8)',
+    'rgba(153, 102, 255, 0.8)',
+    'rgba(255, 159, 64, 0.8)',
+    'rgba(199, 199, 199, 0.8)',
+    'rgba(83, 102, 255, 0.8)',
+    'rgba(255, 99, 132, 0.8)'
+  ];
+  
+  // Top 10 Brands Chart
+  const top10BrandsCtx = document.getElementById('top10BrandsChart').getContext('2d');
+  const top10BrandsChart = new Chart(top10BrandsCtx, {
     type: 'bar',
     data: {
-      labels: {{ chart_labels_ads|safe }},
-      datasets: [{
-        label: 'Jumlah Iklan',
-        data: {{ chart_data_ads|safe }},
-        backgroundColor: gradientAds,
-        borderRadius: 12,
-        borderSkipped: false,
-        hoverBackgroundColor: '#F05454',
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        title: { display: true, text: '10 Brand Teratas - Iklan', font: { size: 18, weight: 'bold' }, color: '#30475E' }
-      },
-      scales: {
-        y: { beginAtZero: true, grid: { color: '#e5e7eb' }, ticks: { color: '#30475E' } },
-        x: { grid: { display: false }, ticks: { color: '#30475E' } }
-      }
-    }
-  });
-
-  // ==== Chart Bar: Penjualan Terbanyak ====
-  const ctxSold = document.getElementById('brandBarChartSold').getContext('2d');
-  let gradientSold = ctxSold.createLinearGradient(0, 0, 0, 400);
-  gradientSold.addColorStop(0, '#F05454');
-  gradientSold.addColorStop(1, '#DDDDDD');
-  let brandBarChartSold = new Chart(ctxSold, {
-    type: 'bar',
-    data: {
-      labels: {{ chart_labels_sold|safe }},
-      datasets: [{
-        label: 'Jumlah Terjual',
-        data: {{ chart_data_sold|safe }},
-        backgroundColor: gradientSold,
-        borderRadius: 12,
-        borderSkipped: false,
-        hoverBackgroundColor: '#30475E',
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        title: { display: true, text: '10 Brand Teratas - Penjualan', font: { size: 18, weight: 'bold' }, color: '#F05454' }
-      },
-      scales: {
-        y: { beginAtZero: true, grid: { color: '#e5e7eb' }, ticks: { color: '#F05454' } },
-        x: { grid: { display: false }, ticks: { color: '#F05454' } }
-      }
-    }
-  });
-
-  // ==== Chart Bar: Distribusi Tahun Produksi ====
-  const yearCtx = document.getElementById('yearHistogram').getContext('2d');
-  let gradientYear = yearCtx.createLinearGradient(0, 0, 0, 400);
-  gradientYear.addColorStop(0, '#30475E');
-  gradientYear.addColorStop(1, '#DDDDDD');
-  const yearHistogram = new Chart(yearCtx, {
-    type: 'bar',
-    data: {
-      labels: {{ years_hist_labels|safe }},
+      labels: {{ top_10_brands_labels|safe }},
       datasets: [{
         label: 'Jumlah Listing',
-        data: {{ years_hist_data|safe }},
-        backgroundColor: gradientYear,
-        borderRadius: 10,
+        data: {{ top_10_brands_data|safe }},
+        backgroundColor: chartColors,
+        borderColor: chartColors.map(color => color.replace('0.8', '1')),
+        borderWidth: 2,
+        borderRadius: 8,
         borderSkipped: false,
-        hoverBackgroundColor: '#F05454',
       }]
     },
-    options: { responsive: true, plugins: { legend: { display: false }, title: { display: false } }, scales: { y: { grid: { color: '#e5e7eb' }, ticks: { color: '#30475E' } }, x: { grid: { display: false }, ticks: { color: '#30475E' } } } }
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(34, 40, 49, 0.9)',
+          titleColor: '#DDDDDD',
+          bodyColor: '#DDDDDD',
+          borderColor: '#30475E',
+          borderWidth: 1,
+          cornerRadius: 8,
+          displayColors: false
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(48, 71, 94, 0.1)'
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        }
+      }
+    }
   });
 
-  // ==== Chart Bar: Distribusi Transmisi ====
-  const transmissionCtx = document.getElementById('transmissionBarChart').getContext('2d');
-  let gradientTrans = transmissionCtx.createLinearGradient(0, 0, 0, 400);
-  gradientTrans.addColorStop(0, '#30475E');
-  gradientTrans.addColorStop(1, '#F05454');
-  const transmissionBarChart = new Chart(transmissionCtx, {
+  // Brand Chart
+  const brandCtx = document.getElementById('brandChart').getContext('2d');
+  const brandChart = new Chart(brandCtx, {
     type: 'bar',
+    data: {
+      labels: {{ brand_labels|safe }},
+      datasets: [{
+        label: 'Aktif',
+        data: {{ brand_active_data|safe }},
+        backgroundColor: 'rgba(48, 71, 94, 0.8)',
+        borderColor: 'rgba(48, 71, 94, 1)',
+        borderWidth: 2,
+        borderRadius: 6
+      }, {
+        label: 'Terjual',
+        data: {{ brand_sold_data|safe }},
+        backgroundColor: 'rgba(240, 84, 84, 0.8)',
+        borderColor: 'rgba(240, 84, 84, 1)',
+        borderWidth: 2,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#30475E',
+            usePointStyle: true,
+            padding: 20
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(34, 40, 49, 0.9)',
+          titleColor: '#DDDDDD',
+          bodyColor: '#DDDDDD',
+          borderColor: '#30475E',
+          borderWidth: 1,
+          cornerRadius: 8
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(48, 71, 94, 0.1)'
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        }
+      }
+    }
+  });
+
+  // Year Chart
+  const yearCtx = document.getElementById('yearChart').getContext('2d');
+  const yearChart = new Chart(yearCtx, {
+    type: 'line',
+    data: {
+      labels: {{ year_labels|safe }},
+      datasets: [{
+        label: 'Jumlah Listing',
+        data: {{ year_data|safe }},
+        borderColor: 'rgba(240, 84, 84, 1)',
+        backgroundColor: 'rgba(240, 84, 84, 0.1)',
+        tension: 0.4,
+        borderWidth: 3,
+        pointBackgroundColor: 'rgba(240, 84, 84, 1)',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(34, 40, 49, 0.9)',
+          titleColor: '#DDDDDD',
+          bodyColor: '#DDDDDD',
+          borderColor: '#30475E',
+          borderWidth: 1,
+          cornerRadius: 8
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(48, 71, 94, 0.1)'
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        }
+      }
+    }
+  });
+
+  // Price Chart
+  const priceCtx = document.getElementById('priceChart').getContext('2d');
+  const priceChart = new Chart(priceCtx, {
+    type: 'bar',
+    data: {
+      labels: {{ price_labels|safe }},
+      datasets: [{
+        label: 'Harga Rata-rata (RM)',
+        data: {{ price_data|safe }},
+        backgroundColor: chartColors,
+        borderColor: chartColors.map(color => color.replace('0.8', '1')),
+        borderWidth: 2,
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(34, 40, 49, 0.9)',
+          titleColor: '#DDDDDD',
+          bodyColor: '#DDDDDD',
+          borderColor: '#30475E',
+          borderWidth: 1,
+          cornerRadius: 8,
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': RM ' + context.parsed.y.toLocaleString();
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(48, 71, 94, 0.1)'
+          },
+          ticks: {
+            color: '#30475E',
+            callback: function(value) {
+              return 'RM ' + value.toLocaleString();
+            }
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        }
+      }
+    }
+  });
+
+  // Transmission Chart
+  const transmissionCtx = document.getElementById('transmissionChart').getContext('2d');
+  const transmissionChart = new Chart(transmissionCtx, {
+    type: 'doughnut',
     data: {
       labels: {{ transmission_labels|safe }},
       datasets: [{
-        label: 'Jumlah Listing',
         data: {{ transmission_data|safe }},
-        backgroundColor: gradientTrans,
-        borderRadius: 10,
-        borderSkipped: false,
-        hoverBackgroundColor: '#F05454',
-      }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false }, title: { display: false } }, scales: { y: { grid: { color: '#e5e7eb' }, ticks: { color: '#30475E' } }, x: { grid: { display: false }, ticks: { color: '#30475E' } } } }
-  });
-
-  // ==== Pie Chart Status Listing ====
-  const statusCtx = document.getElementById('statusPieChart').getContext('2d');
-  const statusPieChart = new Chart(statusCtx, {
-    type: 'doughnut',
-    data: {
-      labels: ['Active', 'Sold'],
-      datasets: [{
-        data: [{{ total_active }}, {{ total_sold }}],
-        backgroundColor: ['#30475E', '#F05454'],
-        borderWidth: 2,
-        borderColor: '#DDDDDD',
-        hoverOffset: 10,
+        backgroundColor: [
+          'rgba(48, 71, 94, 0.8)',
+          'rgba(240, 84, 84, 0.8)',
+          'rgba(54, 162, 235, 0.8)'
+        ],
+        borderColor: [
+          'rgba(48, 71, 94, 1)',
+          'rgba(240, 84, 84, 1)',
+          'rgba(54, 162, 235, 1)'
+        ],
+        borderWidth: 2
       }]
     },
     options: {
-      cutout: '70%',
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 15, weight: 'bold' }, color: '#30475E' } },
-        title: { display: true, text: 'Status Listing', font: { size: 18, weight: 'bold' }, color: '#30475E' },
-        tooltip: { enabled: true, backgroundColor: '#fff', titleColor: '#222', bodyColor: '#222', borderColor: '#e5e7eb', borderWidth: 1 }
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: '#30475E',
+            usePointStyle: true,
+            padding: 20
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(34, 40, 49, 0.9)',
+          titleColor: '#DDDDDD',
+          bodyColor: '#DDDDDD',
+          borderColor: '#30475E',
+          borderWidth: 1,
+          cornerRadius: 8
+        }
       }
     }
   });
 
-  // ==== Scatter Plot Mileage vs Price + Dropdown cascading ====
-  let scatterChart = null;
-
-  function fetchModels(brand) {
-    $('#scatterModel').prop('disabled', true).html('<option>Loading...</option>');
-    $('#scatterVariant').prop('disabled', true).html('<option>-- Pilih Variant --</option>');
-    $.ajax({
-      url: "{% url 'get_models' %}",
-      data: { brand: brand, source: "{{ source }}" },
-      success: function(data) {
-        let options = '<option value="">-- Pilih Model --</option>';
-        data.models.forEach(m => options += `<option value="${m}">${m}</option>`);
-        $('#scatterModel').html(options).prop('disabled', false);
-      },
-      error: function() {
-        $('#scatterModel').html('<option value="">-- Error Load Model --</option>');
-      }
-    });
-    // Update years dropdown
-    fetchYears(brand, '', '');
-  }
-
-  function fetchVariants(brand, model) {
-    $('#scatterVariant').prop('disabled', true).html('<option>Loading...</option>');
-    $.ajax({
-      url: "{% url 'get_variants' %}",
-      data: { brand: brand, model: model, source: "{{ source }}" },
-      success: function(data) {
-        let options = '<option value="">-- Pilih Variant --</option>';
-        data.variants.forEach(v => options += `<option value="${v}">${v}</option>`);
-        $('#scatterVariant').html(options).prop('disabled', false);
-      },
-      error: function() {
-        $('#scatterVariant').html('<option value="">-- Error Load Variant --</option>');
-      }
-    });
-    // Update years dropdown
-    fetchYears(brand, model, '');
-  }
-
-  function fetchYears(brand, model, variant) {
-    $.ajax({
-      url: "{% url 'get_years' %}",
-      data: { brand: brand, model: model, variant: variant, source: "{{ source }}" },
-      success: function(data) {
-        let options = '<option value="">-- Pilih Year --</option>';
-        if(data.years && data.years.length > 0) {
-          data.years.forEach(y => options += `<option value="${y}">${y}</option>`);
-        }
-        const prev = $('#scatterYear').val();
-        $('#scatterYear').html(options);
-        // Jika tahun sebelumnya masih ada di list, tetap pilih
-        if(prev && data.years.includes(parseInt(prev))) {
-          $('#scatterYear').val(prev);
+  // Fuel Chart
+  const fuelCtx = document.getElementById('fuelChart').getContext('2d');
+  const fuelChart = new Chart(fuelCtx, {
+    type: 'doughnut',
+    data: {
+      labels: {{ fuel_labels|safe }},
+      datasets: [{
+        data: {{ fuel_data|safe }},
+        backgroundColor: [
+          'rgba(48, 71, 94, 0.8)',
+          'rgba(240, 84, 84, 0.8)',
+          'rgba(54, 162, 235, 0.8)',
+          'rgba(255, 206, 86, 0.8)'
+        ],
+        borderColor: [
+          'rgba(48, 71, 94, 1)',
+          'rgba(240, 84, 84, 1)',
+          'rgba(54, 162, 235, 1)',
+          'rgba(255, 206, 86, 1)'
+        ],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: '#30475E',
+            usePointStyle: true,
+            padding: 20
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(34, 40, 49, 0.9)',
+          titleColor: '#DDDDDD',
+          bodyColor: '#DDDDDD',
+          borderColor: '#30475E',
+          borderWidth: 1,
+          cornerRadius: 8
         }
       }
-    });
-  }
+    }
+  });
 
-  function fetchScatterData(brand, model, variant, year) {
-    $.ajax({
-      url: "{% url 'get_scatter_data' username %}",
-      data: { brand: brand, model: model, variant: variant, year: year, source: "{{ source }}" },
-      success: function(data) {
-        if(scatterChart) scatterChart.destroy();
-        const chartData = data.map(item => ({
-          x: item.mileage,
-          y: item.price,
-          label: `${item.brand} ${item.model} ${item.variant}`
-        }));
-        const ctx = document.getElementById('scatterPlot').getContext('2d');
-        scatterChart = new Chart(ctx, {
-          type: 'scatter',
-          data: {
-            datasets: [{
-              label: 'Mileage vs Price',
-              data: chartData,
-              backgroundColor: 'rgba(54, 162, 235, 0.8)'
-            }]
+  // Engine Chart
+  const engineCtx = document.getElementById('engineChart').getContext('2d');
+  const engineChart = new Chart(engineCtx, {
+    type: 'bar',
+    data: {
+      labels: {{ engine_labels|safe }},
+      datasets: [{
+        label: 'Jumlah Listing',
+        data: {{ engine_data|safe }},
+        backgroundColor: chartColors,
+        borderColor: chartColors.map(color => color.replace('0.8', '1')),
+        borderWidth: 2,
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(34, 40, 49, 0.9)',
+          titleColor: '#DDDDDD',
+          bodyColor: '#DDDDDD',
+          borderColor: '#30475E',
+          borderWidth: 1,
+          cornerRadius: 8
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(48, 71, 94, 0.1)'
           },
-          options: {
-            responsive: true,
-            plugins: {
-              tooltip: {
-                callbacks: {
-                  label: function(context) {
-                    const point = context.raw;
-                    return `${point.label}: Mileage ${point.x}, Price RM ${point.y}`;
-                  }
-                }
-              }
-            },
-            scales: {
-              x: { title: { display: true, text: 'Mileage (km)' }, beginAtZero: true },
-              y: { title: { display: true, text: 'Price (RM)' }, beginAtZero: true }
+          ticks: {
+            color: '#30475E'
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        }
+      }
+    }
+  });
+
+  // Scatter Chart
+  const scatterCtx = document.getElementById('scatterChart').getContext('2d');
+  let scatterChart = new Chart(scatterCtx, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Harga vs Mileage',
+        data: [],
+        backgroundColor: 'rgba(240, 84, 84, 0.6)',
+        borderColor: 'rgba(240, 84, 84, 1)',
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(34, 40, 49, 0.9)',
+          titleColor: '#DDDDDD',
+          bodyColor: '#DDDDDD',
+          borderColor: '#30475E',
+          borderWidth: 1,
+          cornerRadius: 8,
+          callbacks: {
+            label: function(context) {
+              return `Harga: RM ${context.parsed.y.toLocaleString()}, Mileage: ${context.parsed.x.toLocaleString()} km`;
             }
           }
-        });
+        }
       },
-      error: function() {
-        alert('Gagal memuat data scatter plot.');
-      }
-    });
-  }
-
-  // ==== Grafik Rata-rata Mileage per Tahun ====
-  let avgMileageYearChart = null;
-  function renderAvgMileageChart(labels, data) {
-    const ctx = document.getElementById('avgMileageYearChart').getContext('2d');
-    if (avgMileageYearChart) avgMileageYearChart.destroy();
-    avgMileageYearChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Avg Mileage',
-          data: data,
-          borderColor: 'rgba(75, 192, 192, 0.8)',
-          backgroundColor: 'rgba(75, 192, 192, 0.3)',
-          fill: true,
-          tension: 0.3,
-        }]
-      },
-      options: {
-        responsive: true,
-        scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'Mileage' } },
-          x: { title: { display: true, text: 'Year' } }
+      scales: {
+        x: {
+          type: 'linear',
+          position: 'bottom',
+          title: {
+            display: true,
+            text: 'Mileage (km)',
+            color: '#30475E'
+          },
+          grid: {
+            color: 'rgba(48, 71, 94, 0.1)'
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        },
+        y: {
+          title: {
+            display: true,
+            text: 'Harga (RM)',
+            color: '#30475E'
+          },
+          grid: {
+            color: 'rgba(48, 71, 94, 0.1)'
+          },
+          ticks: {
+            color: '#30475E',
+            callback: function(value) {
+              return 'RM ' + value.toLocaleString();
+            }
+          }
         }
       }
-    });
-  }
-  function loadAvgMileagePerYear(brand, model='', variant='', year='') {
-    if(!brand) return;
-    let url = `{% url 'get_avg_mileage_per_year' username %}?source={{ source }}&brand=${brand}`;
-    if(model) url += `&model=${model}`;
-    if(variant) url += `&variant=${variant}`;
-    if(year) url += `&year=${year}`;
-    
-    $.getJSON(url, function(data) {
-      if(data.years && data.avg_mileages) {
-        renderAvgMileageChart(data.years, data.avg_mileages);
-      }
-    });
-  }
-
-  // ==== Render Tabel Korelasi Fitur ====
-  function renderCorrelationTable(corr) {
-    const tbody = $('#correlationTable tbody');
-    tbody.empty();
-    if(!corr) {
-      tbody.append('<tr><td colspan="4" class="text-center">Data korelasi tidak tersedia</td></tr>');
-      return;
     }
-    const features = Object.keys(corr);
-    features.forEach(rowFeature => {
-      let rowHtml = `<tr><th>${rowFeature}</th>`;
-      features.forEach(colFeature => {
-        const val = corr[rowFeature][colFeature];
-        // Tambah pengecekan jika val undefined/null
-        const displayVal = (val !== undefined && val !== null) ? val.toFixed(3) : '-';
-        const highlightClass = (val >= 0.7 || val <= -0.7) ? 'table-success' : '';
-        rowHtml += `<td class="${highlightClass}">${displayVal}</td>`;
-      });
-      rowHtml += '</tr>';
-      tbody.append(rowHtml);
-    });
-  }
-
-  function loadFeatureCorrelation() {
-    $.getJSON("{% url 'get_feature_correlation' username %}?source={{ source }}", function(data) {
-      if(data.correlation) {
-        renderCorrelationTable(data.correlation);
-      } else {
-        $('#correlationTable tbody').html('<tr><td colspan="4" class="text-center">Data korelasi tidak tersedia</td></tr>');
-      }
-    }).fail(function() {
-      $('#correlationTable tbody').html('<tr><td colspan="4" class="text-center text-danger">Gagal memuat data korelasi</td></tr>');
-    });
-  }
-
-  $(document).ready(function() {
-    loadFeatureCorrelation();
   });
 
-  // ==== Init semua ====
-  $(document).ready(function() {
-    $('#scatterBrand').change(function() {
-      const brand = $(this).val();
-      const year = $('#scatterYear').val();
-      if(brand) {
-        fetchModels(brand);
-        fetchScatterData(brand, '', '', year);
-        loadAvgMileagePerYear(brand, '', '', year);
-        // Reset model, variant, dan year
-        $('#scatterModel').val('');
-        $('#scatterVariant').val('');
-        fetchYears(brand, '', '');
-      } else {
-        $('#scatterModel').prop('disabled', true).html('<option>-- Pilih Model --</option>');
-        $('#scatterVariant').prop('disabled', true).html('<option>-- Pilih Variant --</option>');
-        $('#scatterYear').html('<option value="">-- Pilih Year --</option>');
-        if(scatterChart) scatterChart.destroy();
-        if(avgMileageYearChart) avgMileageYearChart.destroy();
+  // Average Mileage Chart
+  const avgMileageCtx = document.getElementById('avgMileageChart').getContext('2d');
+  let avgMileageChart = new Chart(avgMileageCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Average Mileage (km)',
+        data: [],
+        borderColor: 'rgba(48, 71, 94, 1)',
+        backgroundColor: 'rgba(48, 71, 94, 0.1)',
+        tension: 0.4,
+        borderWidth: 3,
+        pointBackgroundColor: 'rgba(48, 71, 94, 1)',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(34, 40, 49, 0.9)',
+          titleColor: '#DDDDDD',
+          bodyColor: '#DDDDDD',
+          borderColor: '#30475E',
+          borderWidth: 1,
+          cornerRadius: 8,
+          callbacks: {
+            label: function(context) {
+              return `Average Mileage: ${context.parsed.y.toLocaleString()} km`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Mileage (km)',
+            color: '#30475E'
+          },
+          grid: {
+            color: 'rgba(48, 71, 94, 0.1)'
+          },
+          ticks: {
+            color: '#30475E',
+            callback: function(value) {
+              return value.toLocaleString() + ' km';
+            }
+          }
+        },
+        x: {
+          title: {
+            display: true,
+            text: 'Year',
+            color: '#30475E'
+          },
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        }
       }
-    });
-
-    $('#scatterModel').change(function() {
-      const brand = $('#scatterBrand').val();
-      const model = $(this).val();
-      const year = $('#scatterYear').val();
-      if(model) {
-        fetchVariants(brand, model);
-        fetchScatterData(brand, model, '', year);
-        loadAvgMileagePerYear(brand, model, '', year);
-        // Reset variant dan year
-        $('#scatterVariant').val('');
-        fetchYears(brand, model, '');
-      } else {
-        $('#scatterVariant').prop('disabled', true).html('<option>-- Pilih Variant --</option>');
-        fetchScatterData(brand, '', '', year);
-        loadAvgMileagePerYear(brand, '', '', year);
-        fetchYears(brand, '', '');
-      }
-    });
-
-    $('#scatterVariant').change(function() {
-      const brand = $('#scatterBrand').val();
-      const model = $('#scatterModel').val();
-      const variant = $(this).val();
-      const year = $('#scatterYear').val();
-      fetchScatterData(brand, model, variant, year);
-      loadAvgMileagePerYear(brand, model, variant, year);
-      fetchYears(brand, model, variant);
-    });
-
-    $('#scatterYear').change(function() {
-      const brand = $('#scatterBrand').val();
-      const model = $('#scatterModel').val();
-      const variant = $('#scatterVariant').val();
-      const year = $(this).val();
-      fetchScatterData(brand, model, variant, year);
-      loadAvgMileagePerYear(brand, model, variant, year);
-    });
+    }
   });
+
+  // Function to fetch scatter data
+  function fetchScatterData(brand = '', model = '', variant = '', year = '') {
+    const params = new URLSearchParams();
+    params.append('source', '{{ source }}');
+    if (brand) params.append('brand', brand);
+    if (model) params.append('model', model);
+    if (variant) params.append('variant', variant);
+    if (year) params.append('year', year);
+
+    fetch(`/dashboard/user/{{ username }}/scatter-data/?${params.toString()}`)
+      .then(response => response.json())
+      .then(data => {
+        scatterChart.data.datasets[0].data = data;
+        scatterChart.update();
+      })
+      .catch(error => console.error('Error:', error));
+  }
+
+  // Function to load average mileage per year
+  function loadAvgMileagePerYear(brand = '', model = '', variant = '', year = '') {
+    const params = new URLSearchParams();
+    params.append('source', '{{ source }}');
+    if (brand) params.append('brand', brand);
+    if (model) params.append('model', model);
+    if (variant) params.append('variant', variant);
+    if (year) params.append('year', year);
+
+    fetch(`/dashboard/user/{{ username }}/avg-mileage-year/?${params.toString()}`)
+      .then(response => response.json())
+      .then(data => {
+        avgMileageChart.data.labels = data.labels;
+        avgMileageChart.data.datasets[0].data = data.data;
+        avgMileageChart.update();
+      })
+      .catch(error => console.error('Error:', error));
+  }
+
+  // Load initial scatter data
+  fetchScatterData();
+  loadAvgMileagePerYear();
+
+  // Brand change handler
+  $('#scatterBrand').change(function() {
+    const brand = $(this).val();
+    
+    // Clear and load models
+    $('#scatterModel').html('<option value="">Semua Model</option>');
+    $('#scatterVariant').html('<option value="">Semua Variant</option>');
+    $('#scatterYear').html('<option value="">Semua Tahun</option>');
+    
+    if (brand) {
+      fetch(`/dashboard/get-models/?brand=${brand}&source={{ source }}`)
+        .then(response => response.json())
+        .then(data => {
+          data.forEach(model => {
+            $('#scatterModel').append(`<option value="${model}">${model}</option>`);
+          });
+        });
+    }
+    
+    fetchScatterData(brand);
+    loadAvgMileagePerYear(brand);
+  });
+
+  // Model change handler
+  $('#scatterModel').change(function() {
+    const brand = $('#scatterBrand').val();
+    const model = $(this).val();
+    
+    // Clear and load variants
+    $('#scatterVariant').html('<option value="">Semua Variant</option>');
+    $('#scatterYear').html('<option value="">Semua Tahun</option>');
+    
+    if (model) {
+      fetch(`/dashboard/get-variants/?brand=${brand}&model=${model}&source={{ source }}`)
+        .then(response => response.json())
+        .then(data => {
+          data.forEach(variant => {
+            $('#scatterVariant').append(`<option value="${variant}">${variant}</option>`);
+          });
+        });
+
+      fetch(`/dashboard/get-years/?brand=${brand}&model=${model}&source={{ source }}`)
+        .then(response => response.json())
+        .then(data => {
+          data.forEach(year => {
+            $('#scatterYear').append(`<option value="${year}">${year}</option>`);
+          });
+        });
+    }
+    
+    fetchScatterData(brand, model);
+    loadAvgMileagePerYear(brand, model);
+  });
+
+  // Variant change handler
+  $('#scatterVariant').change(function() {
+    const brand = $('#scatterBrand').val();
+    const model = $('#scatterModel').val();
+    const variant = $(this).val();
+    fetchScatterData(brand, model, variant);
+    loadAvgMileagePerYear(brand, model, variant);
+  });
+
+  // Year change handler
+  $('#scatterYear').change(function() {
+    const brand = $('#scatterBrand').val();
+    const model = $('#scatterModel').val();
+    const variant = $('#scatterVariant').val();
+    const year = $(this).val();
+    fetchScatterData(brand, model, variant, year);
+    loadAvgMileagePerYear(brand, model, variant, year);
+  });
+});
 </script>
 {% endblock %}

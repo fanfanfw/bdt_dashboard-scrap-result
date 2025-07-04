@@ -39,6 +39,81 @@
       background-color: #181D27 !important;
       color: #CED2D9 !important;
     }
+    
+    /* Source Badge Styles */
+    .source-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-weight: bold;
+      font-size: 1rem;
+      color: white;
+      text-transform: uppercase;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+    
+    .source-mudah {
+      background: linear-gradient(135deg, #F05454, #dc2626);
+      border: 2px solid rgba(240, 84, 84, 0.3);
+    }
+    
+    .source-carlist {
+      background: linear-gradient(135deg, #30475E, #1e3a52);
+      border: 2px solid rgba(48, 71, 94, 0.3);
+    }
+    
+    /* Compact Dropdown Styles */
+    .compact-dropdown {
+      min-width: auto !important;
+      width: auto !important;
+      padding: 0.5rem;
+    }
+    
+    .compact-dropdown .dropdown-item {
+      padding: 0.5rem;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      width: auto;
+      min-width: auto;
+    }
+    
+    .compact-dropdown .dropdown-item:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .dropdown-item:hover .source-badge {
+      transform: scale(1.15);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    .dropdown-item:hover .source-mudah {
+      box-shadow: 0 4px 12px rgba(240, 84, 84, 0.4);
+    }
+    
+    .dropdown-item:hover .source-carlist {
+      box-shadow: 0 4px 12px rgba(48, 71, 94, 0.4);
+    }
+    
+    /* Dark mode adjustments for source badges */
+    .dark-mode .source-badge {
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .dark-mode .compact-dropdown .dropdown-item:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .dark-mode .dropdown-item:hover .source-mudah {
+      box-shadow: 0 4px 12px rgba(240, 84, 84, 0.6);
+    }
+    
+    .dark-mode .dropdown-item:hover .source-carlist {
+      box-shadow: 0 4px 12px rgba(48, 71, 94, 0.6);
+    }
     .dark-mode .navbar,
     .dark-mode .dropdown-menu {
       background-color: #1F2631 !important;
@@ -335,9 +410,17 @@
           >
             Home
           </a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'user_dashboard' username %}?source=mudahmy">Mudah.my</a></li>
-            <li><a class="dropdown-item" href="{% url 'user_dashboard' username %}?source=carlistmy">Carlist.my</a></li>
+          <ul class="dropdown-menu compact-dropdown">
+            <li>
+              <a class="dropdown-item d-flex align-items-center justify-content-center" href="{% url 'user_dashboard' username %}?source=mudahmy">
+                <span class="source-badge source-mudah">M</span>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center justify-content-center" href="{% url 'user_dashboard' username %}?source=carlistmy">
+                <span class="source-badge source-carlist">C</span>
+              </a>
+            </li>
           </ul>
         </li>
         <li class="nav-item dropdown">
@@ -350,15 +433,15 @@
           >
             Data Listing
           </a>
-          <ul class="dropdown-menu">
+          <ul class="dropdown-menu compact-dropdown">
             <li>
-              <a class="dropdown-item" href="{% url 'user_dataListing' username %}?source=mudahmy">
-                Mudah.my
+              <a class="dropdown-item d-flex align-items-center justify-content-center" href="{% url 'user_dataListing' username %}?source=mudahmy">
+                <span class="source-badge source-mudah">M</span>
               </a>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'user_dataListing' username %}?source=carlistmy">
-                Carlist.my
+              <a class="dropdown-item d-flex align-items-center justify-content-center" href="{% url 'user_dataListing' username %}?source=carlistmy">
+                <span class="source-badge source-carlist">C</span>
               </a>
             </li>
           </ul>

@@ -4,42 +4,210 @@
 
 {% block content %}
 <style>
+/* Modern Color Palette Variables - Consistent with Dashboard */
+:root {
+  --color-light: #DDDDDD;
+  --color-dark: #222831;
+  --color-primary: #30475E;
+  --color-accent: #F05454;
+  --color-card: #ffffff;
+  --color-text-primary: #222831;
+  --color-text-secondary: #30475E;
+  --color-shadow: rgba(34, 40, 49, 0.1);
+  --color-gradient-start: rgba(48, 71, 94, 0.8);
+  --color-gradient-end: rgba(240, 84, 84, 0.8);
+  --color-border: rgba(48, 71, 94, 0.1);
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #06b6d4;
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 20px;
+  --border-radius-xl: 24px;
+  --shadow-sm: 0 2px 8px var(--color-shadow);
+  --shadow-md: 0 4px 20px var(--color-shadow);
+  --shadow-lg: 0 8px 32px var(--color-shadow);
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark Mode Color Overrides */
+.dark-mode {
+  --color-light: #222831;
+  --color-dark: #DDDDDD;
+  --color-card: #30475E;
+  --color-text-primary: #DDDDDD;
+  --color-text-secondary: #DDDDDD;
+  --color-shadow: rgba(240, 84, 84, 0.2);
+  --color-gradient-start: rgba(240, 84, 84, 0.8);
+  --color-gradient-end: rgba(48, 71, 94, 0.8);
+  --color-border: rgba(240, 84, 84, 0.2);
+}
+
+/* Main Container */
 .container-main {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 2rem;
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--color-light) 0%, rgba(221, 221, 221, 0.8) 100%);
+  padding: 2rem 1rem;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Row 1: Judul */
+.dark-mode .container-main {
+  background: linear-gradient(135deg, var(--color-dark) 0%, rgba(34, 40, 49, 0.95) 100%);
+}
+
+/* Title Section */
 .title-row {
+  background: var(--color-card);
+  border-radius: var(--border-radius-lg);
+  padding: 2.5rem;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border);
+  position: relative;
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.title-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  opacity: 0.8;
+}
+
+.title-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px var(--color-shadow);
+}
+
+.title-row h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  line-height: 1.2;
+}
+
+.title-row .subtitle {
+  color: var(--color-text-secondary);
+  font-size: 1rem;
+  margin: 0;
+  opacity: 0.8;
+}
+
+.title-row .badge {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 50px;
+  font-size: 0.875rem;
   font-weight: 600;
-  font-size: 1.25rem;
-  text-align: left;
-  border: 1px solid #dee2e6;
-  padding: 0.75rem 1rem;
-  border-radius: 0.25rem;
-  background-color: #f8f9fa;
+  border: none;
+  box-shadow: 0 4px 12px rgba(48, 71, 94, 0.3);
 }
 
-/* Row 2: Filter */
+/* Filter Section */
 .filter-row {
-  border: 1px solid #dee2e6;
-  padding: 1rem;
-  border-radius: 0.25rem;
-  background-color: #fff;
+  background: var(--color-card);
+  border-radius: var(--border-radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+  transition: var(--transition);
 }
 
-/* Row 3: Main Content */
+.filter-row:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.filter-row .form-label {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.875rem;
+}
+
+.filter-row .form-select {
+  border: 2px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  background: var(--color-card);
+  color: var(--color-text-primary);
+  transition: var(--transition);
+}
+
+.filter-row .form-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(240, 84, 84, 0.1);
+  transform: translateY(-1px);
+}
+
+.filter-row .btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--border-radius-md);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.875rem;
+  transition: var(--transition);
+  border: none;
+}
+
+.filter-row .btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  color: white;
+  box-shadow: 0 4px 12px rgba(48, 71, 94, 0.3);
+}
+
+.filter-row .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(48, 71, 94, 0.4);
+}
+
+.filter-row .btn-secondary {
+  background: rgba(48, 71, 94, 0.1);
+  color: var(--color-text-secondary);
+  border: 2px solid var(--color-border);
+}
+
+.filter-row .btn-secondary:hover {
+  background: rgba(48, 71, 94, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Main Content Section */
 .main-content-row {
   display: flex;
-  border: 1px solid #dee2e6;
-  border-radius: 0.25rem;
-  background-color: #fff;
+  background: var(--color-card);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
   min-height: 600px;
   position: relative;
+  overflow: hidden;
+  transition: var(--transition);
 }
 
-/* Wrapper sidebar + toggle button */
+.main-content-row:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+/* Sidebar Toggle Wrapper */
 .sidebar-toggle-wrapper {
   display: flex;
   align-items: flex-start;
@@ -47,18 +215,18 @@
 
 /* Sidebar */
 .sidebar-wrapper {
-  width: 300px;
+  width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  border-right: 1px solid #dee2e6;
-  padding: 1rem;
-  transition: width 0.3s ease, padding 0.3s ease;
+  gap: 1.5rem;
+  border-right: 2px solid var(--color-border);
+  padding: 2rem;
+  transition: var(--transition);
   overflow-y: auto;
-  background-color: #fff;
+  background: var(--color-card);
+  max-height: 600px;
 }
 
-/* Sidebar hidden */
 .sidebar-hidden {
   width: 0 !important;
   padding: 0 !important;
@@ -66,13 +234,13 @@
   overflow: hidden !important;
 }
 
-/* Toggle button */
+/* Toggle Button */
 .btn-toggle-sidebar {
-  width: 40px;
-  height: 100px;
-  margin-left: 4px;
-  background-color: #0d6efd;
-  border-radius: 0.25rem;
+  width: 50px;
+  height: 120px;
+  margin-left: 8px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  border-radius: var(--border-radius-md);
   color: white;
   font-weight: bold;
   cursor: pointer;
@@ -80,194 +248,813 @@
   align-items: center;
   justify-content: center;
   user-select: none;
-  transition: margin-left 0.3s ease, background-color 0.2s ease;
+  transition: var(--transition);
   flex-shrink: 0;
   z-index: 20;
+  box-shadow: var(--shadow-sm);
+  border: none;
+  font-size: 1.25rem;
 }
 
 .btn-toggle-sidebar:hover {
-  background-color: #084298;
+  transform: translateX(-4px) scale(1.05);
+  box-shadow: var(--shadow-md);
 }
 
-/* Toggle button margin saat sidebar hidden */
 .sidebar-hidden + .btn-toggle-sidebar {
   margin-left: 0;
 }
 
-/* Content wrapper */
+/* Content Wrapper */
 .content-wrapper {
   flex-grow: 1;
-  padding: 1rem;
+  padding: 2rem;
   overflow-x: auto;
+  background: var(--color-card);
 }
 
-/* Cards in sidebar */
+/* Cards in Sidebar */
 .card-toggle-view, .card-brand-stats {
-  background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 0.25rem;
-  padding: 1rem;
+  background: rgba(48, 71, 94, 0.05);
+  border: 2px solid var(--color-border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
 }
 
-/* Scroll for brand stats */
+.dark-mode .card-toggle-view,
+.dark-mode .card-brand-stats {
+  background: rgba(240, 84, 84, 0.1);
+}
+
+.card-toggle-view:hover,
+.card-brand-stats:hover {
+  background: rgba(48, 71, 94, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px var(--color-shadow);
+}
+
+.dark-mode .card-toggle-view:hover,
+.dark-mode .card-brand-stats:hover {
+  background: rgba(240, 84, 84, 0.15);
+}
+
+/* Toggle View Buttons */
+.btn-group .btn {
+  border-radius: 12px !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.875rem;
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  border: 2px solid var(--color-border);
+}
+
+.btn-group .btn-outline-primary {
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+  background: transparent;
+}
+
+.btn-group .btn-outline-primary.active,
+.btn-group .btn-outline-primary:hover {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  border-color: var(--color-accent);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(48, 71, 94, 0.3);
+}
+
+/* Brand Stats */
 .card-brand-stats {
-  max-height: 500px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .main-content-row {
-    flex-direction: column;
-  }
-  .sidebar-toggle-wrapper {
-    flex-direction: row;
-  }
-  .sidebar-wrapper {
-    width: 100% !important;
-    border-right: none;
-    border-bottom: 1px solid #dee2e6;
-    padding: 0.5rem;
-  }
-  .btn-toggle-sidebar {
-    width: 50px;
-    height: 40px;
-    margin-left: 0;
-    margin-top: 4px;
-    border-radius: 0.25rem;
-  }
-  .sidebar-hidden + .btn-toggle-sidebar {
-    margin-left: 0;
-  }
+.card-brand-stats::-webkit-scrollbar {
+  width: 6px;
 }
+
+.card-brand-stats::-webkit-scrollbar-track {
+  background: rgba(48, 71, 94, 0.1);
+  border-radius: 3px;
+}
+
+.card-brand-stats::-webkit-scrollbar-thumb {
+  background: var(--color-accent);
+  border-radius: 3px;
+}
+
+.brand-item {
+  border-radius: 12px !important;
+  border: 2px solid var(--color-border) !important;
+  background: var(--color-card) !important;
+  color: var(--color-text-primary) !important;
+  transition: all 0.3s ease !important;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.brand-item:hover {
+  background: rgba(48, 71, 94, 0.1) !important;
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px var(--color-shadow);
+}
+
+.brand-item.active {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent)) !important;
+  color: white !important;
+  border-color: var(--color-accent) !important;
+}
+
+.brand-item .badge {
+  background: var(--color-accent);
+  color: white;
+  font-weight: 600;
+}
+
+.brand-item.active .badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.model-item {
+  border-radius: 8px !important;
+  border: 1px solid var(--color-border) !important;
+  background: rgba(48, 71, 94, 0.05) !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  margin-bottom: 0.25rem;
+}
+
+.model-item:hover {
+  background: rgba(48, 71, 94, 0.1) !important;
+  transform: translateX(2px);
+}
+
+/* DataTables Styling */
+.table {
+  border-radius: 12px;
+  overflow: hidden;
+  border: none;
+  box-shadow: 0 4px 20px var(--color-shadow);
+}
+
+.table thead th {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  color: white;
+  border: none;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.875rem;
+  padding: 1rem 0.75rem;
+}
+
+.table tbody td {
+  border-color: var(--color-border);
+  padding: 1rem 0.75rem;
+  color: var(--color-text-primary);
+  background: var(--color-card);
+}
+
+.table tbody tr:hover {
+  background: rgba(48, 71, 94, 0.05);
+}
+
+.dark-mode .table tbody tr:hover {
+  background: rgba(240, 84, 84, 0.1);
+}
+
+/* Status Badges */
+.badge.bg-success {
+  background: var(--color-success) !important;
+}
+
+.badge.bg-danger {
+  background: var(--color-danger) !important;
+}
+
+.badge.bg-secondary {
+  background: var(--color-text-secondary) !important;
+}
+
+/* Grid View */
 #gridViewContainer {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 2rem;
   justify-content: flex-start;
-  padding: 1rem;
+  padding: 2rem;
 }
 
 #gridViewContainer .grid-col {
-  min-width: 280px;
-  max-width: 320px;
+  min-width: 320px;
+  max-width: 380px;
   flex-grow: 0;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
 }
 
-/* Responsive 3 kolom di layar besar */
-@media (min-width: 992px) {
-  #gridViewContainer .grid-col {
-    width: calc((100% / 3) - 1rem);
-  }
-}
-
-/* Default (light mode) */
-.card-body .row.text-center.mb-3 {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: nowrap;
-  color: #212529;  /* teks gelap untuk light mode */
-}
-
-.card-body .row.text-center.mb-3 > .col {
-  flex: 1 1 30%;
-  min-width: 90px;
-  max-width: 130px;
-  border-right: 1px solid rgba(33, 37, 41, 0.15); /* garis pemisah soft */
-  padding-right: 0.5rem;
-  color: #212529; /* teks gelap */
-}
-
-/* Hilangkan border kanan di kolom terakhir */
-.card-body .row.text-center.mb-3 > .col:last-child {
-  border-right: none;
-}
-
-/* Label kecil di light mode */
-.card-body .row.text-center.mb-3 small.text-muted {
-  color: #6c757d !important; /* abu gelap */
-  font-weight: 600;
-  font-size: 0.75rem;
-}
-
-
-/* DARK MODE OVERRIDE */
-.dark-mode .card-body .row.text-center.mb-3 {
-  color: #f1f3f5; /* teks terang di dark mode */
-}
-
-.dark-mode .card-body .row.text-center.mb-3 > .col {
-  border-right: 1px solid rgba(255, 255, 255, 0.3); /* garis pemisah terang */
-  color: #f1f3f5;
-}
-
-.dark-mode .card-body .row.text-center.mb-3 > .col:last-child {
-  border-right: none;
-}
-
-.dark-mode .card-body .row.text-center.mb-3 small.text-muted {
-  color: #adb5bd !important; /* abu terang */
-  font-weight: 600;
-  font-size: 0.75rem;
-}
-.dark-mode .card-body .text-muted {
-  color: #ced4da !important; /* abu terang yang cocok untuk dark mode */
-}
-/* Tambahkan ini di bagian style */
-#gridViewContainer .grid-col {
-    min-width: 300px;  /* diperbesar dari 280px */
-    max-width: 350px;  /* diperbesar dari 320px */
-}
-
 #gridViewContainer .card {
-    transition: transform 0.2s ease;
-    border-radius: 0.5rem;
-    overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 20px var(--color-shadow);
+  background: var(--color-card);
 }
 
 #gridViewContainer .card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 12px 40px var(--color-shadow);
+}
+
+#gridViewContainer .card-img-top {
+  height: 220px;
+  object-fit: cover;
+  transition: all 0.3s ease;
+}
+
+#gridViewContainer .card:hover .card-img-top {
+  transform: scale(1.05);
 }
 
 #gridViewContainer .card-body {
-    padding: 1.25rem;  /* diperbesar dari 1rem */
+  padding: 1.5rem;
+  background: var(--color-card);
 }
 
 #gridViewContainer .card-title {
-    font-size: 1.1rem;  /* diperbesar */
-    margin-bottom: 0.75rem;  /* tambahkan spacing */
-    line-height: 1.3;
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  line-height: 1.3;
+  color: var(--color-text-primary);
 }
 
 #gridViewContainer .price-display {
-    font-size: 1.2rem;  /* harga lebih besar */
-    margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-success);
+  margin-bottom: 0.5rem;
 }
 
 #gridViewContainer .stats-row {
-    margin-top: 1rem;
-    margin-bottom: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: rgba(48, 71, 94, 0.05);
+  border-radius: 12px;
+}
+
+.dark-mode #gridViewContainer .stats-row {
+  background: rgba(240, 84, 84, 0.1);
 }
 
 #gridViewContainer .stats-row .col {
-    padding: 0.5rem;
+  padding: 0.5rem;
+  border-right: 1px solid var(--color-border);
+}
+
+#gridViewContainer .stats-row .col:last-child {
+  border-right: none;
 }
 
 #gridViewContainer .text-muted.small {
-    font-size: 0.85rem;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary) !important;
 }
+
+#gridViewContainer .fw-semibold {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* DataTables Pagination */
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+  border-radius: 8px !important;
+  margin: 0 2px;
+  border: 1px solid var(--color-border) !important;
+  background: var(--color-card) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+  background: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+  color: white !important;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent)) !important;
+  border-color: var(--color-accent) !important;
+  color: white !important;
+}
+
+.dataTables_wrapper .dataTables_info {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.dataTables_wrapper .dataTables_length select {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: var(--color-card);
+  color: var(--color-text-primary);
+}
+
+.dataTables_wrapper .dataTables_filter input {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  background: var(--color-card);
+  color: var(--color-text-primary);
+}
+
+.dataTables_wrapper .dataTables_filter input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(240, 84, 84, 0.1);
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+  #gridViewContainer .grid-col {
+    width: calc(50% - 1rem);
+    min-width: 280px;
+  }
+}
+
+@media (max-width: 768px) {
+  .container-main {
+    padding: 1rem 0.5rem;
+    gap: 1.5rem;
+  }
+
+  .title-row,
+  .filter-row,
+  .main-content-row {
+    border-radius: 16px;
+    padding: 1.5rem;
+  }
+
+  .title-row h1 {
+    font-size: 1.5rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+
+  .main-content-row {
+    flex-direction: column;
+  }
+
+  .sidebar-toggle-wrapper {
+    flex-direction: row;
+  }
+
+  .sidebar-wrapper {
+    width: 100% !important;
+    border-right: none;
+    border-bottom: 2px solid var(--color-border);
+    padding: 1rem;
+    max-height: none;
+  }
+
+  .btn-toggle-sidebar {
+    width: 60px;
+    height: 50px;
+    margin-left: 0;
+    margin-top: 8px;
+    border-radius: var(--border-radius-md);
+  }
+
+  .sidebar-hidden + .btn-toggle-sidebar {
+    margin-left: 0;
+  }
+
+  .content-wrapper {
+    padding: 1rem;
+  }
+
+  #gridViewContainer {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  #gridViewContainer .grid-col {
+    width: 100%;
+    min-width: auto;
+    max-width: none;
+  }
+
+  .filter-row .row {
+    gap: 0.5rem;
+  }
+
+  .filter-row .col-md-3 {
+    margin-bottom: 1rem;
+  }
+}
+}
+
+@media (max-width: 480px) {
+  .container-main {
+    padding: 1rem 0.75rem;
+    gap: 1rem;
+  }
+
+  .title-row,
+  .filter-row,
+  .main-content-row {
+    padding: 1rem;
+    border-radius: var(--border-radius-md);
+  }
+
+  .title-row h1 {
+    font-size: 1.25rem;
+  }
+
+  .filter-row .row {
+    gap: 1rem;
+  }
+
+  .filter-row .col-md-3 {
+    width: 100%;
+  }
+
+  .btn-toggle-sidebar {
+    font-size: 1rem;
+    width: 50px;
+    height: 40px;
+  }
+
+  .sidebar-wrapper {
+    padding: 0.75rem;
+  }
+
+  .content-wrapper {
+    padding: 0.75rem;
+  }
+
+  #gridViewContainer .card-body {
+    padding: 1rem;
+  }
+
+  .stats-row {
+    padding: 0.75rem;
+  }
+
+  .stat-item i {
+    font-size: 1rem;
+  }
+}
+
+/* Animation for loading */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.title-row,
+.filter-row,
+.main-content-row {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.title-row { animation-delay: 0.1s; }
+.filter-row { animation-delay: 0.2s; }
+.main-content-row { animation-delay: 0.3s; }
+
+#gridViewContainer .card {
+  animation: slideInLeft 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+#gridViewContainer .card:nth-child(1) { animation-delay: 0.1s; }
+#gridViewContainer .card:nth-child(2) { animation-delay: 0.2s; }
+#gridViewContainer .card:nth-child(3) { animation-delay: 0.3s; }
+#gridViewContainer .card:nth-child(4) { animation-delay: 0.4s; }
+#gridViewContainer .card:nth-child(5) { animation-delay: 0.5s; }
+#gridViewContainer .card:nth-child(6) { animation-delay: 0.6s; }
+
+/* Loading States */
+.loading-skeleton {
+  background: linear-gradient(90deg, 
+    rgba(48, 71, 94, 0.1) 25%, 
+    rgba(240, 84, 84, 0.1) 50%, 
+    rgba(48, 71, 94, 0.1) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+  border-radius: var(--border-radius-md);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.table-loading {
+  animation: pulse 1.5s infinite;
+}
+
+/* Hover Effects */
+.filter-row .form-select:hover,
+.filter-row .btn:hover {
+  transform: translateY(-1px);
+}
+
+.sidebar-wrapper .card:hover {
+  transform: translateY(-2px);
+}
+
+.brand-item:hover {
+  transform: translateX(8px) scale(1.02);
+}
+
+/* Focus States */
+.filter-row .form-select:focus,
+.dataTables_wrapper .dataTables_filter input:focus {
+  transform: translateY(-2px);
+}
+
+/* Success States */
+.card.success-highlight {
+  border-color: var(--color-success);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+}
+
+/* Dark Mode Enhancements */
+.dark-mode .loading-skeleton {
+  background: linear-gradient(90deg, 
+    rgba(240, 84, 84, 0.1) 25%, 
+    rgba(48, 71, 94, 0.1) 50%, 
+    rgba(240, 84, 84, 0.1) 75%);
+}
+
+/* Alerts */
+.alert {
+  border-radius: var(--border-radius-md);
+  border: none;
+  box-shadow: var(--shadow-sm);
+  font-weight: 500;
+}
+
+.alert-info {
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--color-info);
+  border-left: 4px solid var(--color-info);
+}
+
+.alert-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger);
+  border-left: 4px solid var(--color-danger);
+}
+
+.alert-success {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--color-success);
+  border-left: 4px solid var(--color-success);
+}
+
+/* Additional Improvements */
+.fadeInUp {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.text-muted.small {
+  font-weight: 500;
+}
+
+.fw-semibold {
+  font-weight: 600;
+}
+
+/* Brand Container Enhancements */
+.brand-container {
+  transition: var(--transition);
+}
+
+.brand-container:hover {
+  transform: translateX(4px);
+}
+
+/* Icon Enhancements */
+.fas, .far {
+  transition: var(--transition);
+}
+
+.brand-item:hover .fas {
+  transform: scale(1.1);
+  color: var(--color-accent);
+}
+
+/* Badge Improvements */
+.badge {
+  font-weight: 600;
+  border-radius: 50px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.025em;
+}
+
+/* Card Enhancements */
+.card-footer-info {
+  border-color: var(--color-border) !important;
+}
+
+.stat-item {
+  padding: 0.5rem;
+  transition: var(--transition);
+}
+
+.stat-item:hover {
+  transform: scale(1.05);
+}
+
+.stat-item i {
+  font-size: 1.125rem;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.position-relative .badge {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border);
+}
+
+.badge.bg-danger {
+  background: linear-gradient(135deg, var(--color-danger), #dc2626) !important;
+  color: white !important;
+}
+
+.badge.bg-success {
+  background: linear-gradient(135deg, var(--color-success), #16a34a) !important;
+  color: white !important;
+}
+
+/* Grid Card Hover Effects */
+#gridViewContainer .card:hover .stat-item i {
+  color: var(--color-accent) !important;
+}
+
+#gridViewContainer .card:hover .card-title {
+  color: var(--color-primary);
+}
+
+/* Price Section */
+.price-section {
+  background: rgba(48, 71, 94, 0.05);
+  border-radius: var(--border-radius-md);
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.dark-mode .price-section {
+  background: rgba(240, 84, 84, 0.1);
+}
+
+/* Visual Feedback Improvements */
+.btn:active {
+  transform: scale(0.98);
+}
+
+.form-select:valid {
+  border-color: var(--color-success);
+}
+
+.form-select:invalid {
+  border-color: var(--color-danger);
+}
+
+/* Tooltip Styles */
+[title] {
+  position: relative;
+}
+
+/* Loading State for Filter */
+.filter-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.filter-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-top: 2px solid var(--color-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Accessibility Improvements */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Focus Improvements */
+.btn:focus,
+.form-select:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Success State */
+.success-message {
+  background: linear-gradient(135deg, var(--color-success), #16a34a);
+  color: white;
+  padding: 1rem;
+  border-radius: var(--border-radius-md);
+  margin-bottom: 1rem;
+  animation: slideInTop 0.5s ease-out;
+}
+
+@keyframes slideInTop {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+#gridViewContainer .card:nth-child(1) { animation-delay: 0.1s; }
+#gridViewContainer .card:nth-child(2) { animation-delay: 0.2s; }
+#gridViewContainer .card:nth-child(3) { animation-delay: 0.3s; }
+#gridViewContainer .card:nth-child(4) { animation-delay: 0.4s; }
+#gridViewContainer .card:nth-child(5) { animation-delay: 0.5s; }
+#gridViewContainer .card:nth-child(6) { animation-delay: 0.6s; }
 </style>
 
 <div class="container-main">
   <!-- Row 1: Title -->
   <div class="title-row">
-    Data Listing {{ source|title }} <span class="badge bg-primary">{{ total_data|intcomma }}</span>
+    <h1>
+      <i class="fas fa-database"></i>
+      Data Listing {{ source|title }} 
+      <span class="badge">{{ total_data|intcomma }}</span>
+    </h1>
+    <p class="subtitle">Explore and analyze car listing data with advanced filtering options</p>
   </div>
 
   <!-- Row 2: Filter -->
@@ -368,6 +1155,9 @@
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script>
 $(document).ready(function() {
+  // Show loading skeleton on initial load
+  showLoadingSkeleton();
+  
   // Toggle sidebar
   $('#btnToggleSidebar').click(function() {
     $('#sidebarWrapper').toggleClass('sidebar-hidden');
@@ -378,6 +1168,27 @@ $(document).ready(function() {
     }
     $('#listingTable').DataTable().columns.adjust();
   });
+
+  // Show loading skeleton function
+  function showLoadingSkeleton() {
+    const skeletonRows = Array.from({length: 5}, () => 
+      `<tr class="loading-skeleton">
+        <td><div class="loading-skeleton" style="height: 60px; width: 80px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+        <td><div class="loading-skeleton" style="height: 20px;"></div></td>
+      </tr>`
+    ).join('');
+    $('#listingTable tbody').html(skeletonRows);
+  }
 
   // Initialize DataTables
   var table = $('#listingTable').DataTable({
@@ -473,7 +1284,14 @@ $(document).ready(function() {
 
   // Reload tabel saat filter berubah
   function reloadTable() {
-    table.ajax.reload(null, false);
+    // Add loading state
+    $('#listingTable').addClass('table-loading');
+    $('#gridViewContainer').html('<div class="loading-skeleton" style="height: 200px; margin: 2rem;"></div>');
+    
+    table.ajax.reload(function() {
+      // Remove loading state
+      $('#listingTable').removeClass('table-loading');
+    }, false);
   }
 
   // Render grid view cards
@@ -502,7 +1320,7 @@ $(document).ready(function() {
           return priceStr;
       }
 
-      data.forEach(function(item) {
+      data.forEach(function(item, index) {
           let statusBadgeClass = 'badge bg-secondary';
           let statusText = item.status.charAt(0).toUpperCase() + item.status.slice(1);
           if (item.status.toLowerCase() === 'sold') {
@@ -516,37 +1334,63 @@ $(document).ready(function() {
           let latestPrice = formatPrice(item.latest);
 
           var card = `
-        <div class="grid-col">
+        <div class="grid-col" style="animation-delay: ${index * 0.1}s;">
             <div class="card h-100 shadow-sm">
-                <img src="${item.img || 'https://via.placeholder.com/400x250'}" class="card-img-top" alt="Car Image" style="width:100%; height:200px; object-fit:cover;">
-                <div class="card-body">
-                    <h6 class="card-title fw-bold">${item.year} ${item.brand} ${item.model}</h6>
-                    <p class="text-muted mb-2" style="font-size:0.9rem">${item.variant || ''}</p>
-                    
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div class="price-display text-success fw-bold">
-                            ${latestPrice}
-                        </div>
+                <div class="position-relative">
+                    <img src="${item.img || 'https://via.placeholder.com/400x250?text=No+Image&bg=30475E&color=DDDDDD'}" class="card-img-top" alt="Car Image" loading="lazy">
+                    <div class="position-absolute top-0 end-0 m-2">
                         <span class="${statusBadgeClass}">${statusText}</span>
                     </div>
+                    ${item.status.toLowerCase() === 'sold' ? '<div class="position-absolute top-50 start-50 translate-middle"><span class="badge bg-danger fs-6 px-3 py-2">SOLD</span></div>' : ''}
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0">${item.year} ${item.brand}</h6>
+                        <small class="text-muted">${item.year}</small>
+                    </div>
+                    <h6 class="fw-bold text-primary mb-2">${item.model}</h6>
+                    <p class="text-muted mb-3 small">${item.variant || 'Standard Variant'}</p>
+                    
+                    <div class="price-section mb-3">
+                        <div class="price-display mb-1">
+                            ${latestPrice}
+                        </div>
+                        ${startingPrice !== latestPrice ? `<small class="text-muted">Starting: ${startingPrice}</small>` : ''}
+                    </div>
 
-                    <div class="stats-row row text-center">
-                        <div class="col border-end">
-                            <small class="text-muted d-block">Mileage</small>
-                            <span class="fw-semibold">${item.mileage}</span>
-                        </div>
-                        <div class="col border-end">
-                            <small class="text-muted d-block">Transmission</small>
-                            <span class="fw-semibold">${item.transmission}</span>
-                        </div>
-                        <div class="col">
-                            <small class="text-muted d-block">Terjual</small>
-                            <span class="fw-semibold">${item.sold_duration}</span>
+                    <div class="stats-row">
+                        <div class="row text-center g-0">
+                            <div class="col">
+                                <div class="stat-item">
+                                    <i class="fas fa-tachometer-alt text-primary"></i>
+                                    <small class="text-muted d-block">Mileage</small>
+                                    <span class="fw-semibold">${item.mileage || '-'}</span>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="stat-item">
+                                    <i class="fas fa-cogs text-info"></i>
+                                    <small class="text-muted d-block">Transmission</small>
+                                    <span class="fw-semibold">${item.transmission || '-'}</span>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="stat-item">
+                                    <i class="fas fa-clock text-warning"></i>
+                                    <small class="text-muted d-block">Listed</small>
+                                    <span class="fw-semibold">${item.sold_duration || '-'}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="text-muted small mt-2">
-                        <i class="far fa-calendar-alt me-1"></i> ${item.created_at}
+                    <div class="card-footer-info mt-3 pt-3 border-top">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="text-muted small">
+                                <i class="far fa-calendar-alt me-1"></i> ${item.created_at}
+                            </span>
+                            <span class="badge bg-light text-dark">ID: ${item.id || index + 1}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -562,6 +1406,11 @@ $(document).ready(function() {
     $('#gridViewContainer').show();       // tampilkan grid view
     $(this).addClass('active');
     $('#btnListView').removeClass('active');
+    
+    // Load grid data if not loaded
+    if ($('#gridViewContainer').children().length === 0) {
+      loadGridData();
+    }
   });
 
   $('#btnListView').click(function() {
@@ -571,35 +1420,65 @@ $(document).ready(function() {
     $('#btnGridView').removeClass('active');
   });
 
+  // Load grid data function
+  function loadGridData() {
+    $('#gridViewContainer').html(`
+      <div class="col-12 text-center py-5">
+        <div class="loading-skeleton mx-auto" style="height: 200px; width: 300px; margin-bottom: 1rem;"></div>
+        <div class="loading-skeleton mx-auto" style="height: 20px; width: 200px; margin-bottom: 0.5rem;"></div>
+        <div class="loading-skeleton mx-auto" style="height: 20px; width: 150px;"></div>
+      </div>
+    `);
+    
+    // Simulate loading for demonstration
+    setTimeout(() => {
+      // This would normally be triggered by DataTables drawCallback
+      const currentData = table.data().toArray();
+      renderGridView(currentData);
+    }, 500);
+  }
+
   // Load brand stats di sidebar
   function loadBrandStats() {
+    const brandsList = $('#brandsList');
+    
+    // Show loading skeleton
+    brandsList.html(`
+      <div class="loading-skeleton" style="height: 40px; margin-bottom: 1rem;"></div>
+      <div class="loading-skeleton" style="height: 40px; margin-bottom: 1rem;"></div>
+      <div class="loading-skeleton" style="height: 40px; margin-bottom: 1rem;"></div>
+      <div class="loading-skeleton" style="height: 40px; margin-bottom: 1rem;"></div>
+    `);
+    
     $.ajax({
       url: "{% url 'get_brand_stats' %}",
       type: "GET",
       data: { source: "{{ source }}" },
       success: function(response) {
-        const brandsList = $('#brandsList');
         brandsList.empty();
         if (response.brands && response.brands.length > 0) {
-          response.brands.forEach(function(brand) {
+          response.brands.forEach(function(brand, index) {
             const brandSafeId = brand.brand.replace(/\s+/g, '-');
             const brandHtml = `
-              <div class="brand-container mb-2">
+              <div class="brand-container mb-2" style="animation-delay: ${index * 0.1}s;">
                 <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center brand-item" data-brand="${brand.brand}" style="cursor:pointer;">
-                  <span>${brand.brand}</span>
-                  <span class="badge bg-secondary rounded-pill">${brand.total}</span>
+                  <span><i class="fas fa-car me-2"></i>${brand.brand}</span>
+                  <span class="badge bg-secondary rounded-pill">${brand.total.toLocaleString()}</span>
                 </div>
                 <div class="models-container mt-1" id="models-${brandSafeId}" style="display:none; padding-left: 15px;"></div>
               </div>
             `;
             brandsList.append(brandHtml);
           });
+          
+          // Add animation class after append
+          $('.brand-container').addClass('fadeInUp');
         } else {
-          brandsList.append('<div>No brands found</div>');
+          brandsList.append('<div class="alert alert-info">No brands found</div>');
         }
       },
       error: function() {
-        $('#brandsList').html('<div>Error loading brands</div>');
+        brandsList.html('<div class="alert alert-danger">Error loading brands</div>');
       }
     });
   }

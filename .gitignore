@@ -81,3 +81,5 @@ envdjango/
 car_ads_dashboard/*.csv
 
 note.txt
+
+skipped_*

@@ -18,6 +18,24 @@ async def fetch_data_from_remote_db_mudahmy_today(conn):
     query = f"SELECT * FROM public.cars_scrap_mudahmy WHERE information_ads_date = '{today}'"
     return await conn.fetch(query)
 
+async def fetch_recent_status_check_carlistmy_remote(conn):
+    query = """
+        SELECT * FROM public.cars_scrap_carlistmy
+        WHERE last_status_check IS NOT NULL
+          AND last_status_check >= (NOW() - INTERVAL '30 days')
+        ORDER BY last_status_check;
+    """
+    return await conn.fetch(query)
+
+async def fetch_recent_status_check_mudahmy_remote(conn):
+    query = """
+        SELECT * FROM public.cars_scrap_mudahmy
+        WHERE last_status_check IS NOT NULL
+          AND last_status_check >= (NOW() - INTERVAL '30 days')
+        ORDER BY last_status_check;
+    """
+    return await conn.fetch(query)
+
 async def sync_data_today():
     logger.info("🚀 Memulai sinkronisasi data terbaru (hari ini) dari remote database...")
     result_summary = {}
@@ -32,12 +50,6 @@ async def sync_data_today():
     inserted_carlistmy, skipped_carlistmy = await services.insert_or_update_data_into_local_db(
         data_carlistmy, services.TB_CARLISTMY, 'carlistmy')
     logger.info(f"[CarlistMY] Inserted: {inserted_carlistmy}, Skipped: {skipped_carlistmy}")
-    await remote_conn_carlistmy.close()
-    result_summary['carlistmy'] = {
-        'total_fetched': len(data_carlistmy),
-        'inserted': inserted_carlistmy,
-        'skipped': skipped_carlistmy
-    }
 
     # MudahMY
     logger.info("[MudahMY] Membuka koneksi remote...")
@@ -49,7 +61,35 @@ async def sync_data_today():
     inserted_mudahmy, skipped_mudahmy = await services.insert_or_update_data_into_local_db(
         data_mudahmy, services.TB_MUDAHMY, 'mudahmy')
     logger.info(f"[MudahMY] Inserted: {inserted_mudahmy}, Skipped: {skipped_mudahmy}")
+
+    # Sinkronisasi data last_status_check 30 hari terakhir dari remote CarlistMY & MudahMY secara paralel
+    logger.info("[SYNC] Sinkronisasi data last_status_check 30 hari terakhir dari remote (paralel)...")
+    results = await asyncio.gather(
+        fetch_recent_status_check_carlistmy_remote(remote_conn_carlistmy),
+        fetch_recent_status_check_mudahmy_remote(remote_conn_mudahmy)
+    )
+    recent_carlistmy, recent_mudahmy = results
+
+    logger.info(f"[CarlistMY] Data last_status_check 30 hari terakhir (remote): {len(recent_carlistmy)}")
+    logger.info(f"[MudahMY] Data last_status_check 30 hari terakhir (remote): {len(recent_mudahmy)}")
+
+    insert_results = await asyncio.gather(
+        services.insert_or_update_data_into_local_db(recent_carlistmy, services.TB_CARLISTMY, 'carlistmy'),
+        services.insert_or_update_data_into_local_db(recent_mudahmy, services.TB_MUDAHMY, 'mudahmy')
+    )
+    (inserted_recent_carlistmy, skipped_recent_carlistmy), (inserted_recent_mudahmy, skipped_recent_mudahmy) = insert_results
+
+    logger.info(f"[CarlistMY] Inserted (recent): {inserted_recent_carlistmy}, Skipped (recent): {skipped_recent_carlistmy}")
+    logger.info(f"[MudahMY] Inserted (recent): {inserted_recent_mudahmy}, Skipped (recent): {skipped_recent_mudahmy}")
+
+    await remote_conn_carlistmy.close()
     await remote_conn_mudahmy.close()
+
+    result_summary['carlistmy'] = {
+        'total_fetched': len(data_carlistmy),
+        'inserted': inserted_carlistmy,
+        'skipped': skipped_carlistmy
+    }
     result_summary['mudahmy'] = {
         'total_fetched': len(data_mudahmy),
         'inserted': inserted_mudahmy,

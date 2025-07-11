@@ -1,0 +1,633 @@
+{% extends "dashboard/base_admin.html" %}
+{% load humanize %}
+{% block title %}Server Monitor{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+  <div>
+    <h1 class="page-title">
+      <i class="fas fa-server me-2"></i>
+      Server Monitor
+    </h1>
+    <p class="page-subtitle">Real-time server performance and resource monitoring</p>
+  </div>
+</div>
+
+<!-- Server Status Cards -->
+<div class="admin-grid grid-4">
+  <!-- Server Status -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-heartbeat me-2 text-success"></i>
+        Server Status
+      </h3>
+    </div>
+    <div class="text-center">
+      <div class="status-indicator status-success mb-3">
+        <i class="fas fa-check-circle"></i>
+        Online
+      </div>
+      <div class="row text-center">
+        <div class="col-12 mb-2">
+          <h3 class="fw-bold text-success mb-0" id="uptime">99.9%</h3>
+          <small class="text-muted">Uptime (30 days)</small>
+        </div>
+        <div class="col-6">
+          <h5 class="fw-bold text-primary mb-0" id="response-time">45ms</h5>
+          <small class="text-muted">Response</small>
+        </div>
+        <div class="col-6">
+          <h5 class="fw-bold text-info mb-0" id="requests">1.2K</h5>
+          <small class="text-muted">Requests/hr</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CPU Usage -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-microchip me-2 text-primary"></i>
+        CPU Usage
+      </h3>
+    </div>
+    <div class="text-center">
+      <div class="position-relative d-inline-block mb-3">
+        <canvas id="cpuChart" width="120" height="120"></canvas>
+        <div class="position-absolute top-50 start-50 translate-middle">
+          <h3 class="fw-bold mb-0" id="cpu-percentage">45%</h3>
+        </div>
+      </div>
+      <div class="row text-center">
+        <div class="col-6">
+          <small class="text-muted d-block">Load Avg</small>
+          <span class="fw-bold" id="load-avg">0.85</span>
+        </div>
+        <div class="col-6">
+          <small class="text-muted d-block">Cores</small>
+          <span class="fw-bold">4</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Memory Usage -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-memory me-2 text-warning"></i>
+        Memory Usage
+      </h3>
+    </div>
+    <div class="text-center">
+      <div class="position-relative d-inline-block mb-3">
+        <canvas id="memoryChart" width="120" height="120"></canvas>
+        <div class="position-absolute top-50 start-50 translate-middle">
+          <h3 class="fw-bold mb-0" id="memory-percentage">62%</h3>
+        </div>
+      </div>
+      <div class="row text-center">
+        <div class="col-6">
+          <small class="text-muted d-block">Used</small>
+          <span class="fw-bold" id="memory-used">6.2GB</span>
+        </div>
+        <div class="col-6">
+          <small class="text-muted d-block">Total</small>
+          <span class="fw-bold">10GB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Storage Usage -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-hdd me-2 text-danger"></i>
+        Storage Usage
+      </h3>
+    </div>
+    <div class="text-center">
+      <div class="position-relative d-inline-block mb-3">
+        <canvas id="storageChart" width="120" height="120"></canvas>
+        <div class="position-absolute top-50 start-50 translate-middle">
+          <h3 class="fw-bold mb-0" id="storage-percentage">78%</h3>
+        </div>
+      </div>
+      <div class="row text-center">
+        <div class="col-6">
+          <small class="text-muted d-block">Used</small>
+          <span class="fw-bold" id="storage-used">156GB</span>
+        </div>
+        <div class="col-6">
+          <small class="text-muted d-block">Total</small>
+          <span class="fw-bold">200GB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Performance Charts -->
+<div class="admin-grid grid-2">
+  <!-- Real-time Performance -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-chart-line me-2"></i>
+        Real-time Performance
+      </h3>
+      <div class="card-actions">
+        <button class="btn-admin btn-primary btn-sm" onclick="toggleRealTime()">
+          <i class="fas fa-pause" id="realtime-icon"></i>
+          <span id="realtime-text">Pause</span>
+        </button>
+      </div>
+    </div>
+    <div style="height: 300px;">
+      <canvas id="realtimeChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Network Activity -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-network-wired me-2"></i>
+        Network Activity
+      </h3>
+    </div>
+    <div style="height: 300px;">
+      <canvas id="networkChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Process List -->
+<div class="admin-card">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-list me-2"></i>
+      Top Processes
+    </h3>
+    <div class="card-actions">
+      <button class="btn-admin btn-primary btn-sm" onclick="refreshProcesses()">
+        <i class="fas fa-sync-alt"></i>
+        Refresh
+      </button>
+    </div>
+  </div>
+  
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>PID</th>
+          <th>Process</th>
+          <th>User</th>
+          <th>CPU %</th>
+          <th>Memory %</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="processes-table">
+        <tr>
+          <td>1234</td>
+          <td>
+            <div class="d-flex align-items-center">
+              <i class="fas fa-cog me-2 text-primary"></i>
+              <strong>python3 manage.py runserver</strong>
+            </div>
+          </td>
+          <td>www-data</td>
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="progress me-2" style="width: 60px; height: 6px;">
+                <div class="progress-bar bg-success" style="width: 25%"></div>
+              </div>
+              <span>2.5%</span>
+            </div>
+          </td>
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="progress me-2" style="width: 60px; height: 6px;">
+                <div class="progress-bar bg-warning" style="width: 45%"></div>
+              </div>
+              <span>4.5%</span>
+            </div>
+          </td>
+          <td>
+            <span class="status-indicator status-success">
+              <i class="fas fa-play"></i>
+              Running
+            </span>
+          </td>
+          <td>
+            <button class="btn-admin btn-danger btn-sm" onclick="killProcess(1234)">
+              <i class="fas fa-stop"></i>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>5678</td>
+          <td>
+            <div class="d-flex align-items-center">
+              <i class="fas fa-database me-2 text-info"></i>
+              <strong>postgres</strong>
+            </div>
+          </td>
+          <td>postgres</td>
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="progress me-2" style="width: 60px; height: 6px;">
+                <div class="progress-bar bg-success" style="width: 15%"></div>
+              </div>
+              <span>1.5%</span>
+            </div>
+          </td>
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="progress me-2" style="width: 60px; height: 6px;">
+                <div class="progress-bar bg-primary" style="width: 30%"></div>
+              </div>
+              <span>3.0%</span>
+            </div>
+          </td>
+          <td>
+            <span class="status-indicator status-success">
+              <i class="fas fa-play"></i>
+              Running
+            </span>
+          </td>
+          <td>
+            <button class="btn-admin btn-danger btn-sm" onclick="killProcess(5678)">
+              <i class="fas fa-stop"></i>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>9012</td>
+          <td>
+            <div class="d-flex align-items-center">
+              <i class="fas fa-globe me-2 text-success"></i>
+              <strong>nginx</strong>
+            </div>
+          </td>
+          <td>www-data</td>
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="progress me-2" style="width: 60px; height: 6px;">
+                <div class="progress-bar bg-success" style="width: 8%"></div>
+              </div>
+              <span>0.8%</span>
+            </div>
+          </td>
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="progress me-2" style="width: 60px; height: 6px;">
+                <div class="progress-bar bg-primary" style="width: 12%"></div>
+              </div>
+              <span>1.2%</span>
+            </div>
+          </td>
+          <td>
+            <span class="status-indicator status-success">
+              <i class="fas fa-play"></i>
+              Running
+            </span>
+          </td>
+          <td>
+            <button class="btn-admin btn-danger btn-sm" onclick="killProcess(9012)">
+              <i class="fas fa-stop"></i>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.progress {
+  background-color: rgba(52, 73, 94, 0.1);
+  border-radius: 10px;
+}
+
+.dark-mode .progress {
+  background-color: rgba(231, 76, 60, 0.1);
+}
+
+#realtimeChart, #networkChart {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.table th {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.table td {
+  vertical-align: middle;
+  padding: 0.75rem;
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let realtimeChart, networkChart, cpuChart, memoryChart, storageChart;
+let isRealTimeActive = true;
+let realtimeData = {
+  labels: [],
+  cpu: [],
+  memory: [],
+  storage: []
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  initializeCharts();
+  startRealTimeUpdates();
+});
+
+function initializeCharts() {
+  // CPU Doughnut Chart
+  const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+  cpuChart = new Chart(cpuCtx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [45, 55],
+        backgroundColor: ['#3498DB', 'rgba(52, 73, 94, 0.1)'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+
+  // Memory Doughnut Chart
+  const memoryCtx = document.getElementById('memoryChart').getContext('2d');
+  memoryChart = new Chart(memoryCtx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [62, 38],
+        backgroundColor: ['#F39C12', 'rgba(52, 73, 94, 0.1)'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+
+  // Storage Doughnut Chart
+  const storageCtx = document.getElementById('storageChart').getContext('2d');
+  storageChart = new Chart(storageCtx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [78, 22],
+        backgroundColor: ['#E74C3C', 'rgba(52, 73, 94, 0.1)'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+
+  // Real-time Performance Chart
+  const realtimeCtx = document.getElementById('realtimeChart').getContext('2d');
+  realtimeChart = new Chart(realtimeCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'CPU %',
+        data: [],
+        borderColor: '#3498DB',
+        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+        tension: 0.4,
+        fill: false
+      }, {
+        label: 'Memory %',
+        data: [],
+        borderColor: '#F39C12',
+        backgroundColor: 'rgba(243, 156, 18, 0.1)',
+        tension: 0.4,
+        fill: false
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100
+        },
+        x: {
+          display: true
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'top'
+        }
+      }
+    }
+  });
+
+  // Network Activity Chart
+  const networkCtx = document.getElementById('networkChart').getContext('2d');
+  networkChart = new Chart(networkCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Upload', 'Download'],
+      datasets: [{
+        label: 'Current (KB/s)',
+        data: [25, 150],
+        backgroundColor: ['#27AE60', '#E74C3C'],
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top'
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+function startRealTimeUpdates() {
+  if (!isRealTimeActive) return;
+  
+  // Update every 3 seconds
+  setInterval(() => {
+    if (isRealTimeActive) {
+      updateMetrics();
+    }
+  }, 3000);
+}
+
+function updateMetrics() {
+  // Simulate real-time data
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString();
+  
+  const cpuUsage = Math.floor(Math.random() * 30) + 35; // 35-65%
+  const memoryUsage = Math.floor(Math.random() * 20) + 55; // 55-75%
+  const storageUsage = Math.floor(Math.random() * 10) + 75; // 75-85%
+  
+  // Update text displays
+  document.getElementById('cpu-percentage').textContent = cpuUsage + '%';
+  document.getElementById('memory-percentage').textContent = memoryUsage + '%';
+  document.getElementById('storage-percentage').textContent = storageUsage + '%';
+  
+  // Update doughnut charts
+  cpuChart.data.datasets[0].data = [cpuUsage, 100 - cpuUsage];
+  cpuChart.update('none');
+  
+  memoryChart.data.datasets[0].data = [memoryUsage, 100 - memoryUsage];
+  memoryChart.update('none');
+  
+  storageChart.data.datasets[0].data = [storageUsage, 100 - storageUsage];
+  storageChart.update('none');
+  
+  // Update real-time chart
+  realtimeData.labels.push(timeStr);
+  realtimeData.cpu.push(cpuUsage);
+  realtimeData.memory.push(memoryUsage);
+  
+  // Keep only last 20 data points
+  if (realtimeData.labels.length > 20) {
+    realtimeData.labels.shift();
+    realtimeData.cpu.shift();
+    realtimeData.memory.shift();
+  }
+  
+  realtimeChart.data.labels = realtimeData.labels;
+  realtimeChart.data.datasets[0].data = realtimeData.cpu;
+  realtimeChart.data.datasets[1].data = realtimeData.memory;
+  realtimeChart.update('none');
+  
+  // Update network chart
+  const upload = Math.floor(Math.random() * 50) + 10;
+  const download = Math.floor(Math.random() * 200) + 100;
+  networkChart.data.datasets[0].data = [upload, download];
+  networkChart.update('none');
+  
+  // Update other metrics
+  document.getElementById('response-time').textContent = (Math.floor(Math.random() * 20) + 30) + 'ms';
+  document.getElementById('requests').textContent = (Math.floor(Math.random() * 500) + 1000) + '';
+  document.getElementById('load-avg').textContent = (Math.random() * 2 + 0.5).toFixed(2);
+  document.getElementById('memory-used').textContent = (memoryUsage * 0.1).toFixed(1) + 'GB';
+  document.getElementById('storage-used').textContent = Math.floor(storageUsage * 2) + 'GB';
+}
+
+function toggleRealTime() {
+  isRealTimeActive = !isRealTimeActive;
+  const icon = document.getElementById('realtime-icon');
+  const text = document.getElementById('realtime-text');
+  
+  if (isRealTimeActive) {
+    icon.className = 'fas fa-pause';
+    text.textContent = 'Pause';
+    startRealTimeUpdates();
+  } else {
+    icon.className = 'fas fa-play';
+    text.textContent = 'Resume';
+  }
+}
+
+function refreshProcesses() {
+  // Simulate process list refresh
+  showNotification('Process list refreshed', 'success');
+  
+  // Add animation effect
+  const table = document.getElementById('processes-table');
+  table.style.opacity = '0.5';
+  setTimeout(() => {
+    table.style.opacity = '1';
+  }, 500);
+}
+
+function killProcess(pid) {
+  if (confirm(`Are you sure you want to kill process ${pid}?`)) {
+    showNotification(`Process ${pid} has been terminated`, 'success');
+    
+    // Remove process from table with animation
+    const rows = document.querySelectorAll('#processes-table tr');
+    rows.forEach(row => {
+      if (row.cells[0].textContent === pid.toString()) {
+        row.style.transition = 'opacity 0.3s ease';
+        row.style.opacity = '0';
+        setTimeout(() => row.remove(), 300);
+      }
+    });
+  }
+}
+
+function showNotification(message, type) {
+  const notification = document.createElement('div');
+  notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+  notification.style.cssText = 'top: 90px; right: 20px; z-index: 9999; min-width: 300px;';
+  notification.innerHTML = `
+    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    if (notification.parentElement) {
+      notification.remove();
+    }
+  }, 3000);
+}
+
+// Start real-time updates when page loads
+updateMetrics();
+</script>
+{% endblock %}

@@ -242,6 +242,39 @@ def admin_dashboard(request, username):
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+def admin_user_approval(request, username):
+    """Admin page for user approval management"""
+    context = {
+        'username': username,
+        'role': 'Admin'
+    }
+    return render(request, 'dashboard/admin_user_approval.html', context)
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+def admin_server_monitor(request, username):
+    """Admin page for server monitoring"""
+    context = {
+        'username': username,
+        'role': 'Admin'
+    }
+    return render(request, 'dashboard/admin_server_monitor.html', context)
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+def admin_analytics(request, username):
+    """Admin page for analytics"""
+    context = {
+        'username': username,
+        'role': 'Admin'
+    }
+    return render(request, 'dashboard/admin_analytics.html', context)
+
 @staff_member_required
 @csrf_exempt  # Karena pake JS fetch, pastikan csrf token sudah dikirim
 def trigger_sync(request, username):

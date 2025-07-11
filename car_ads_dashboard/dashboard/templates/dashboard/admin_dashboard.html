@@ -1,38 +1,557 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <title>Admin Dashboard</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2rem; }
-        .header { display: flex; justify-content: space-between; align-items: center; }
-        .logout { font-size: 0.9rem; }
-        .content { margin-top: 2rem; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>Admin Dashboard</h1>
-        <div>
-            Hello, {{ username }} |
-            <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" style="background:none;border:none;color:#007bff;cursor:pointer;padding:0;">Logout</button>
-            </form>
-        </div>
-    </div>
-    <div class="content">
-        <p>{{ message }}</p>
-        <!-- Tambahkan fitur manajemen dashboard di sini nanti -->
-         <form id="sync-form" style="margin-top: 1rem;">
-            {% csrf_token %}
-            <button type="submit" style="background-color:#28a745; color:white; padding:0.5rem 1rem; border:none; border-radius:4px;">
-                🔄 Sinkronisasi Data Sekarang
-            </button>
-        </form>
-        <div id="sync-status" style="margin-top: 1rem; font-weight: bold;"></div>
+{% extends "dashboard/base_admin.html" %}
+{% load humanize %}
+{% block title %}Admin Dashboard - Overview{% endblock %}
 
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+  <div>
+    <h1 class="page-title">
+      <i class="fas fa-tachometer-alt me-2"></i>
+      Dashboard Overview
+    </h1>
+    <p class="page-subtitle">{{ message }}</p>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="admin-grid grid-4">
+  <!-- Server Status Card -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-server me-2 text-primary"></i>
+        Server Status
+      </h3>
     </div>
+    <div class="text-center">
+      <div class="status-indicator status-success mb-3">
+        <i class="fas fa-check-circle"></i>
+        Online
+      </div>
+      <div class="row text-center">
+        <div class="col-6">
+          <h4 class="fw-bold text-primary">99.9%</h4>
+          <small class="text-muted">Uptime</small>
+        </div>
+        <div class="col-6">
+          <h4 class="fw-bold text-success">45ms</h4>
+          <small class="text-muted">Response</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Approval Card -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-user-check me-2 text-warning"></i>
+        Pending Users
+      </h3>
+    </div>
+    <div class="text-center">
+      <h2 class="fw-bold text-warning mb-2">3</h2>
+      <p class="text-muted mb-3">Users awaiting approval</p>
+      <a href="#" class="btn-admin btn-warning">
+        <i class="fas fa-eye"></i>
+        Review
+      </a>
+    </div>
+  </div>
+
+  <!-- Data Sync Status Card -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-sync-alt me-2 text-info"></i>
+        Last Sync
+      </h3>
+    </div>
+    <div class="text-center">
+      <div class="status-indicator status-success mb-3" id="sync-status-indicator">
+        <i class="fas fa-check-circle"></i>
+        <span id="sync-status-text">Completed</span>
+      </div>
+      <small class="text-muted d-block mb-3">2 hours ago</small>
+      <form id="sync-form" class="d-inline">
+        {% csrf_token %}
+        <button type="submit" class="btn-admin btn-success">
+          <i class="fas fa-sync-alt"></i>
+          Sync Now
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- System Health Card -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-heartbeat me-2 text-danger"></i>
+        System Health
+      </h3>
+    </div>
+    <div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="text-muted">CPU Usage</span>
+        <span class="fw-bold">45%</span>
+      </div>
+      <div class="progress mb-3" style="height: 6px;">
+        <div class="progress-bar bg-primary" style="width: 45%"></div>
+      </div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="text-muted">Memory</span>
+        <span class="fw-bold">62%</span>
+      </div>
+      <div class="progress mb-3" style="height: 6px;">
+        <div class="progress-bar bg-warning" style="width: 62%"></div>
+      </div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="text-muted">Storage</span>
+        <span class="fw-bold">78%</span>
+      </div>
+      <div class="progress" style="height: 6px;">
+        <div class="progress-bar bg-danger" style="width: 78%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Section -->
+<div class="admin-grid grid-2">
+  <!-- Server Performance Chart -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-chart-line me-2"></i>
+        Server Performance (24h)
+      </h3>
+      <div class="card-actions">
+        <button class="btn-admin btn-primary" style="padding: 0.5rem;">
+          <i class="fas fa-download"></i>
+        </button>
+      </div>
+    </div>
+    <div style="height: 300px; display: flex; align-items: center; justify-content: center; background: rgba(52, 73, 94, 0.05); border-radius: 12px;">
+      <canvas id="performanceChart"></canvas>
+    </div>
+  </div>
+
+  <!-- User Activity Chart -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-users me-2"></i>
+        User Activity
+      </h3>
+      <div class="card-actions">
+        <button class="btn-admin btn-primary" style="padding: 0.5rem;">
+          <i class="fas fa-download"></i>
+        </button>
+      </div>
+    </div>
+    <div style="height: 300px; display: flex; align-items: center; justify-content: center; background: rgba(52, 73, 94, 0.05); border-radius: 12px;">
+      <canvas id="activityChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Activity & Quick Actions -->
+<div class="admin-grid grid-2">
+  <!-- Recent Activity -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-history me-2"></i>
+        Recent Activity
+      </h3>
+    </div>
+    <div class="activity-feed">
+      <div class="activity-item d-flex align-items-center mb-3">
+        <div class="activity-icon bg-success text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+          <i class="fas fa-user-plus"></i>
+        </div>
+        <div class="flex-grow-1">
+          <p class="mb-1"><strong>New user registered:</strong> john_doe</p>
+          <small class="text-muted">5 minutes ago</small>
+        </div>
+      </div>
+      <div class="activity-item d-flex align-items-center mb-3">
+        <div class="activity-icon bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+          <i class="fas fa-sync-alt"></i>
+        </div>
+        <div class="flex-grow-1">
+          <p class="mb-1"><strong>Data sync completed</strong></p>
+          <small class="text-muted">2 hours ago</small>
+        </div>
+      </div>
+      <div class="activity-item d-flex align-items-center mb-3">
+        <div class="activity-icon bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="flex-grow-1">
+          <p class="mb-1"><strong>High memory usage detected</strong></p>
+          <small class="text-muted">3 hours ago</small>
+        </div>
+      </div>
+      <div class="activity-item d-flex align-items-center">
+        <div class="activity-icon bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+          <i class="fas fa-database"></i>
+        </div>
+        <div class="flex-grow-1">
+          <p class="mb-1"><strong>Database backup completed</strong></p>
+          <small class="text-muted">6 hours ago</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-bolt me-2"></i>
+        Quick Actions
+      </h3>
+    </div>
+    <div class="quick-actions">
+      <div class="row g-3">
+        <div class="col-6">
+          <a href="{% url 'admin_user_approval' username=username %}" class="btn-admin btn-primary w-100 text-center py-3 text-decoration-none">
+            <i class="fas fa-users d-block mb-2" style="font-size: 1.5rem;"></i>
+            <span>Manage Users</span>
+          </a>
+        </div>
+        <div class="col-6">
+          <button class="btn-admin btn-success w-100 text-center py-3" onclick="backupData()">
+            <i class="fas fa-download d-block mb-2" style="font-size: 1.5rem;"></i>
+            <span>Backup Data</span>
+          </button>
+        </div>
+        <div class="col-6">
+          <button class="btn-admin btn-warning w-100 text-center py-3" onclick="openSettings()">
+            <i class="fas fa-cogs d-block mb-2" style="font-size: 1.5rem;"></i>
+            <span>Settings</span>
+          </button>
+        </div>
+        <div class="col-6">
+          <a href="{% url 'admin_server_monitor' username=username %}" class="btn-admin btn-danger w-100 text-center py-3 text-decoration-none">
+            <i class="fas fa-server d-block mb-2" style="font-size: 1.5rem;"></i>
+            <span>Server Monitor</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sync Status Display -->
+<div id="sync-status-display" class="admin-card" style="display: none;">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-sync-alt me-2"></i>
+      Synchronization Status
+    </h3>
+  </div>
+  <div class="text-center">
+    <div class="spinner-border text-primary mb-3" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="text-muted" id="sync-detailed-status">Synchronization in progress...</p>
+  </div>
+</div>
+
+<style>
+/* Custom progress bars */
+.progress {
+  background-color: rgba(52, 73, 94, 0.1);
+  border-radius: 10px;
+}
+
+.dark-mode .progress {
+  background-color: rgba(231, 76, 60, 0.1);
+}
+
+/* Activity feed styling */
+.activity-feed {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.activity-item {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+/* Quick actions styling */
+.quick-actions .btn-admin {
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.quick-actions .btn-admin:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-4px) scale(1.02);
+}
+
+/* Chart containers */
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .quick-actions .col-6 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Setup WebSocket untuk notifikasi
+const ws_scheme = window.location.protocol === "https:" ? "wss://" : "ws://";
+const socket = new WebSocket(ws_scheme + window.location.host + '/ws/sync_notify/');
+
+socket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    updateSyncStatus(data.detail);
+};
+
+socket.onerror = function(e) {
+    console.error('WebSocket error:', e);
+};
+
+// Initialize Charts
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    updateSystemMetrics();
+    
+    // Update metrics every 30 seconds
+    setInterval(updateSystemMetrics, 30000);
+});
+
+function initializeCharts() {
+    // Performance Chart
+    const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+    const performanceChart = new Chart(performanceCtx, {
+        type: 'line',
+        data: {
+            labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+            datasets: [{
+                label: 'CPU Usage (%)',
+                data: [45, 52, 48, 61, 55, 47],
+                borderColor: '#2C3E50',
+                backgroundColor: 'rgba(44, 62, 80, 0.1)',
+                tension: 0.4,
+                fill: true
+            }, {
+                label: 'Memory Usage (%)',
+                data: [62, 58, 65, 72, 68, 64],
+                borderColor: '#E74C3C',
+                backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+
+    // User Activity Chart
+    const activityCtx = document.getElementById('activityChart').getContext('2d');
+    const activityChart = new Chart(activityCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Active Users', 'Pending Approval', 'Inactive'],
+            datasets: [{
+                data: [45, 3, 12],
+                backgroundColor: [
+                    '#27AE60',
+                    '#F39C12',
+                    '#95A5A6'
+                ],
+                borderWidth: 3,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                }
+            }
+        }
+    });
+}
+
+// Sync form handling
+document.getElementById('sync-form').addEventListener('submit', function(event) {
+    event.preventDefault();
+    
+    // Update UI
+    const statusIndicator = document.getElementById('sync-status-indicator');
+    const statusText = document.getElementById('sync-status-text');
+    const syncDisplay = document.getElementById('sync-status-display');
+    
+    statusIndicator.className = 'status-indicator status-warning';
+    statusIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>In Progress</span>';
+    statusText.textContent = 'In Progress';
+    syncDisplay.style.display = 'block';
+
+    fetch("{% url 'trigger_sync' username=username %}", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Request failed with status ' + response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Synchronization started:', data);
+        // Status will be updated via WebSocket
+    })
+    .catch(error => {
+        updateSyncStatus('❌ Synchronization failed: ' + error.message);
+        statusIndicator.className = 'status-indicator status-danger';
+        statusIndicator.innerHTML = '<i class="fas fa-times-circle"></i><span>Failed</span>';
+        statusText.textContent = 'Failed';
+        syncDisplay.style.display = 'none';
+    });
+});
+
+function updateSyncStatus(message) {
+    const statusIndicator = document.getElementById('sync-status-indicator');
+    const statusText = document.getElementById('sync-status-text');
+    const syncDisplay = document.getElementById('sync-status-display');
+    const detailedStatus = document.getElementById('sync-detailed-status');
+    
+    detailedStatus.textContent = message;
+    
+    if (message.includes('✅') || message.includes('completed')) {
+        statusIndicator.className = 'status-indicator status-success';
+        statusIndicator.innerHTML = '<i class="fas fa-check-circle"></i><span>Completed</span>';
+        statusText.textContent = 'Completed';
+        syncDisplay.style.display = 'none';
+        
+        // Show success notification
+        showNotification('Synchronization completed successfully!', 'success');
+    } else if (message.includes('❌') || message.includes('failed')) {
+        statusIndicator.className = 'status-indicator status-danger';
+        statusIndicator.innerHTML = '<i class="fas fa-times-circle"></i><span>Failed</span>';
+        statusText.textContent = 'Failed';
+        syncDisplay.style.display = 'none';
+        
+        // Show error notification
+        showNotification('Synchronization failed. Please try again.', 'error');
+    }
+}
+
+function updateSystemMetrics() {
+    // Simulate real-time system metrics updates
+    // In a real application, this would fetch actual metrics from your backend
+    
+    const cpuUsage = Math.floor(Math.random() * 30) + 40; // 40-70%
+    const memoryUsage = Math.floor(Math.random() * 20) + 55; // 55-75%
+    const storageUsage = Math.floor(Math.random() * 10) + 75; // 75-85%
+    
+    // Update progress bars
+    const progressBars = document.querySelectorAll('.progress-bar');
+    if (progressBars.length >= 3) {
+        progressBars[0].style.width = cpuUsage + '%';
+        progressBars[0].parentElement.previousElementSibling.querySelector('.fw-bold').textContent = cpuUsage + '%';
+        
+        progressBars[1].style.width = memoryUsage + '%';
+        progressBars[1].parentElement.previousElementSibling.querySelector('.fw-bold').textContent = memoryUsage + '%';
+        
+        progressBars[2].style.width = storageUsage + '%';
+        progressBars[2].parentElement.previousElementSibling.querySelector('.fw-bold').textContent = storageUsage + '%';
+    }
+}
+
+function showNotification(message, type) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 90px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 5000);
+}
+
+// Update active nav link
+document.addEventListener('DOMContentLoaded', function() {
+    const navLinks = document.querySelectorAll('.nav-link');
+    navLinks.forEach(link => {
+        if (link.href === window.location.href) {
+            link.classList.add('active');
+        } else {
+            link.classList.remove('active');
+        }
+    });
+});
+
+// Quick Actions Functions
+function backupData() {
+    if (confirm('Are you sure you want to start a data backup? This may take several minutes.')) {
+        showNotification('Data backup started. You will be notified when complete.', 'success');
+        
+        // Simulate backup process
+        setTimeout(() => {
+            showNotification('Data backup completed successfully!', 'success');
+        }, 5000);
+    }
+}
+
+function openSettings() {
+    showNotification('Settings page is under development', 'info');
+}
+
+function viewLogs() {
+    showNotification('Logs page is under development', 'info');
+}
+</script>
+{% endblock %}
 
 <script>
 // Setup WebSocket untuk notifikasi

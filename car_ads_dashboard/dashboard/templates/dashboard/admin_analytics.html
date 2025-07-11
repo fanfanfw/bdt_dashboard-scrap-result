@@ -1,0 +1,401 @@
+{% extends "dashboard/base_admin.html" %}
+{% load humanize %}
+{% block title %}Admin Analytics{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+  <div>
+    <h1 class="page-title">
+      <i class="fas fa-chart-bar me-2"></i>
+      Analytics Dashboard
+    </h1>
+    <p class="page-subtitle">Comprehensive data analytics and insights</p>
+  </div>
+</div>
+
+<!-- Analytics Cards -->
+<div class="admin-grid grid-4">
+  <!-- Total Users -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-users me-2 text-primary"></i>
+        Total Users
+      </h3>
+    </div>
+    <div class="text-center">
+      <h2 class="fw-bold text-primary mb-2">1,247</h2>
+      <p class="text-muted mb-3">Registered users</p>
+      <div class="d-flex justify-content-between">
+        <small class="text-success">
+          <i class="fas fa-arrow-up"></i>
+          +12% this month
+        </small>
+        <small class="text-muted">45 active</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Scraped -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-database me-2 text-success"></i>
+        Data Scraped
+      </h3>
+    </div>
+    <div class="text-center">
+      <h2 class="fw-bold text-success mb-2">156K</h2>
+      <p class="text-muted mb-3">Car listings</p>
+      <div class="d-flex justify-content-between">
+        <small class="text-success">
+          <i class="fas fa-arrow-up"></i>
+          +5.2K today
+        </small>
+        <small class="text-muted">2 sources</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Requests -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-globe me-2 text-info"></i>
+        API Requests
+      </h3>
+    </div>
+    <div class="text-center">
+      <h2 class="fw-bold text-info mb-2">89.2K</h2>
+      <p class="text-muted mb-3">This month</p>
+      <div class="d-flex justify-content-between">
+        <small class="text-success">
+          <i class="fas fa-arrow-up"></i>
+          +8% vs last month
+        </small>
+        <small class="text-muted">2.9K/day avg</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Rate -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+        Error Rate
+      </h3>
+    </div>
+    <div class="text-center">
+      <h2 class="fw-bold text-warning mb-2">0.3%</h2>
+      <p class="text-muted mb-3">Last 24 hours</p>
+      <div class="d-flex justify-content-between">
+        <small class="text-success">
+          <i class="fas fa-arrow-down"></i>
+          -0.1% improvement
+        </small>
+        <small class="text-muted">27 errors</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Section -->
+<div class="admin-grid grid-2">
+  <!-- User Growth Chart -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-chart-line me-2"></i>
+        User Growth (6 months)
+      </h3>
+      <div class="card-actions">
+        <select class="form-select form-select-sm" style="width: auto;">
+          <option>6 months</option>
+          <option>3 months</option>
+          <option>1 month</option>
+        </select>
+      </div>
+    </div>
+    <div style="height: 300px;">
+      <canvas id="userGrowthChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Data Source Distribution -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-chart-pie me-2"></i>
+        Data Source Distribution
+      </h3>
+    </div>
+    <div style="height: 300px;">
+      <canvas id="dataSourceChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Usage Analytics -->
+<div class="admin-grid grid-2">
+  <!-- Top Features -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-star me-2"></i>
+        Most Used Features
+      </h3>
+    </div>
+    <div class="feature-list">
+      <div class="feature-item d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center">
+          <div class="feature-icon bg-primary text-white rounded me-3" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-search"></i>
+          </div>
+          <div>
+            <strong>Car Search</strong>
+            <br>
+            <small class="text-muted">Dashboard filtering</small>
+          </div>
+        </div>
+        <div class="text-end">
+          <div class="fw-bold">8,945</div>
+          <small class="text-muted">uses/month</small>
+        </div>
+      </div>
+      
+      <div class="feature-item d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center">
+          <div class="feature-icon bg-success text-white rounded me-3" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-chart-bar"></i>
+          </div>
+          <div>
+            <strong>Analytics View</strong>
+            <br>
+            <small class="text-muted">Data visualization</small>
+          </div>
+        </div>
+        <div class="text-end">
+          <div class="fw-bold">6,723</div>
+          <small class="text-muted">uses/month</small>
+        </div>
+      </div>
+      
+      <div class="feature-item d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center">
+          <div class="feature-icon bg-info text-white rounded me-3" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-download"></i>
+          </div>
+          <div>
+            <strong>Data Export</strong>
+            <br>
+            <small class="text-muted">CSV downloads</small>
+          </div>
+        </div>
+        <div class="text-end">
+          <div class="fw-bold">3,456</div>
+          <small class="text-muted">uses/month</small>
+        </div>
+      </div>
+      
+      <div class="feature-item d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <div class="feature-icon bg-warning text-white rounded me-3" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-filter"></i>
+          </div>
+          <div>
+            <strong>Advanced Filters</strong>
+            <br>
+            <small class="text-muted">Multi-criteria search</small>
+          </div>
+        </div>
+        <div class="text-end">
+          <div class="fw-bold">2,187</div>
+          <small class="text-muted">uses/month</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity Timeline -->
+  <div class="admin-card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-clock me-2"></i>
+        Recent System Activity
+      </h3>
+    </div>
+    <div class="timeline">
+      <div class="timeline-item d-flex mb-3">
+        <div class="timeline-marker bg-success text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px; flex-shrink: 0;">
+          <i class="fas fa-sync-alt" style="font-size: 0.75rem;"></i>
+        </div>
+        <div class="flex-grow-1">
+          <p class="mb-1"><strong>Data sync completed</strong></p>
+          <small class="text-muted">156 new car listings added • 2 hours ago</small>
+        </div>
+      </div>
+      
+      <div class="timeline-item d-flex mb-3">
+        <div class="timeline-marker bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px; flex-shrink: 0;">
+          <i class="fas fa-user-plus" style="font-size: 0.75rem;"></i>
+        </div>
+        <div class="flex-grow-1">
+          <p class="mb-1"><strong>New user registered</strong></p>
+          <small class="text-muted">john_doe joined the platform • 3 hours ago</small>
+        </div>
+      </div>
+      
+      <div class="timeline-item d-flex mb-3">
+        <div class="timeline-marker bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px; flex-shrink: 0;">
+          <i class="fas fa-exclamation-triangle" style="font-size: 0.75rem;"></i>
+        </div>
+        <div class="flex-grow-1">
+          <p class="mb-1"><strong>High memory usage alert</strong></p>
+          <small class="text-muted">Memory usage reached 85% • 4 hours ago</small>
+        </div>
+      </div>
+      
+      <div class="timeline-item d-flex mb-3">
+        <div class="timeline-marker bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px; flex-shrink: 0;">
+          <i class="fas fa-download" style="font-size: 0.75rem;"></i>
+        </div>
+        <div class="flex-grow-1">
+          <p class="mb-1"><strong>Backup completed</strong></p>
+          <small class="text-muted">Daily database backup successful • 6 hours ago</small>
+        </div>
+      </div>
+      
+      <div class="timeline-item d-flex">
+        <div class="timeline-marker bg-danger text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px; flex-shrink: 0;">
+          <i class="fas fa-times" style="font-size: 0.75rem;"></i>
+        </div>
+        <div class="flex-grow-1">
+          <p class="mb-1"><strong>Scraping error detected</strong></p>
+          <small class="text-muted">Failed to connect to mudah.my • 8 hours ago</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.feature-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.feature-item {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.feature-item:last-child {
+  border-bottom: none;
+}
+
+.timeline {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.timeline-item {
+  padding-bottom: 1rem;
+  border-left: 2px solid var(--color-border);
+  margin-left: 16px;
+  padding-left: 1rem;
+  position: relative;
+}
+
+.timeline-item:last-child {
+  border-left: none;
+}
+
+.timeline-marker {
+  margin-left: -25px;
+}
+
+.form-select-sm {
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initializeAnalyticsCharts();
+});
+
+function initializeAnalyticsCharts() {
+    // User Growth Chart
+    const userGrowthCtx = document.getElementById('userGrowthChart').getContext('2d');
+    new Chart(userGrowthCtx, {
+        type: 'line',
+        data: {
+            labels: ['August', 'September', 'October', 'November', 'December', 'January'],
+            datasets: [{
+                label: 'New Users',
+                data: [45, 62, 78, 95, 134, 167],
+                borderColor: '#3498DB',
+                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                tension: 0.4,
+                fill: true
+            }, {
+                label: 'Active Users',
+                data: [38, 52, 67, 81, 118, 145],
+                borderColor: '#27AE60',
+                backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Data Source Distribution Chart
+    const dataSourceCtx = document.getElementById('dataSourceChart').getContext('2d');
+    new Chart(dataSourceCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Mudah.my', 'Carlist.my', 'Other Sources'],
+            datasets: [{
+                data: [65, 30, 5],
+                backgroundColor: [
+                    '#E74C3C',
+                    '#3498DB',
+                    '#95A5A6'
+                ],
+                borderWidth: 3,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -7,7 +7,7 @@ from django.urls import reverse
 from .tasks import sync_data_task
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Count, Q, Avg
+from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
 from .models import CarsMudahmy, CarsCarlistmy, PriceHistoryMudahmy, PriceHistoryCarlistmy
 from django.contrib.auth.forms import AuthenticationForm
 from django.views.decorators.http import require_GET
@@ -156,6 +156,67 @@ def user_dashboard(request, username):
     # Data untuk scatter plot brands
     scatter_brands = CarModel.objects.filter(status__in=['active', 'sold']).values_list('brand', flat=True).distinct().order_by('brand')
 
+    # Analisis tren harga model dan variant
+    if source == 'carlistmy':
+        from .models import PriceHistoryCarlistmy as PriceHistoryModel
+    else:
+        from .models import PriceHistoryMudahmy as PriceHistoryModel
+    
+    # Ambil data tren harga untuk model dan variant
+    price_trends_data = []
+    try:
+        # Query untuk mendapatkan perubahan harga terbaru per model/variant
+        trend_analysis = (
+            PriceHistoryModel.objects
+            .select_related('car')
+            .filter(
+                car__status__in=['active', 'sold'],
+                old_price__isnull=False,
+                new_price__isnull=False,
+                old_price__gt=0,
+                new_price__gt=0
+            )
+            .annotate(
+                price_change=F('new_price') - F('old_price'),
+                price_change_percent=Case(
+                    When(old_price__gt=0, 
+                         then=(F('new_price') - F('old_price')) * 100.0 / F('old_price')),
+                    default=0,
+                    output_field=DecimalField(max_digits=10, decimal_places=2)
+                ),
+                brand=F('car__brand'),
+                model=F('car__model'),
+                variant=F('car__variant'),
+                condition=F('car__condition')
+            )
+            .values('brand', 'model', 'variant', 'condition')
+            .annotate(
+                avg_price_change=Avg('price_change'),
+                avg_price_change_percent=Avg('price_change_percent'),
+                total_changes=Count('id')
+            )
+            .filter(total_changes__gte=2)  # Minimal 2 perubahan harga
+            .order_by('-avg_price_change_percent')
+        )
+        
+        # Top 20 trending up
+        trending_up = list(trend_analysis.filter(avg_price_change_percent__gt=0)[:20])
+        
+        # Top 20 trending down  
+        trending_down = list(trend_analysis.filter(avg_price_change_percent__lt=0).order_by('avg_price_change_percent')[:20])
+        
+        price_trends_data = {
+            'trending_up': trending_up,
+            'trending_down': trending_down
+        }
+        
+    except Exception as e:
+        # Fallback jika ada error
+        price_trends_data = {
+            'trending_up': [],
+            'trending_down': []
+        }
+
     context = {
         'username': username,
         'source': source,
@@ -185,6 +246,9 @@ def user_dashboard(request, username):
         'fuel_data': fuel_data,
         'engine_labels': engine_labels,
         'engine_data': engine_data,
+        
+        # Price trends data
+        'price_trends': price_trends_data,
     }
     return render(request, 'dashboard/user_dashboard.html', context)
 

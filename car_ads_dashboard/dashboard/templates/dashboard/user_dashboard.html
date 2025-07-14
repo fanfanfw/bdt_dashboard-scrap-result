@@ -245,6 +245,107 @@
       </div>
     </div>
   </div>
+
+  <!-- Price Trends Section -->
+  <div class="trends-section">
+    <div class="trends-grid">
+      <!-- Trending Up -->
+      <div class="trends-card trending-up-card">
+        <div class="trends-header">
+          <h3 class="trends-title">
+            <i class="fas fa-arrow-trend-up"></i>
+            Top 20 Model/Variant Trending Up
+          </h3>
+          <div class="trends-subtitle">Model dan variant dengan tren harga naik</div>
+        </div>
+        <div class="trends-content">
+          {% if price_trends.trending_up %}
+            <div class="trends-list">
+              {% for trend in price_trends.trending_up %}
+              <div class="trend-item trend-up">
+                <div class="trend-info">
+                  <div class="trend-main">
+                    <span class="trend-brand">{{ trend.brand|default:"Unknown" }}</span>
+                    <span class="trend-model">{{ trend.model|default:"Unknown" }}</span>
+                    {% if trend.variant %}
+                    <span class="trend-variant">{{ trend.variant }}</span>
+                    {% endif %}
+                  </div>
+                  <div class="trend-meta">
+                    <span class="trend-condition">{{ trend.condition|default:"Unknown" }}</span>
+                    <span class="trend-changes">{{ trend.total_changes }} perubahan</span>
+                  </div>
+                </div>
+                <div class="trend-stats">
+                  <div class="trend-percentage up">
+                    <i class="fas fa-arrow-up"></i>
+                    +{{ trend.avg_price_change_percent|floatformat:1 }}%
+                  </div>
+                  <div class="trend-amount up">
+                    +RM {{ trend.avg_price_change|floatformat:0|intcomma }}
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="trends-empty">
+              <i class="fas fa-chart-line"></i>
+              <p>Belum ada data tren harga naik</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Trending Down -->
+      <div class="trends-card trending-down-card">
+        <div class="trends-header">
+          <h3 class="trends-title">
+            <i class="fas fa-arrow-trend-down"></i>
+            Top 20 Model/Variant Trending Down
+          </h3>
+          <div class="trends-subtitle">Model dan variant dengan tren harga turun</div>
+        </div>
+        <div class="trends-content">
+          {% if price_trends.trending_down %}
+            <div class="trends-list">
+              {% for trend in price_trends.trending_down %}
+              <div class="trend-item trend-down">
+                <div class="trend-info">
+                  <div class="trend-main">
+                    <span class="trend-brand">{{ trend.brand|default:"Unknown" }}</span>
+                    <span class="trend-model">{{ trend.model|default:"Unknown" }}</span>
+                    {% if trend.variant %}
+                    <span class="trend-variant">{{ trend.variant }}</span>
+                    {% endif %}
+                  </div>
+                  <div class="trend-meta">
+                    <span class="trend-condition">{{ trend.condition|default:"Unknown" }}</span>
+                    <span class="trend-changes">{{ trend.total_changes }} perubahan</span>
+                  </div>
+                </div>
+                <div class="trend-stats">
+                  <div class="trend-percentage down">
+                    <i class="fas fa-arrow-down"></i>
+                    {{ trend.avg_price_change_percent|floatformat:1 }}%
+                  </div>
+                  <div class="trend-amount down">
+                    RM {{ trend.avg_price_change|floatformat:0|intcomma }}
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="trends-empty">
+              <i class="fas fa-chart-line"></i>
+              <p>Belum ada data tren harga turun</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -691,6 +792,273 @@
   height: 100% !important;
 }
 
+/* Trends Section */
+.trends-section {
+  margin-bottom: 3rem;
+}
+
+.trends-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.trends-card {
+  background: var(--color-card);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px var(--color-shadow);
+  border: 1px solid var(--color-border);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.trends-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  opacity: 0.8;
+}
+
+.trending-up-card::before {
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+
+.trending-down-card::before {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.trends-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 32px var(--color-shadow);
+}
+
+.trends-header {
+  margin-bottom: 1.5rem;
+}
+
+.trends-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.trends-title i {
+  font-size: 1.1rem;
+}
+
+.trending-up-card .trends-title i {
+  color: #22c55e;
+}
+
+.trending-down-card .trends-title i {
+  color: #ef4444;
+}
+
+.trends-subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.trends-content {
+  position: relative;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.trends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.trend-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.dark-mode .trend-item {
+  background: rgba(48, 71, 94, 0.3);
+}
+
+.trend-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px var(--color-shadow);
+}
+
+.trend-item.trend-up:hover {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.trend-item.trend-down:hover {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.trend-info {
+  flex: 1;
+}
+
+.trend-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.trend-brand {
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+}
+
+.trend-model {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.trend-variant {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  background: rgba(48, 71, 94, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+
+.dark-mode .trend-variant {
+  background: rgba(240, 84, 84, 0.2);
+}
+
+.trend-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.75rem;
+}
+
+.trend-condition {
+  color: var(--color-text-secondary);
+  background: rgba(156, 163, 175, 0.2);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.trend-changes {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.trend-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.trend-percentage {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.trend-percentage.up {
+  color: #22c55e;
+}
+
+.trend-percentage.down {
+  color: #ef4444;
+}
+
+.trend-amount {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.trend-amount.up {
+  color: #16a34a;
+}
+
+.trend-amount.down {
+  color: #dc2626;
+}
+
+.trends-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.trends-empty i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.trends-empty p {
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Custom scrollbar for trends content */
+.trends-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.trends-content::-webkit-scrollbar-track {
+  background: rgba(156, 163, 175, 0.1);
+  border-radius: 3px;
+}
+
+.trends-content::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 3px;
+}
+
+.trends-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5);
+}
+
+.dark-mode .trends-content::-webkit-scrollbar-track {
+  background: rgba(240, 84, 84, 0.1);
+}
+
+.dark-mode .trends-content::-webkit-scrollbar-thumb {
+  background: rgba(240, 84, 84, 0.3);
+}
+
+.dark-mode .trends-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(240, 84, 84, 0.5);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .modern-dashboard {
@@ -740,6 +1108,30 @@
   .analysis-content {
     height: 300px;
   }
+
+  .trends-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .trends-card {
+    padding: 1.5rem;
+  }
+
+  .trend-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .trend-stats {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .trend-main {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 480px) {
@@ -771,6 +1163,26 @@
 
   .kpi-content h3 {
     font-size: 2rem;
+  }
+
+  .trend-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+
+  .trend-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+
+  .trends-title {
+    font-size: 1.1rem;
+  }
+
+  .trend-item {
+    padding: 0.75rem;
   }
 }
 
@@ -807,6 +1219,13 @@
 .chart-card:nth-child(5) { animation-delay: 0.6s; }
 .chart-card:nth-child(6) { animation-delay: 0.7s; }
 .chart-card:nth-child(7) { animation-delay: 0.8s; }
+
+.trends-card {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.trends-card:nth-child(1) { animation-delay: 0.9s; }
+.trends-card:nth-child(2) { animation-delay: 1.0s; }
 
 /* Improved focus states for accessibility */
 .kpi-card:focus-within,

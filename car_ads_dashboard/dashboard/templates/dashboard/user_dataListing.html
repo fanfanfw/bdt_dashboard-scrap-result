@@ -157,6 +157,61 @@
   transform: translateY(-1px);
 }
 
+/* Form Select Improvements for Mobile */
+.form-select {
+  appearance: auto !important; /* Memastikan dropdown menampilkan arrow di mobile */
+  -webkit-appearance: auto !important;
+  -moz-appearance: auto !important;
+  cursor: pointer;
+  position: relative;
+  z-index: 20; /* Memastikan dropdown berada di atas elemen lain */
+}
+
+.form-select:focus {
+  box-shadow: 0 0 0 3px rgba(240, 84, 84, 0.25);
+  border-color: var(--color-accent);
+  z-index: 25; /* Meningkatkan z-index saat fokus */
+}
+
+.filter-row .col-md-3,
+.filter-row .col-12 {
+  position: relative;
+  z-index: 20; /* Memastikan container dropdown juga memiliki z-index tinggi */
+}
+
+/* Perbaikan tampilan dropdown */
+.form-select option {
+  padding: 10px;
+  background-color: var(--color-card);
+  color: var(--color-text-primary);
+}
+
+/* Memastikan dropdown options muncul di atas elemen lain */
+select.form-select option {
+  z-index: 30;
+}
+
+/* Loading indicator untuk select dropdown */
+.loading-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%2330475E' d='M12,4a8,8,0,0,1,7.89,6.7A1.53,1.53,0,0,0,21.38,12h0a1.5,1.5,0,0,0,1.48-1.75,11,11,0,0,0-21.72,0A1.5,1.5,0,0,0,2.62,12h0a1.53,1.53,0,0,0,1.49-1.3A8,8,0,0,1,12,4Z'%3E%3CanimateTransform attributeName='transform' type='rotate' dur='0.75s' values='0 12 12;360 12 12' repeatCount='indefinite'/%3E%3C/path%3E%3C/svg%3E") !important;
+  background-position: calc(100% - 10px) 50% !important;
+  background-size: 20px !important;
+  background-repeat: no-repeat !important;
+}
+
+/* Memperbaiki interaksi hover pada mobile */
+@media (max-width: 768px) {
+  .form-select {
+    padding-right: 2.5rem; /* Lebih banyak ruang untuk icon dropdown */
+    background-position: right 0.75rem center; /* Memastikan icon dropdown terlihat */
+  }
+  
+  .filter-row {
+    z-index: 35; /* Memastikan filter row berada di atas sidebar di mobile */
+    position: relative;
+  }
+}
+
 .filter-row .btn {
   padding: 0.75rem 1.5rem;
   border-radius: var(--border-radius-md);
@@ -221,10 +276,11 @@
   gap: 1.5rem;
   border-right: 2px solid var(--color-border);
   padding: 2rem;
-  transition: var(--transition);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-y: auto;
   background: var(--color-card);
   max-height: 600px;
+  box-shadow: var(--shadow-sm);
 }
 
 .sidebar-hidden {
@@ -232,6 +288,8 @@
   padding: 0 !important;
   border: none !important;
   overflow: hidden !important;
+  opacity: 0;
+  transform: translateX(-20px);
 }
 
 /* Toggle Button */
@@ -256,13 +314,8 @@
   font-size: 1.25rem;
 }
 
-.btn-toggle-sidebar:hover {
-  transform: translateX(-4px) scale(1.05);
-  box-shadow: var(--shadow-md);
-}
-
-.sidebar-hidden + .btn-toggle-sidebar {
-  margin-left: 0;
+.btn-toggle-sidebar i {
+  transition: transform 0.3s ease;
 }
 
 /* Content Wrapper */
@@ -615,31 +668,44 @@
   }
 
   .sidebar-toggle-wrapper {
-    flex-direction: row;
+    flex-direction: column;
+    width: 100%;
+    position: relative;
   }
 
   .sidebar-wrapper {
-    width: 100% !important;
+    width: 100%;
     border-right: none;
     border-bottom: 2px solid var(--color-border);
     padding: 1rem;
     max-height: none;
+    position: absolute;
+    z-index: 30;
+    top: 0;
+    left: 0;
+    box-shadow: var(--shadow-md);
+  }
+  
+  .sidebar-hidden {
+    transform: translateY(-100%);
+    opacity: 0;
+    visibility: hidden;
   }
 
   .btn-toggle-sidebar {
     width: 60px;
-    height: 50px;
-    margin-left: 0;
-    margin-top: 8px;
-    border-radius: var(--border-radius-md);
-  }
-
-  .sidebar-hidden + .btn-toggle-sidebar {
-    margin-left: 0;
+    height: 40px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 0;
+    border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+    position: relative;
+    z-index: 31;
   }
 
   .content-wrapper {
     padding: 1rem;
+    margin-top: 50px;
   }
 
   #gridViewContainer {
@@ -660,7 +726,6 @@
   .filter-row .col-md-3 {
     margin-bottom: 1rem;
   }
-}
 }
 
 @media (max-width: 480px) {
@@ -690,28 +755,23 @@
 
   .btn-toggle-sidebar {
     font-size: 1rem;
-    width: 50px;
-    height: 40px;
+    width: 60px;
+    height: 35px;
+    border-radius: 0 0 var(--border-radius-sm) var(--border-radius-sm);
   }
 
   .sidebar-wrapper {
     padding: 0.75rem;
+    max-height: 80vh;
+    overflow-y: auto;
   }
-
+  
   .content-wrapper {
-    padding: 0.75rem;
+    margin-top: 40px;
   }
 
-  #gridViewContainer .card-body {
-    padding: 1rem;
-  }
-
-  .stats-row {
-    padding: 0.75rem;
-  }
-
-  .stat-item i {
-    font-size: 1rem;
+  .card {
+    border-radius: 12px;
   }
 }
 
@@ -1035,6 +1095,44 @@
     transform: translateY(0);
   }
 }
+
+.loading-select {
+  background-image: url('data:image/svg+xml;charset=utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"%3E%3Cpath fill="%23F05454" d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/%3E%3Cpath fill="%23F05454" d="M12,4a8,8,0,0,1,7.89,6.7A1.53,1.53,0,0,0,21.38,12h0a1.5,1.5,0,0,0,1.48-1.75,11,11,0,0,0-21.72,0A1.5,1.5,0,0,0,2.62,12h0a1.53,1.53,0,0,0,1.49-1.3A8,8,0,0,1,12,4Z"%3E%3CanimateTransform attributeName="transform" dur="0.75s" repeatCount="indefinite" type="rotate" values="0 12 12;360 12 12"/%3E%3C/path%3E%3C/svg%3E');
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem;
+}
+
+.filter-row .form-select {
+  transition: all 0.3s ease;
+  min-height: 45px;
+}
+
+.filter-row .form-select:hover {
+  border-color: var(--color-accent);
+}
+
+/* Peningkatan tampilan dropdown */
+.filter-row .form-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+/* Tombol filter lebih menonjol */
+#btnSubmitFilter {
+  min-height: 45px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  border: none;
+  box-shadow: 0 4px 10px rgba(240, 84, 84, 0.3);
+}
+
+#btnSubmitFilter:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(240, 84, 84, 0.4);
+}
   animation: fadeInUp 0.6s ease-out forwards;
 }
 
@@ -1060,7 +1158,7 @@
   <!-- Row 2: Filter -->
   <div class="filter-row">
     <form id="filterForm" class="row g-3">
-      <div class="col-md-3">
+      <div class="col-md-3 col-sm-6">
         <label class="form-label">Brand <span class="text-danger">*</span></label>
         <select class="form-select" name="brand" id="brandSelect" required>
           <option value="">Pilih Brand</option>
@@ -1069,32 +1167,27 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-3 col-sm-6">
         <label class="form-label">Model</label>
-        <select class="form-select" name="model" id="modelSelect">
-          <option value="">Semua Model</option>
+        <select class="form-select" name="model" id="modelSelect" disabled>
+          <option value="">Pilih Model</option>
         </select>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-3 col-sm-6">
         <label class="form-label">Variant</label>
-        <select class="form-select" name="variant" id="variantSelect">
-          <option value="">Semua Variant</option>
+        <select class="form-select" name="variant" id="variantSelect" disabled>
+          <option value="">Pilih Variant</option>
         </select>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-3 col-sm-6">
         <label class="form-label">Tahun</label>
-        <select class="form-select" name="year" id="yearSelect">
-          <option value="">Semua Tahun</option>
-          {% for year in years %}
-            {% if year %}
-              <option value="{{ year }}">{{ year }}</option>
-            {% endif %}
-          {% endfor %}
+        <select class="form-select" name="year" id="yearSelect" disabled>
+          <option value="">Pilih Tahun</option>
         </select>
       </div>
       <div class="col-12">
-        <button type="submit" class="btn btn-primary">Cari</button>
-        <button type="reset" class="btn btn-secondary">Reset</button>
+        <button type="submit" class="btn btn-primary" id="btnSubmitFilter">Cari</button>
+        <button type="reset" class="btn btn-secondary" id="btnResetFilter">Reset</button>
       </div>
     </form>
   </div>
@@ -1119,7 +1212,9 @@
         </div>
       </div>
 
-      <div class="btn-toggle-sidebar" id="btnToggleSidebar" title="Toggle Sidebar">&laquo;</div>
+      <div class="btn-toggle-sidebar" id="btnToggleSidebar" title="Toggle Sidebar">
+        <i class="fas fa-chevron-left"></i>
+      </div>
     </div>
 
     <div id="contentWrapper" class="content-wrapper">
@@ -1162,13 +1257,53 @@ $(document).ready(function() {
   $('#btnToggleSidebar').click(function() {
     $('#sidebarWrapper').toggleClass('sidebar-hidden');
     if ($('#sidebarWrapper').hasClass('sidebar-hidden')) {
-      $('#btnToggleSidebar').html('&raquo;');
+      $('#btnToggleSidebar').find('i').removeClass('fa-chevron-left').addClass('fa-chevron-right');
     } else {
-      $('#btnToggleSidebar').html('&laquo;');
+      $('#btnToggleSidebar').find('i').removeClass('fa-chevron-right').addClass('fa-chevron-left');
     }
     $('#listingTable').DataTable().columns.adjust();
   });
-
+  
+  // Mobile responsive sidebar handler
+  function handleResponsiveSidebar() {
+    const isMobile = window.innerWidth <= 768;
+    
+    if (isMobile) {
+      // On mobile, default is hidden
+      $('#sidebarWrapper').addClass('sidebar-hidden');
+      $('#btnToggleSidebar').find('i').removeClass('fa-chevron-left').addClass('fa-chevron-right');
+    } else {
+      // On desktop, default is shown (or keep current state)
+      if ($('#sidebarWrapper').hasClass('sidebar-hidden') && !localStorage.getItem('sidebarHidden')) {
+        $('#sidebarWrapper').removeClass('sidebar-hidden');
+        $('#btnToggleSidebar').find('i').removeClass('fa-chevron-right').addClass('fa-chevron-left');
+      }
+    }
+  }
+  
+  // Run on page load
+  handleResponsiveSidebar();
+  
+  // Run on window resize
+  $(window).resize(function() {
+    handleResponsiveSidebar();
+  });
+  
+  // Save sidebar state to localStorage
+  $('#btnToggleSidebar').click(function() {
+    if ($('#sidebarWrapper').hasClass('sidebar-hidden')) {
+      localStorage.setItem('sidebarHidden', 'true');
+    } else {
+      localStorage.removeItem('sidebarHidden');
+    }
+  });
+  
+  // Apply saved state on load
+  if (localStorage.getItem('sidebarHidden') === 'true') {
+    $('#sidebarWrapper').addClass('sidebar-hidden');
+    $('#btnToggleSidebar').find('i').removeClass('fa-chevron-left').addClass('fa-chevron-right');
+  }
+  
   // Show loading skeleton function
   function showLoadingSkeleton() {
     const skeletonRows = Array.from({length: 5}, () => 
@@ -1541,11 +1676,19 @@ $(document).ready(function() {
     $('#yearSelect').val('');
   });
 
-  // Dropdown brand change update model options
-  $('#brandSelect').change(function() {
+  // Dropdown brand change update model options dengan perbaikan untuk mobile
+  $('#brandSelect').on('change', function() {
     const brand = $(this).val();
-    $('#modelSelect').html('<option value="">Semua Model</option>');
-    $('#variantSelect').html('<option value="">Semua Variant</option>');
+    
+    // Reset dropdowns
+    $('#modelSelect').html('<option value="">Pilih Model</option>').prop('disabled', true);
+    $('#variantSelect').html('<option value="">Pilih Variant</option>').prop('disabled', true);
+    $('#yearSelect').html('<option value="">Pilih Tahun</option>').prop('disabled', true);
+    
+    // Tambah indikator loading
+    const $modelSelect = $('#modelSelect');
+    $modelSelect.addClass('loading-select');
+    
     if (brand) {
       $.ajax({
         url: "{% url 'get_models' %}",
@@ -1553,49 +1696,143 @@ $(document).ready(function() {
         dataType: "json",
         data: { brand: brand, source: "{{ source }}" },
         success: function(response) {
-          if (response.models && response.models.length > 0) {
-            response.models.forEach(function(model) {
-              $('#modelSelect').append(`<option value="${model}">${model}</option>`);
+          if (response && response.length > 0) {
+            response.forEach(function(model) {
+              if (model) { // Hanya tambahkan jika model tidak null
+                $modelSelect.append(`<option value="${model}">${model}</option>`);
+              }
             });
+            // Enable model dropdown
+            $modelSelect.prop('disabled', false);
+            // Memastikan dropdown model terlihat aktif
+            setTimeout(() => {
+              $modelSelect.focus();
+            }, 100);
           }
           reloadTable();
+          $modelSelect.removeClass('loading-select');
+        },
+        error: function() {
+          // Handle error
+          $modelSelect.removeClass('loading-select');
+          console.error("Error loading models");
         }
       });
     } else {
       reloadTable();
+      $modelSelect.removeClass('loading-select');
     }
   });
 
-  // Dropdown model change update variant options & reload table
+  // Dropdown model change update variant options & reload table dengan perbaikan untuk mobile
   $('#modelSelect').change(function() {
     const brand = $('#brandSelect').val();
     const model = $(this).val();
 
-    $('#variantSelect').html('<option value="">Semua Variant</option>');
+    // Reset dropdowns yang tergantung pada model
+    const $variantSelect = $('#variantSelect');
+    $variantSelect.html('<option value="">Pilih Variant</option>').prop('disabled', true);
+    $('#yearSelect').html('<option value="">Pilih Tahun</option>').prop('disabled', true);
+    
+    // Tambah indikator loading
+    $variantSelect.addClass('loading-select');
 
-    if (model) {
+    if (brand && model) {
       $.ajax({
         url: "{% url 'get_variants' %}",
         type: "GET",
         dataType: "json",
         data: { brand: brand, model: model, source: "{{ source }}" },
         success: function(response) {
-          if (response.variants && response.variants.length > 0) {
-            response.variants.forEach(function(variant) {
-              $('#variantSelect').append(`<option value="${variant}">${variant}</option>`);
+          if (response && response.length > 0) {
+            response.forEach(function(variant) {
+              if (variant) { // Hanya tambahkan jika variant tidak null
+                $variantSelect.append(`<option value="${variant}">${variant}</option>`);
+              }
             });
+            // Enable variant dropdown
+            $variantSelect.prop('disabled', false);
+            // Memastikan dropdown variant terlihat aktif
+            setTimeout(() => {
+              $variantSelect.focus();
+            }, 100);
           }
           reloadTable();
+          $variantSelect.removeClass('loading-select');
+        },
+        error: function() {
+          // Handle error
+          $variantSelect.removeClass('loading-select');
+          console.error("Error loading variants");
         }
       });
     } else {
       reloadTable();
+      $variantSelect.removeClass('loading-select');
     }
   });
 
-  // Variant & year change reload table
-  $('#variantSelect, #yearSelect').change(function() {
+  // Variant change update year options
+  $('#variantSelect').on('change', function() {
+    const brand = $('#brandSelect').val();
+    const model = $('#modelSelect').val();
+    const variant = $(this).val();
+    
+    // Reset year dropdown
+    const $yearSelect = $('#yearSelect');
+    $yearSelect.html('<option value="">Pilih Tahun</option>').prop('disabled', true);
+    
+    // Tambah indikator loading
+    $yearSelect.addClass('loading-select');
+    
+    if (brand) {
+      $.ajax({
+        url: "{% url 'get_years' %}",
+        type: "GET",
+        dataType: "json",
+        data: { 
+          brand: brand, 
+          model: model || '', 
+          variant: variant || '', 
+          source: "{{ source }}" 
+        },
+        success: function(response) {
+          if (response && response.length > 0) {
+            response.forEach(function(year) {
+              if (year) { // Hanya tambahkan jika year tidak null
+                $yearSelect.append(`<option value="${year}">${year}</option>`);
+              }
+            });
+            // Enable year dropdown
+            $yearSelect.prop('disabled', false);
+            // Memastikan dropdown year terlihat aktif
+            setTimeout(() => {
+              $yearSelect.focus();
+            }, 100);
+          }
+          reloadTable();
+          $yearSelect.removeClass('loading-select');
+        },
+        error: function() {
+          // Handle error
+          $yearSelect.removeClass('loading-select');
+          console.error("Error loading years");
+        }
+      });
+    } else {
+      reloadTable();
+      $yearSelect.removeClass('loading-select');
+    }
+  });
+
+  // Year change reload table
+  $('#yearSelect').on('change', function() {
     reloadTable();
+    
+    // Jika year dipilih, focus pada tombol cari
+    if ($(this).val() !== '') {
+      $('#btnSubmitFilter').focus();
+    }
   });
 
   // Form submit reload table
@@ -1608,12 +1845,42 @@ $(document).ready(function() {
   $('#filterForm').on('reset', function() {
     setTimeout(function() {
       $('#brandSelect').val('');
-      $('#modelSelect').html('<option value="">Semua Model</option>');
-      $('#variantSelect').html('<option value="">Semua Variant</option>');
-      $('#yearSelect').val('');
+      $('#modelSelect').html('<option value="">Pilih Model</option>').prop('disabled', true);
+      $('#variantSelect').html('<option value="">Pilih Variant</option>').prop('disabled', true);
+      $('#yearSelect').html('<option value="">Pilih Tahun</option>').prop('disabled', true);
       reloadTable();
     }, 1);
   });
+  
+  // Tambahkan touch event handler untuk perangkat mobile
+  if ('ontouchstart' in window || navigator.maxTouchPoints) {
+    $('.form-select').on('touchstart', function(e) {
+      // Memastikan dropdown terbuka pada touch event
+      $(this).focus();
+    });
+    
+    // Hapus fokus dari dropdown setelah pilihan dibuat
+    $('.form-select').on('change', function() {
+      $(this).blur();
+    });
+    
+    // Pastikan tidak ada konflik dengan event scroll
+    $('.form-select').on('touchmove', function(e) {
+      e.stopPropagation();
+    });
+  }
+  
+  // Ganti animasi DOM dengan waktu yang lebih cepat di mobile
+  if (window.innerWidth <= 768) {
+    $('.fadeInUp').css('animation-duration', '0.3s');
+  }
+  
+  // Reset fokus setelah form reset
+  $('#btnResetFilter').on('click', function() {
+    setTimeout(function() {
+      $('#brandSelect').focus();
+    }, 100);
+  });
 });
 </script>
-{% endblock %}
+{% endblock content %}

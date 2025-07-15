@@ -166,11 +166,13 @@ def user_dashboard(request, username):
     price_trends_data = []
     try:
         # Query untuk mendapatkan perubahan harga terbaru per model/variant
+        from django.db.models import Max
+        
         trend_analysis = (
             PriceHistoryModel.objects
             .select_related('car')
             .filter(
-                car__status__in=['active', 'sold'],
+                car__status='active',  # Hanya status active
                 old_price__isnull=False,
                 new_price__isnull=False,
                 old_price__gt=0,
@@ -187,34 +189,32 @@ def user_dashboard(request, username):
                 brand=F('car__brand'),
                 model=F('car__model'),
                 variant=F('car__variant'),
-                condition=F('car__condition')
+                condition=F('car__condition'),
+                year=F('car__year'),
+                mileage=F('car__mileage')
             )
-            .values('brand', 'model', 'variant', 'condition')
+            .values('brand', 'model', 'variant', 'condition', 'year', 'mileage')
             .annotate(
                 avg_price_change=Avg('price_change'),
                 avg_price_change_percent=Avg('price_change_percent'),
-                total_changes=Count('id')
+                total_changes=Count('id'),
+                latest_change=Max('changed_at')  # Tambahkan waktu perubahan terbaru
             )
             .filter(total_changes__gte=2)  # Minimal 2 perubahan harga
-            .order_by('-avg_price_change_percent')
+            .order_by('-latest_change')  # Urutkan berdasarkan perubahan terbaru
         )
         
-        # Top 20 trending up
-        trending_up = list(trend_analysis.filter(avg_price_change_percent__gt=0)[:20])
-        
-        # Top 20 trending down  
-        trending_down = list(trend_analysis.filter(avg_price_change_percent__lt=0).order_by('avg_price_change_percent')[:20])
+        # Ambil 20 teratas berdasarkan update terbaru
+        latest_trends = list(trend_analysis[:20])
         
         price_trends_data = {
-            'trending_up': trending_up,
-            'trending_down': trending_down
+            'latest_trends': latest_trends
         }
         
     except Exception as e:
         # Fallback jika ada error
         price_trends_data = {
-            'trending_up': [],
-            'trending_down': []
+            'latest_trends': []
         }
 
     context = {
@@ -746,3 +746,128 @@ def get_years(request):
     except Exception as e:
         print(f"Error in get_years: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def get_price_history(request, username):
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        brand = request.GET.get('brand')
+        model = request.GET.get('model')
+        variant = request.GET.get('variant')
+        condition = request.GET.get('condition')
+        year = request.GET.get('year')
+        mileage = request.GET.get('mileage')
+        
+        if source == 'carlistmy':
+            from .models import PriceHistoryCarlistmy as PriceHistoryModel
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import PriceHistoryMudahmy as PriceHistoryModel
+            from .models import CarsMudahmy as CarModel
+        
+        # Build filter for cars
+        car_filters = {'status': 'active'}  # Hanya status active
+        if brand:
+            car_filters['brand'] = brand
+        if model:
+            car_filters['model'] = model
+        if variant:
+            car_filters['variant'] = variant
+        if condition:
+            car_filters['condition'] = condition
+        if year:
+            try:
+                car_filters['year'] = int(year)
+            except ValueError:
+                pass
+        if mileage:
+            try:
+                car_filters['mileage'] = int(mileage)
+            except ValueError:
+                pass
+        
+        # Get matching cars
+        matching_cars = CarModel.objects.filter(**car_filters)
+        
+        if not matching_cars.exists():
+            return JsonResponse({
+                'summary': None,
+                'listings': [],
+                'message': 'Tidak ada mobil yang cocok dengan kriteria'
+            })
+        
+        # Get individual car listings with their latest price history
+        listings_data = []
+        total_cars = matching_cars.count()
+        total_with_changes = 0
+        total_change_amount = 0
+        total_change_percent = 0
+        
+        for car in matching_cars.order_by('-last_status_check'):
+            # Get latest price change for this car
+            latest_price_change = (
+                PriceHistoryModel.objects
+                .filter(
+                    car=car,
+                    old_price__isnull=False,
+                    new_price__isnull=False,
+                    old_price__gt=0,
+                    new_price__gt=0
+                )
+                .order_by('-changed_at')
+                .first()
+            )
+            
+            car_data = {
+                'listing_url': car.listing_url,
+                'brand': car.brand,
+                'model': car.model,
+                'variant': car.variant,
+                'year': car.year,
+                'mileage': car.mileage,
+                'condition': car.condition,
+                'current_price': car.price,
+                'location': car.location,
+                'transmission': car.transmission,
+                'fuel_type': car.fuel_type,
+                'engine_cc': car.engine_cc,
+                'last_status_check': car.last_status_check.isoformat(),
+                'price_change': None
+            }
+            
+            if latest_price_change:
+                change_amount = latest_price_change.new_price - latest_price_change.old_price
+                change_percent = (change_amount / latest_price_change.old_price * 100) if latest_price_change.old_price > 0 else 0
+                
+                car_data['price_change'] = {
+                    'old_price': latest_price_change.old_price,
+                    'new_price': latest_price_change.new_price,
+                    'change_amount': change_amount,
+                    'change_percent': change_percent,
+                    'changed_at': latest_price_change.changed_at.isoformat()
+                }
+                
+                total_with_changes += 1
+                total_change_amount += change_amount
+                total_change_percent += change_percent
+            
+            listings_data.append(car_data)
+        
+        summary = {
+            'total_cars': total_cars,
+            'total_with_changes': total_with_changes,
+            'avg_change': total_change_amount / total_with_changes if total_with_changes > 0 else 0,
+            'avg_change_percent': total_change_percent / total_with_changes if total_with_changes > 0 else 0
+        }
+        
+        return JsonResponse({
+            'summary': summary,
+            'listings': listings_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': str(e),
+            'summary': None,
+            'history': []
+        }, status=500)

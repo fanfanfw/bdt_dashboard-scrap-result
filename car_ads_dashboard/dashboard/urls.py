@@ -10,6 +10,7 @@ urlpatterns = [
     path('admin/<str:username>/server/', views.admin_server_monitor, name='admin_server_monitor'),
     path('admin/<str:username>/analytics/', views.admin_analytics, name='admin_analytics'),
     path('admin/<str:username>/sync/', trigger_sync, name='trigger_sync'),
+    path('api/server-metrics/', views.server_metrics_api, name='server_metrics_api'),
     path('get-models/', views.get_models, name='get_models'),
     path('get-variants/', views.get_variants, name='get_variants'),
     path('listing/<str:username>/data/', views.get_listing_data, name='get_listing_data'),

@@ -6,130 +6,820 @@
   <title>Login - Car Ads Dashboard</title>
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Font Awesome for icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
+    /* Modern Color Palette Variables - Matching Dashboard */
+    :root {
+      --color-light: #DDDDDD;
+      --color-dark: #222831;
+      --color-primary: #30475E;
+      --color-accent: #F05454;
+      --color-card: #ffffff;
+      --color-text-primary: #222831;
+      --color-text-secondary: #30475E;
+      --color-shadow: rgba(34, 40, 49, 0.1);
+      --color-gradient-start: rgba(48, 71, 94, 0.8);
+      --color-gradient-end: rgba(240, 84, 84, 0.8);
+      --color-border: rgba(48, 71, 94, 0.1);
+      --color-success: #22c55e;
+      --color-warning: #f59e0b;
+      --color-danger: #ef4444;
+    }
+
+    /* Dark Mode Toggle */
+    .dark-mode {
+      --color-light: #222831;
+      --color-dark: #DDDDDD;
+      --color-card: #30475E;
+      --color-text-primary: #DDDDDD;
+      --color-text-secondary: #DDDDDD;
+      --color-shadow: rgba(240, 84, 84, 0.2);
+      --color-gradient-start: rgba(240, 84, 84, 0.8);
+      --color-gradient-end: rgba(48, 71, 94, 0.8);
+      --color-border: rgba(240, 84, 84, 0.2);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      background: linear-gradient(135deg, #4a90e2 0%, #50e3c2 100%);
+      background: linear-gradient(135deg, var(--color-light) 0%, rgba(221, 221, 221, 0.8) 100%);
       min-height: 100vh;
       display: flex;
       justify-content: center;
       align-items: center;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       margin: 0;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow-x: hidden;
     }
-    .login-container {
-      background: #fff;
-      padding: 2.5rem 2rem;
-      border-radius: 1rem;
-      box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+
+    .dark-mode body {
+      background: linear-gradient(135deg, var(--color-dark) 0%, rgba(34, 40, 49, 0.95) 100%);
+    }
+
+    /* Background decoration */
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+      opacity: 0.05;
+      z-index: 1;
+    }
+
+    /* Dark mode toggle button */
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: 50px;
+      padding: 0.75rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 20px var(--color-shadow);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+
+    .theme-toggle:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px var(--color-shadow);
+    }
+
+    .theme-toggle i {
+      font-size: 1rem;
+      color: var(--color-accent);
+    }
+
+    /* Main container */
+    .auth-container {
+      background: var(--color-card);
+      padding: 0;
+      border-radius: 24px;
+      box-shadow: 0 8px 32px var(--color-shadow);
       width: 100%;
-      max-width: 400px;
-      transition: transform 0.3s ease;
+      max-width: 480px;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      z-index: 2;
+      border: 1px solid var(--color-border);
+      overflow: hidden;
     }
-    .login-container:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 16px 32px rgba(0,0,0,0.2);
+
+    .auth-container:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 12px 40px var(--color-shadow);
     }
-    .login-container h2 {
-      margin-bottom: 2rem;
-      font-weight: 700;
-      color: #212529;
-      text-align: center;
-      letter-spacing: 1.2px;
+
+    /* Tab navigation */
+    .auth-tabs {
+      display: flex;
+      background: rgba(48, 71, 94, 0.05);
+      border-radius: 20px 20px 0 0;
+      padding: 0.5rem;
+      margin-bottom: 0;
     }
-    label {
-      font-weight: 600;
-      color: #495057;
+
+    .dark-mode .auth-tabs {
+      background: rgba(240, 84, 84, 0.1);
     }
-    input.form-control {
-      border-radius: 0.75rem;
-      padding: 0.75rem 1.25rem;
-      border: 1.5px solid #ced4da;
-      transition: border-color 0.3s ease, box-shadow 0.3s ease;
-    }
-    input.form-control:focus {
-      border-color: #4a90e2;
-      box-shadow: 0 0 8px rgba(74,144,226,0.5);
-      outline: none;
-    }
-    .btn-primary {
-      background: linear-gradient(90deg, #4a90e2 0%, #50e3c2 100%);
+
+    .tab-button {
+      flex: 1;
+      padding: 1rem 1.5rem;
       border: none;
+      background: transparent;
+      color: var(--color-text-secondary);
       font-weight: 600;
-      padding: 0.75rem 0;
-      border-radius: 0.75rem;
+      font-size: 1rem;
+      border-radius: 16px;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .tab-button.active {
+      background: var(--color-card);
+      color: var(--color-text-primary);
+      box-shadow: 0 2px 12px var(--color-shadow);
+    }
+
+    .tab-button:hover:not(.active) {
+      color: var(--color-accent);
+      background: rgba(240, 84, 84, 0.1);
+    }
+
+    .tab-button i {
       font-size: 1.1rem;
-      transition: background 0.3s ease;
     }
-    .btn-primary:hover, .btn-primary:focus {
-      background: linear-gradient(90deg, #3a78c2 0%, #40b3a2 100%);
-      box-shadow: 0 8px 15px rgba(64,179,162,0.4);
+
+    /* Form container */
+    .form-container {
+      padding: 2.5rem 2rem 2rem;
+      position: relative;
     }
+
+    .form-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .form-title {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--color-text-primary);
+      margin-bottom: 0.5rem;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+    }
+
+    .form-subtitle {
+      font-size: 1rem;
+      color: var(--color-text-secondary);
+      font-weight: 500;
+    }
+
+    /* Form styles */
+    .form-group {
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+
+    .form-label {
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      margin-bottom: 0.5rem;
+      display: block;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    .form-control {
+      border-radius: 12px;
+      padding: 1rem 1rem 1rem 3rem;
+      border: 1.5px solid var(--color-border);
+      background: var(--color-card);
+      color: var(--color-text-primary);
+      font-size: 1rem;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      width: 100%;
+    }
+
+    .form-control:focus {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(240, 84, 84, 0.1);
+      outline: none;
+      background: var(--color-card);
+    }
+
+    .form-control::placeholder {
+      color: rgba(48, 71, 94, 0.5);
+    }
+
+    .dark-mode .form-control::placeholder {
+      color: rgba(221, 221, 221, 0.5);
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--color-text-secondary);
+      font-size: 1.1rem;
+    }
+
+    /* Password visibility toggle */
+    .password-toggle {
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 0.25rem;
+      border-radius: 4px;
+      transition: color 0.3s ease;
+    }
+
+    .password-toggle:hover {
+      color: var(--color-accent);
+    }
+
+    /* Button styles */
+    .btn-auth {
+      background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+      border: none;
+      font-weight: 700;
+      padding: 1rem 0;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      color: white;
+      width: 100%;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-auth::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transition: left 0.5s;
+    }
+
+    .btn-auth:hover::before {
+      left: 100%;
+    }
+
+    .btn-auth:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(48, 71, 94, 0.4);
+    }
+
+    .btn-auth:active {
+      transform: translateY(0);
+    }
+
+    .btn-auth:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Error handling */
     .errorlist {
       list-style: none;
       padding-left: 0;
-      color: #dc3545;
-      font-weight: 600;
-      font-size: 0.9rem;
+      color: var(--color-danger);
+      font-weight: 500;
+      font-size: 0.875rem;
+      margin: 0.5rem 0 0 0;
+      background: rgba(239, 68, 68, 0.1);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border-left: 4px solid var(--color-danger);
+    }
+
+    .errorlist li {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .errorlist li::before {
+      content: '\f06a';
+      font-family: 'Font Awesome 6 Free';
+      font-weight: 900;
+      font-size: 0.875rem;
+    }
+
+    /* Success message */
+    .success-message {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--color-success);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border-left: 4px solid var(--color-success);
       margin-bottom: 1rem;
-      text-align: center;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
-    .message {
-      color: #dc3545;
-      font-size: 0.9rem;
-      margin-top: 0.75rem;
+
+    .success-message::before {
+      content: '\f058';
+      font-family: 'Font Awesome 6 Free';
+      font-weight: 900;
+    }
+
+    /* Footer links */
+    .auth-footer {
       text-align: center;
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--color-border);
+    }
+
+    .auth-footer p {
+      color: var(--color-text-secondary);
+      font-size: 0.875rem;
+      margin: 0;
+    }
+
+    .auth-footer a {
+      color: var(--color-accent);
+      text-decoration: none;
       font-weight: 600;
+      transition: color 0.3s ease;
     }
-    @media (max-width: 450px) {
-      .login-container {
-        padding: 2rem 1.5rem;
-        border-radius: 1rem 1rem 0 0;
-        box-shadow: none;
+
+    .auth-footer a:hover {
+      color: var(--color-primary);
+      text-decoration: underline;
+    }
+
+    /* Form animations */
+    .form-content {
+      opacity: 1;
+      transform: translateY(0);
+      transition: all 0.3s ease;
+    }
+
+    .form-content.hidden {
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+    }
+
+    /* Loading spinner */
+    .loading-spinner {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 2px solid transparent;
+      border-top: 2px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Remember me checkbox */
+    .remember-me {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 1rem 0;
+    }
+
+    .remember-me input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--color-accent);
+    }
+
+    .remember-me label {
+      font-size: 0.875rem;
+      color: var(--color-text-secondary);
+      margin: 0;
+      cursor: pointer;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .auth-container {
+        max-width: 95%;
+        margin: 1rem;
+        border-radius: 20px;
       }
+
+      .form-container {
+        padding: 2rem 1.5rem;
+      }
+
+      .form-title {
+        font-size: 1.75rem;
+      }
+
+      .theme-toggle {
+        top: 15px;
+        right: 15px;
+        padding: 0.5rem;
+      }
+
+      .tab-button {
+        padding: 0.875rem 1rem;
+        font-size: 0.875rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .auth-container {
+        max-width: 100%;
+        margin: 0.5rem;
+        border-radius: 16px;
+      }
+
+      .form-container {
+        padding: 1.5rem 1rem;
+      }
+
+      .form-title {
+        font-size: 1.5rem;
+      }
+
+      .form-control {
+        padding: 0.875rem 0.875rem 0.875rem 2.75rem;
+      }
+
+      .tab-button span {
+        display: none;
+      }
+
+      .theme-toggle span {
+        display: none;
+      }
+
+      .theme-toggle {
+        padding: 0.5rem;
+      }
+    }
+
+    /* Animation for page load */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .auth-container {
+      animation: fadeInUp 0.6s ease-out;
+    }
+
+    /* Focus states for accessibility */
+    .tab-button:focus,
+    .form-control:focus,
+    .btn-auth:focus,
+    .theme-toggle:focus {
+      outline: 2px solid var(--color-accent);
+      outline-offset: 2px;
     }
   </style>
 </head>
-<body>
-  <div class="login-container shadow-sm">
-    <h2>Login</h2>
-    {% if form.non_field_errors %}
-      <ul class="errorlist">
-        {% for error in form.non_field_errors %}
-          <li>{{ error }}</li>
-        {% endfor %}
-      </ul>
-    {% endif %}
-    <form method="post" class="needs-validation" novalidate>
-      {% csrf_token %}
-      <div class="mb-4">
-        <label for="{{ form.username.id_for_label }}">Username</label>
-        {{ form.username }}
-        {% if form.username.errors %}
+<<body>
+  <!-- Dark Mode Toggle -->
+  <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">
+    <i class="fas fa-moon" id="theme-icon"></i>
+    <span id="theme-text">Dark</span>
+  </button>
+
+  <div class="auth-container">
+    <!-- Tab Navigation -->
+    <div class="auth-tabs">
+      <button class="tab-button active" onclick="switchTab('login')" id="login-tab">
+        <i class="fas fa-sign-in-alt"></i>
+        <span>Login</span>
+      </button>
+      <button class="tab-button" onclick="switchTab('register')" id="register-tab">
+        <i class="fas fa-user-plus"></i>
+        <span>Register</span>
+      </button>
+    </div>
+
+    <!-- Login Form -->
+    <div class="form-content" id="login-form">
+      <div class="form-container">
+        <div class="form-header">
+          <h2 class="form-title">Welcome Back</h2>
+          <p class="form-subtitle">Sign in to your account</p>
+        </div>
+
+        {% if form.non_field_errors %}
           <ul class="errorlist">
-            {% for error in form.username.errors %}
+            {% for error in form.non_field_errors %}
               <li>{{ error }}</li>
             {% endfor %}
           </ul>
         {% endif %}
+
+        <form method="post" class="needs-validation" novalidate id="loginForm">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="{{ form.username.id_for_label }}" class="form-label">Username</label>
+            <div class="input-wrapper">
+              <i class="fas fa-user input-icon"></i>
+              <input type="text" 
+                     class="form-control" 
+                     id="{{ form.username.id_for_label }}" 
+                     name="{{ form.username.name }}" 
+                     placeholder="Enter your username"
+                     required />
+            </div>
+            {% if form.username.errors %}
+              <ul class="errorlist">
+                {% for error in form.username.errors %}
+                  <li>{{ error }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+
+          <div class="form-group">
+            <label for="{{ form.password.id_for_label }}" class="form-label">Password</label>
+            <div class="input-wrapper">
+              <i class="fas fa-lock input-icon"></i>
+              <input type="password" 
+                     class="form-control" 
+                     id="{{ form.password.id_for_label }}" 
+                     name="{{ form.password.name }}" 
+                     placeholder="Enter your password"
+                     required />
+              <button type="button" class="password-toggle" onclick="togglePassword('{{ form.password.id_for_label }}')">
+                <i class="fas fa-eye" id="password-eye"></i>
+              </button>
+            </div>
+            {% if form.password.errors %}
+              <ul class="errorlist">
+                {% for error in form.password.errors %}
+                  <li>{{ error }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+
+          <div class="remember-me">
+            <input type="checkbox" id="remember" name="remember" />
+            <label for="remember">Remember me</label>
+          </div>
+
+          <button type="submit" class="btn-auth">
+            <span class="loading-spinner" id="login-spinner"></span>
+            <span id="login-text">Sign In</span>
+          </button>
+        </form>
+
+        <div class="auth-footer">
+          <p>Don't have an account? <a href="#" onclick="switchTab('register')">Sign up here</a></p>
+        </div>
       </div>
-      <div class="mb-4">
-        <label for="{{ form.password.id_for_label }}">Password</label>
-        {{ form.password }}
-        {% if form.password.errors %}
-          <ul class="errorlist">
-            {% for error in form.password.errors %}
-              <li>{{ error }}</li>
-            {% endfor %}
-          </ul>
-        {% endif %}
+    </div>
+
+    <!-- Register Form -->
+    <div class="form-content hidden" id="register-form">
+      <div class="form-container">
+        <div class="form-header">
+          <h2 class="form-title">Create Account</h2>
+          <p class="form-subtitle">Join us today</p>
+        </div>
+
+        <div id="register-success" class="success-message" style="display: none;">
+          Registration successful! Please wait for admin approval.
+        </div>
+
+        <form id="registerForm" class="needs-validation" novalidate>
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="reg_username" class="form-label">Username</label>
+            <div class="input-wrapper">
+              <i class="fas fa-user input-icon"></i>
+              <input type="text" 
+                     class="form-control" 
+                     id="reg_username" 
+                     name="username" 
+                     placeholder="Choose a username"
+                     required />
+            </div>
+            <div class="invalid-feedback" id="username-error"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg_email" class="form-label">Email</label>
+            <div class="input-wrapper">
+              <i class="fas fa-envelope input-icon"></i>
+              <input type="email" 
+                     class="form-control" 
+                     id="reg_email" 
+                     name="email" 
+                     placeholder="Enter your email"
+                     required />
+            </div>
+            <div class="invalid-feedback" id="email-error"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg_first_name" class="form-label">First Name</label>
+            <div class="input-wrapper">
+              <i class="fas fa-user input-icon"></i>
+              <input type="text" 
+                     class="form-control" 
+                     id="reg_first_name" 
+                     name="first_name" 
+                     placeholder="Enter your first name"
+                     required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg_last_name" class="form-label">Last Name</label>
+            <div class="input-wrapper">
+              <i class="fas fa-user input-icon"></i>
+              <input type="text" 
+                     class="form-control" 
+                     id="reg_last_name" 
+                     name="last_name" 
+                     placeholder="Enter your last name"
+                     required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg_password1" class="form-label">Password</label>
+            <div class="input-wrapper">
+              <i class="fas fa-lock input-icon"></i>
+              <input type="password" 
+                     class="form-control" 
+                     id="reg_password1" 
+                     name="password1" 
+                     placeholder="Create a password"
+                     required />
+              <button type="button" class="password-toggle" onclick="togglePassword('reg_password1')">
+                <i class="fas fa-eye" id="reg-password1-eye"></i>
+              </button>
+            </div>
+            <div class="invalid-feedback" id="password1-error"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg_password2" class="form-label">Confirm Password</label>
+            <div class="input-wrapper">
+              <i class="fas fa-lock input-icon"></i>
+              <input type="password" 
+                     class="form-control" 
+                     id="reg_password2" 
+                     name="password2" 
+                     placeholder="Confirm your password"
+                     required />
+              <button type="button" class="password-toggle" onclick="togglePassword('reg_password2')">
+                <i class="fas fa-eye" id="reg-password2-eye"></i>
+              </button>
+            </div>
+            <div class="invalid-feedback" id="password2-error"></div>
+          </div>
+
+          <button type="submit" class="btn-auth">
+            <span class="loading-spinner" id="register-spinner"></span>
+            <span id="register-text">Create Account</span>
+          </button>
+        </form>
+
+        <div class="auth-footer">
+          <p>Already have an account? <a href="#" onclick="switchTab('login')">Sign in here</a></p>
+        </div>
       </div>
-      <button type="submit" class="btn btn-primary w-100">Log In</button>
-    </form>
+    </div>
   </div>
 
-  <!-- Bootstrap JS + simple client validation -->
+  <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
   <script>
+    // Theme toggle functionality
+    function toggleTheme() {
+      const body = document.body;
+      const themeIcon = document.getElementById('theme-icon');
+      const themeText = document.getElementById('theme-text');
+      
+      body.classList.toggle('dark-mode');
+      
+      if (body.classList.contains('dark-mode')) {
+        themeIcon.className = 'fas fa-sun';
+        themeText.textContent = 'Light';
+        localStorage.setItem('theme', 'dark');
+      } else {
+        themeIcon.className = 'fas fa-moon';
+        themeText.textContent = 'Dark';
+        localStorage.setItem('theme', 'light');
+      }
+    }
+
+    // Load saved theme
+    document.addEventListener('DOMContentLoaded', function() {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+        document.getElementById('theme-icon').className = 'fas fa-sun';
+        document.getElementById('theme-text').textContent = 'Light';
+      }
+    });
+
+    // Tab switching functionality
+    function switchTab(tab) {
+      const loginTab = document.getElementById('login-tab');
+      const registerTab = document.getElementById('register-tab');
+      const loginForm = document.getElementById('login-form');
+      const registerForm = document.getElementById('register-form');
+
+      if (tab === 'login') {
+        loginTab.classList.add('active');
+        registerTab.classList.remove('active');
+        loginForm.classList.remove('hidden');
+        registerForm.classList.add('hidden');
+      } else {
+        registerTab.classList.add('active');
+        loginTab.classList.remove('active');
+        registerForm.classList.remove('hidden');
+        loginForm.classList.add('hidden');
+      }
+    }
+
+    // Password visibility toggle
+    function togglePassword(inputId) {
+      const input = document.getElementById(inputId);
+      const eye = document.getElementById(inputId === 'reg_password1' ? 'reg-password1-eye' : 
+                                       inputId === 'reg_password2' ? 'reg-password2-eye' : 'password-eye');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        eye.className = 'fas fa-eye-slash';
+      } else {
+        input.type = 'password';
+        eye.className = 'fas fa-eye';
+      }
+    }
+
+    // Form validation
     (() => {
       'use strict';
       const forms = document.querySelectorAll('.needs-validation');
@@ -143,6 +833,281 @@
         }, false);
       });
     })();
+
+    // Login form submission
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      const spinner = document.getElementById('login-spinner');
+      const text = document.getElementById('login-text');
+      const button = e.target.querySelector('.btn-auth');
+      
+      if (this.checkValidity()) {
+        spinner.style.display = 'inline-block';
+        text.textContent = 'Signing In...';
+        button.disabled = true;
+      }
+    });
+
+    // Register form submission
+    document.getElementById('registerForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const spinner = document.getElementById('register-spinner');
+      const text = document.getElementById('register-text');
+      const button = e.target.querySelector('.btn-auth');
+      const successMessage = document.getElementById('register-success');
+      
+      // Clear previous errors
+      document.querySelectorAll('.invalid-feedback').forEach(el => el.style.display = 'none');
+      
+      // Show loading state
+      spinner.style.display = 'inline-block';
+      text.textContent = 'Creating Account...';
+      button.disabled = true;
+      
+      // Get form data
+      const formData = new FormData(this);
+      const data = Object.fromEntries(formData);
+      
+      // Make AJAX call to registration endpoint
+      fetch('/dashboard/register/', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        spinner.style.display = 'none';
+        text.textContent = 'Create Account';
+        button.disabled = false;
+        
+        if (data.success) {
+          successMessage.style.display = 'block';
+          this.reset();
+          
+          // Switch to login tab after 3 seconds
+          setTimeout(() => {
+            switchTab('login');
+            successMessage.style.display = 'none';
+          }, 3000);
+        } else {
+          // Handle errors
+          if (data.errors) {
+            Object.keys(data.errors).forEach(field => {
+              const errorDiv = document.getElementById(field + '-error');
+              if (errorDiv && data.errors[field] && data.errors[field].length > 0) {
+                errorDiv.textContent = data.errors[field][0];
+                errorDiv.style.display = 'block';
+              }
+            });
+          }
+        }
+      })
+      .catch(error => {
+        spinner.style.display = 'none';
+        text.textContent = 'Create Account';
+        button.disabled = false;
+        console.error('Error:', error);
+        
+        // Show generic error
+        const errorDiv = document.getElementById('username-error');
+        errorDiv.textContent = 'Registration failed. Please try again.';
+        errorDiv.style.display = 'block';
+      });
+    });
+
+    // Real-time password validation
+    document.getElementById('reg_password2').addEventListener('input', function() {
+      const password1 = document.getElementById('reg_password1').value;
+      const password2 = this.value;
+      const errorDiv = document.getElementById('password2-error');
+      
+      if (password2 && password1 !== password2) {
+        this.setCustomValidity('Passwords do not match');
+        errorDiv.textContent = 'Passwords do not match';
+        errorDiv.style.display = 'block';
+      } else {
+        this.setCustomValidity('');
+        errorDiv.style.display = 'none';
+      }
+    });
+
+    // Username availability check
+    let usernameTimeout;
+    document.getElementById('reg_username').addEventListener('input', function() {
+      const username = this.value;
+      const errorDiv = document.getElementById('username-error');
+      
+      clearTimeout(usernameTimeout);
+      
+      if (username.length >= 3) {
+        usernameTimeout = setTimeout(() => {
+          fetch(`/dashboard/check-username/?username=${encodeURIComponent(username)}`)
+            .then(response => response.json())
+            .then(data => {
+              if (!data.available) {
+                this.setCustomValidity(data.message);
+                errorDiv.textContent = data.message;
+                errorDiv.style.display = 'block';
+              } else {
+                this.setCustomValidity('');
+                errorDiv.style.display = 'none';
+              }
+            })
+            .catch(error => {
+              console.error('Error checking username:', error);
+            });
+        }, 500);
+      } else {
+        this.setCustomValidity('');
+        errorDiv.style.display = 'none';
+      }
+    });
+
+    // Add smooth transitions and animations
+    document.addEventListener('DOMContentLoaded', function() {
+      // Add intersection observer for animations
+      const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -100px 0px'
+      };
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.style.opacity = '1';
+            entry.target.style.transform = 'translateY(0)';
+          }
+        });
+      }, observerOptions);
+
+      // Observe elements for animation
+      document.querySelectorAll('.form-group').forEach(el => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(20px)';
+        el.style.transition = 'all 0.3s ease';
+        observer.observe(el);
+      });
+
+      // Progressive enhancement for form inputs
+      document.querySelectorAll('.form-control').forEach(input => {
+        input.addEventListener('focus', function() {
+          this.parentElement.parentElement.classList.add('focused');
+        });
+        
+        input.addEventListener('blur', function() {
+          if (!this.value) {
+            this.parentElement.parentElement.classList.remove('focused');
+          }
+        });
+        
+        // Check if input has value on load
+        if (input.value) {
+          input.parentElement.parentElement.classList.add('focused');
+        }
+      });
+    });
+
+    // Keyboard navigation improvements
+    document.addEventListener('keydown', function(e) {
+      // Switch tabs with Ctrl+Tab
+      if (e.ctrlKey && e.key === 'Tab') {
+        e.preventDefault();
+        const currentTab = document.querySelector('.tab-button.active').textContent.trim();
+        switchTab(currentTab === 'Login' ? 'register' : 'login');
+      }
+      
+      // Submit form with Ctrl+Enter
+      if (e.ctrlKey && e.key === 'Enter') {
+        const activeForm = document.querySelector('.form-content:not(.hidden) form');
+        if (activeForm) {
+          activeForm.dispatchEvent(new Event('submit', { bubbles: true }));
+        }
+      }
+    });
+
+    // Add ripple effect to buttons
+    document.querySelectorAll('.btn-auth, .tab-button').forEach(button => {
+      button.addEventListener('click', function(e) {
+        let ripple = document.createElement('span');
+        ripple.classList.add('ripple');
+        this.appendChild(ripple);
+
+        let x = e.clientX - e.target.offsetLeft;
+        let y = e.clientY - e.target.offsetTop;
+
+        ripple.style.left = `${x}px`;
+        ripple.style.top = `${y}px`;
+
+        setTimeout(() => {
+          ripple.remove();
+        }, 300);
+      });
+    });
   </script>
+
+  <style>
+    /* Additional styles for enhanced interactions */
+    .form-group.focused .form-label {
+      color: var(--color-accent);
+      transform: translateY(-2px);
+    }
+
+    .form-group.focused .input-icon {
+      color: var(--color-accent);
+    }
+
+    /* Ripple effect */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: scale(0);
+      animation: ripple-animation 0.3s linear;
+      pointer-events: none;
+    }
+
+    @keyframes ripple-animation {
+      to {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+
+    /* Invalid feedback styling */
+    .invalid-feedback {
+      display: none;
+      color: var(--color-danger);
+      font-size: 0.875rem;
+      margin-top: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: rgba(239, 68, 68, 0.1);
+      border-radius: 6px;
+      border-left: 3px solid var(--color-danger);
+    }
+
+    .form-control:invalid + .invalid-feedback,
+    .invalid-feedback[style*="block"] {
+      display: block;
+    }
+
+    /* Enhanced focus states */
+    .form-control:focus + .password-toggle {
+      color: var(--color-accent);
+    }
+
+    /* Loading states */
+    .btn-auth:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    /* Smooth height transitions for error messages */
+    .errorlist, .invalid-feedback, .success-message {
+      transition: all 0.3s ease;
+    }
+  </style>
 </body>
 </html>

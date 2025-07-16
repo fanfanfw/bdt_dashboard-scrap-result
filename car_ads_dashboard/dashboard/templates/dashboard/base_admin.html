@@ -647,18 +647,20 @@
           <a href="{% url 'admin_user_approval' username=username %}" class="nav-link">
             <i class="fas fa-users"></i>
             <span>User Approval</span>
-            <span class="nav-badge">3</span>
+            {% if pending_users_count and pending_users_count > 0 %}
+              <span class="nav-badge" id="pending-users-badge">{{ pending_users_count }}</span>
+            {% endif %}
           </a>
         </div>
-        <div class="nav-item">
+        {% comment %} <div class="nav-item">
           <a href="#" class="nav-link">
             <i class="fas fa-user-shield"></i>
             <span>Permissions</span>
           </a>
-        </div>
+        </div> {% endcomment %}
       </div>
 
-      <div class="nav-section">
+      {% comment %} <div class="nav-section">
         <div class="nav-section-title">Data Management</div>
         <div class="nav-item">
           <a href="#" class="nav-link">
@@ -678,18 +680,18 @@
             <span>Backup</span>
           </a>
         </div>
-      </div>
+      </div> {% endcomment %}
 
       <div class="nav-section">
         <div class="nav-section-title">System</div>
-        <div class="nav-item">
+        {% comment %} <div class="nav-item">
           <a href="#" class="nav-link">
             <i class="fas fa-cogs"></i>
             <span>Settings</span>
           </a>
-        </div>
+        </div> {% endcomment %}
         <div class="nav-item">
-          <a href="#" class="nav-link">
+          <a href="{% url 'admin_logs' username=username %}" class="nav-link">
             <i class="fas fa-history"></i>
             <span>Logs</span>
           </a>

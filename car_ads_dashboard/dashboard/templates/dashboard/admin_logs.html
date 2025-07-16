@@ -1,0 +1,237 @@
+{% extends 'dashboard/base_admin.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}System Logs - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">System Logs</h1>
+  <p class="page-subtitle">View real-time logs from screen sessions</p>
+</div>
+
+<div class="admin-card">
+  <div class="card-header">
+    <h2 class="card-title">Available Screen Sessions</h2>
+    <div class="card-actions">
+      <button id="refreshSessions" class="btn-admin btn-primary">
+        <i class="fas fa-sync-alt"></i> Refresh Sessions
+      </button>
+    </div>
+  </div>
+  
+  <div class="mb-4">
+    <div class="alert alert-info">
+      <i class="fas fa-info-circle me-2"></i> 
+      Select a screen session from the list below to view its real-time logs
+    </div>
+  </div>
+  
+  <div class="row" id="sessionsContainer">
+    {% if screen_sessions %}
+      {% for session in screen_sessions %}
+      <div class="col-md-4 mb-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">
+              <i class="fas fa-terminal me-2"></i>
+              {{ session.name }}
+            </h5>
+            <p class="card-text text-muted small">ID: {{ session.id }}</p>
+          </div>
+          <div class="card-footer bg-transparent">
+            <button class="btn btn-sm btn-primary view-logs" data-session-id="{{ session.id }}">
+              <i class="fas fa-eye"></i> View Logs
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="col-12">
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          No active screen sessions found.
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="admin-card" id="logViewerCard" style="display: none;">
+  <div class="card-header">
+    <h2 class="card-title" id="logViewerTitle">Session Logs</h2>
+    <div class="card-actions">
+      <button class="btn-admin btn-warning" id="closeLogViewer">
+        <i class="fas fa-times"></i> Close
+      </button>
+      <button class="btn-admin btn-success" id="autoScrollToggle">
+        <i class="fas fa-scroll"></i> Auto-scroll: ON
+      </button>
+    </div>
+  </div>
+  
+  <div class="mb-3 d-flex justify-content-between align-items-center">
+    <div class="log-status">
+      <span class="badge bg-success" id="connectionStatus">
+        <i class="fas fa-circle me-1"></i> Connected
+      </span>
+    </div>
+    <div class="log-controls">
+      <button class="btn btn-sm btn-secondary" id="clearLogs">
+        <i class="fas fa-eraser"></i> Clear
+      </button>
+      <button class="btn btn-sm btn-info" id="downloadLogs">
+        <i class="fas fa-download"></i> Download
+      </button>
+    </div>
+  </div>
+  
+  <div class="log-container bg-dark p-3 rounded" style="height: 500px; overflow-y: auto;">
+    <pre class="log-content text-light" id="logContent" style="white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; line-height: 1.4;">Connecting to log stream...</pre>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  let logSocket = null;
+  let currentSessionId = null;
+  let autoScroll = true;
+  const logContent = document.getElementById('logContent');
+  const logViewerCard = document.getElementById('logViewerCard');
+  const logViewerTitle = document.getElementById('logViewerTitle');
+  const connectionStatus = document.getElementById('connectionStatus');
+  const autoScrollToggle = document.getElementById('autoScrollToggle');
+  const clearLogsBtn = document.getElementById('clearLogs');
+  const downloadLogsBtn = document.getElementById('downloadLogs');
+  const closeLogViewerBtn = document.getElementById('closeLogViewer');
+  const refreshSessionsBtn = document.getElementById('refreshSessions');
+  
+  // Setup event listeners
+  document.querySelectorAll('.view-logs').forEach(button => {
+    button.addEventListener('click', function() {
+      const sessionId = this.getAttribute('data-session-id');
+      openLogViewer(sessionId);
+    });
+  });
+  
+  closeLogViewerBtn.addEventListener('click', function() {
+    closeLogViewer();
+  });
+  
+  autoScrollToggle.addEventListener('click', function() {
+    autoScroll = !autoScroll;
+    this.innerHTML = autoScroll ? 
+      '<i class="fas fa-scroll"></i> Auto-scroll: ON' : 
+      '<i class="fas fa-scroll"></i> Auto-scroll: OFF';
+  });
+  
+  clearLogsBtn.addEventListener('click', function() {
+    logContent.textContent = '';
+  });
+  
+  downloadLogsBtn.addEventListener('click', function() {
+    const sessionName = currentSessionId.split('.')[1];
+    const blob = new Blob([logContent.textContent], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${sessionName}_log_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+  
+  refreshSessionsBtn.addEventListener('click', function() {
+    window.location.reload();
+  });
+  
+  function openLogViewer(sessionId) {
+    // Close existing connection if any
+    if (logSocket) {
+      logSocket.close();
+    }
+    
+    currentSessionId = sessionId;
+    const sessionName = sessionId.split('.')[1];
+    
+    // Update UI
+    logViewerTitle.textContent = `Logs: ${sessionName}`;
+    logContent.textContent = 'Connecting to log stream...';
+    logViewerCard.style.display = 'block';
+    connectionStatus.innerHTML = '<i class="fas fa-circle me-1"></i> Connecting...';
+    connectionStatus.className = 'badge bg-warning';
+    
+    // Scroll to log viewer
+    logViewerCard.scrollIntoView({ behavior: 'smooth' });
+    
+    // Connect to WebSocket
+    const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socketUrl = `${socketProtocol}//${window.location.host}/ws/logs/${sessionId}/`;
+    
+    logSocket = new WebSocket(socketUrl);
+    
+    logSocket.onopen = function(e) {
+      connectionStatus.innerHTML = '<i class="fas fa-circle me-1"></i> Connected';
+      connectionStatus.className = 'badge bg-success';
+    };
+    
+    logSocket.onmessage = function(e) {
+      const data = JSON.parse(e.data);
+      
+      if (data.error) {
+        logContent.textContent += `\n[ERROR] ${data.error}`;
+        connectionStatus.innerHTML = '<i class="fas fa-circle me-1"></i> Error';
+        connectionStatus.className = 'badge bg-danger';
+      } 
+      else if (data.message) {
+        logContent.textContent += `\n[INFO] ${data.message}`;
+      }
+      else if (data.log) {
+        // For initial log or clear and replace
+        if (data.type === 'initial') {
+          logContent.textContent = data.log;
+        } 
+        // For updates
+        else {
+          logContent.textContent = data.log;
+        }
+        
+        // Auto-scroll to bottom if enabled
+        if (autoScroll) {
+          logContent.scrollTop = logContent.scrollHeight;
+        }
+      }
+    };
+    
+    logSocket.onclose = function(e) {
+      connectionStatus.innerHTML = '<i class="fas fa-circle me-1"></i> Disconnected';
+      connectionStatus.className = 'badge bg-secondary';
+      
+      if (e.wasClean) {
+        logContent.textContent += `\n[INFO] Connection closed cleanly, code=${e.code}`;
+      } else {
+        logContent.textContent += '\n[INFO] Connection died';
+      }
+    };
+    
+    logSocket.onerror = function(e) {
+      connectionStatus.innerHTML = '<i class="fas fa-circle me-1"></i> Error';
+      connectionStatus.className = 'badge bg-danger';
+      logContent.textContent += '\n[ERROR] WebSocket error occurred';
+    };
+  }
+  
+  function closeLogViewer() {
+    if (logSocket) {
+      logSocket.close();
+      logSocket = null;
+    }
+    logViewerCard.style.display = 'none';
+    currentSessionId = null;
+  }
+});
+</script>
+{% endblock %}

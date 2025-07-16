@@ -7,15 +7,59 @@
 {% block content %}
 <div class="page-header">
   <h1 class="page-title">System Logs</h1>
-  <p class="page-subtitle">View real-time logs from screen sessions</p>
+  <p class="page-subtitle">View real-time logs from cronjobs and running processes</p>
 </div>
 
+<!-- Running Processes Section -->
+<div class="admin-card mb-4">
+  <div class="card-header">
+    <h2 class="card-title">Running Processes</h2>
+    <div class="card-actions">
+      <button id="refreshProcesses" class="btn-admin btn-primary">
+        <i class="fas fa-sync-alt"></i> Refresh
+      </button>
+    </div>
+  </div>
+  
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>PID</th>
+          <th>CPU %</th>
+          <th>Memory %</th>
+          <th>Command</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if running_processes %}
+          {% for process in running_processes %}
+          <tr>
+            <td>{{ process.user }}</td>
+            <td>{{ process.pid }}</td>
+            <td>{{ process.cpu }}%</td>
+            <td>{{ process.mem }}%</td>
+            <td><code class="small">{{ process.command }}</code></td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="5" class="text-center">No running scraper processes found</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Log Files Section -->
 <div class="admin-card">
   <div class="card-header">
-    <h2 class="card-title">Available Screen Sessions</h2>
+    <h2 class="card-title">Cronjob Log Files</h2>
     <div class="card-actions">
-      <button id="refreshSessions" class="btn-admin btn-primary">
-        <i class="fas fa-sync-alt"></i> Refresh Sessions
+      <button id="refreshLogs" class="btn-admin btn-primary">
+        <i class="fas fa-sync-alt"></i> Refresh Logs
       </button>
     </div>
   </div>
@@ -23,36 +67,59 @@
   <div class="mb-4">
     <div class="alert alert-info">
       <i class="fas fa-info-circle me-2"></i> 
-      Select a screen session from the list below to view its real-time logs
+      Select a log file from the list below to view its contents in real-time
     </div>
   </div>
   
-  <div class="row" id="sessionsContainer">
-    {% if screen_sessions %}
-      {% for session in screen_sessions %}
-      <div class="col-md-4 mb-3">
-        <div class="card h-100">
-          <div class="card-body">
-            <h5 class="card-title">
-              <i class="fas fa-terminal me-2"></i>
-              {{ session.name }}
-            </h5>
-            <p class="card-text text-muted small">ID: {{ session.id }}</p>
-          </div>
-          <div class="card-footer bg-transparent">
-            <button class="btn btn-sm btn-primary view-logs" data-session-id="{{ session.id }}">
-              <i class="fas fa-eye"></i> View Logs
+  <div class="accordion" id="logFilesAccordion">
+    {% if log_groups %}
+      {% for group_name, log_files in log_groups.items %}
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading{{ group_name|slugify }}">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" 
+                   data-bs-target="#collapse{{ group_name|slugify }}" aria-expanded="true" 
+                   aria-controls="collapse{{ group_name|slugify }}">
+              <i class="fas fa-folder-open me-2"></i> {{ group_name }} ({{ log_files|length }})
             </button>
+          </h2>
+          <div id="collapse{{ group_name|slugify }}" class="accordion-collapse collapse show" 
+               aria-labelledby="heading{{ group_name|slugify }}">
+            <div class="accordion-body">
+              <div class="row">
+                {% for log in log_files %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                  <div class="card h-100">
+                    <div class="card-body">
+                      <h5 class="card-title">
+                        <i class="fas fa-file-alt me-2"></i>
+                        {{ log.name }}
+                      </h5>
+                      <p class="card-text">
+                        <span class="badge bg-info">{{ log.filename }}</span>
+                        <span class="badge bg-secondary">{{ log.size }}</span>
+                      </p>
+                      <p class="card-text small text-muted">
+                        <strong>Schedule:</strong> <code>{{ log.schedule }}</code><br>
+                        <strong>Last Updated:</strong> {{ log.modified|date:"Y-m-d H:i:s" }}
+                      </p>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                      <button class="btn btn-sm btn-primary view-log" data-log-id="{{ log.id }}">
+                        <i class="fas fa-eye"></i> View Log
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
       {% endfor %}
     {% else %}
-      <div class="col-12">
-        <div class="alert alert-warning">
-          <i class="fas fa-exclamation-triangle me-2"></i>
-          No active screen sessions found.
-        </div>
+      <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        No log files found. Check if the log directories exist and are accessible.
       </div>
     {% endif %}
   </div>
@@ -60,7 +127,7 @@
 
 <div class="admin-card" id="logViewerCard" style="display: none;">
   <div class="card-header">
-    <h2 class="card-title" id="logViewerTitle">Session Logs</h2>
+    <h2 class="card-title" id="logViewerTitle">Log File</h2>
     <div class="card-actions">
       <button class="btn-admin btn-warning" id="closeLogViewer">
         <i class="fas fa-times"></i> Close
@@ -84,10 +151,13 @@
       <button class="btn btn-sm btn-info" id="downloadLogs">
         <i class="fas fa-download"></i> Download
       </button>
+      <button class="btn btn-sm btn-dark" id="toggleWrap">
+        <i class="fas fa-exchange-alt"></i> Toggle Word Wrap
+      </button>
     </div>
   </div>
   
-  <div class="log-container bg-dark p-3 rounded" style="height: 500px; overflow-y: auto;">
+  <div class="log-container bg-dark p-3 rounded" style="height: 600px; overflow-y: auto;">
     <pre class="log-content text-light" id="logContent" style="white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; line-height: 1.4;">Connecting to log stream...</pre>
   </div>
 </div>
@@ -98,8 +168,9 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   let logSocket = null;
-  let currentSessionId = null;
+  let currentLogId = null;
   let autoScroll = true;
+  let wordWrap = true;
   const logContent = document.getElementById('logContent');
   const logViewerCard = document.getElementById('logViewerCard');
   const logViewerTitle = document.getElementById('logViewerTitle');
@@ -108,13 +179,15 @@ document.addEventListener('DOMContentLoaded', function() {
   const clearLogsBtn = document.getElementById('clearLogs');
   const downloadLogsBtn = document.getElementById('downloadLogs');
   const closeLogViewerBtn = document.getElementById('closeLogViewer');
-  const refreshSessionsBtn = document.getElementById('refreshSessions');
+  const refreshLogsBtn = document.getElementById('refreshLogs');
+  const refreshProcessesBtn = document.getElementById('refreshProcesses');
+  const toggleWrapBtn = document.getElementById('toggleWrap');
   
   // Setup event listeners
-  document.querySelectorAll('.view-logs').forEach(button => {
+  document.querySelectorAll('.view-log').forEach(button => {
     button.addEventListener('click', function() {
-      const sessionId = this.getAttribute('data-session-id');
-      openLogViewer(sessionId);
+      const logId = this.getAttribute('data-log-id');
+      openLogViewer(logId);
     });
   });
   
@@ -129,36 +202,51 @@ document.addEventListener('DOMContentLoaded', function() {
       '<i class="fas fa-scroll"></i> Auto-scroll: OFF';
   });
   
+  toggleWrapBtn.addEventListener('click', function() {
+    wordWrap = !wordWrap;
+    logContent.style.whiteSpace = wordWrap ? 'pre-wrap' : 'pre';
+    this.innerHTML = wordWrap ? 
+      '<i class="fas fa-exchange-alt"></i> Toggle Word Wrap' : 
+      '<i class="fas fa-exchange-alt"></i> Word Wrap: OFF';
+  });
+  
   clearLogsBtn.addEventListener('click', function() {
     logContent.textContent = '';
   });
   
   downloadLogsBtn.addEventListener('click', function() {
-    const sessionName = currentSessionId.split('.')[1];
+    const logName = logViewerTitle.textContent.replace('Log File: ', '');
     const blob = new Blob([logContent.textContent], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${sessionName}_log_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`;
+    a.download = `${logName}_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   });
   
-  refreshSessionsBtn.addEventListener('click', function() {
+  refreshLogsBtn.addEventListener('click', function() {
     window.location.reload();
   });
   
-  function openLogViewer(sessionId) {
+  refreshProcessesBtn?.addEventListener('click', function() {
+    window.location.reload();
+  });
+  
+  function openLogViewer(logId) {
     // Close existing connection if any
     if (logSocket) {
       logSocket.close();
     }
     
-    currentSessionId = sessionId;
-    const sessionName = sessionId.split('.')[1];
+    currentLogId = logId;
+    
+    // Find the log file card element by data-log-id
+    const logCard = document.querySelector(`.view-log[data-log-id="${logId}"]`).closest('.card');
+    const logName = logCard.querySelector('.card-title').innerText.trim();
     
     // Update UI
-    logViewerTitle.textContent = `Logs: ${sessionName}`;
+    logViewerTitle.textContent = `Log File: ${logName}`;
     logContent.textContent = 'Connecting to log stream...';
     logViewerCard.style.display = 'block';
     connectionStatus.innerHTML = '<i class="fas fa-circle me-1"></i> Connecting...';
@@ -169,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Connect to WebSocket
     const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socketUrl = `${socketProtocol}//${window.location.host}/ws/logs/${sessionId}/`;
+    const socketUrl = `${socketProtocol}//${window.location.host}/ws/cronlogs/${logId}/`;
     
     logSocket = new WebSocket(socketUrl);
     
@@ -230,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
       logSocket = null;
     }
     logViewerCard.style.display = 'none';
-    currentSessionId = null;
+    currentLogId = null;
   }
 });
 </script>

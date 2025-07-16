@@ -3,6 +3,8 @@ import json
 import asyncio
 import subprocess
 import re
+import os
+import base64
 
 class SyncNotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -14,11 +16,11 @@ class SyncNotificationConsumer(AsyncWebsocketConsumer):
 
     async def sync_message(self, event):
         await self.send(text_data=json.dumps(event["message"]))
-
-class LogsConsumer(AsyncWebsocketConsumer):
+        
+class CronLogConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.session_id = self.scope['url_route']['kwargs']['session_id']
-        self.logs_group_name = f'logs_{self.session_id}'
+        self.log_file_id = self.scope['url_route']['kwargs']['log_file_id']
+        self.logs_group_name = f'cronlog_{self.log_file_id}'
         self.should_stop = False
         
         # Join logs group
@@ -42,63 +44,97 @@ class LogsConsumer(AsyncWebsocketConsumer):
         )
     
     async def stream_logs(self):
-        # Extract screen name from session_id
-        match = re.match(r'\d+\.(.+)', self.session_id)
-        if not match:
-            await self.send(text_data=json.dumps({
-                'error': f'Invalid session ID: {self.session_id}'
-            }))
-            return
-        
-        screen_name = match.group(1)
-        
-        # Send initial connection message
-        await self.send(text_data=json.dumps({
-            'message': f'Connected to log stream for {screen_name}',
-            'type': 'info'
-        }))
-        
-        # Create a process to stream the logs using screen -r
+        # Decode the base64 filename
         try:
-            # Initial log capture
-            process = await asyncio.create_subprocess_exec(
-                'screen', '-S', self.session_id, '-X', 'hardcopy', '/tmp/screen_log.txt',
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
+            log_path = base64.b64decode(self.log_file_id).decode('utf-8')
+            log_name = os.path.basename(log_path)
             
-            await process.communicate()
-            
-            # Read the log file
-            with open('/tmp/screen_log.txt', 'r') as f:
-                log_content = f.read()
+            # Validate that the log file exists and is a valid log file
+            if not os.path.exists(log_path) or not os.path.isfile(log_path):
+                await self.send(text_data=json.dumps({
+                    'error': f'Log file not found: {log_name}'
+                }))
+                return
                 
+            # Only allow files with .log extension for security
+            if not log_path.endswith('.log'):
+                await self.send(text_data=json.dumps({
+                    'error': 'Invalid log file format'
+                }))
+                return
+                
+            # Send initial connection message
             await self.send(text_data=json.dumps({
-                'log': log_content,
-                'type': 'initial'
+                'message': f'Connected to log stream for {log_name}',
+                'type': 'info'
             }))
             
-            # Poll for updates every 2 seconds
-            while not self.should_stop:
+            # Initial log fetch - get the last 100 lines to start
+            try:
                 process = await asyncio.create_subprocess_exec(
-                    'screen', '-S', self.session_id, '-X', 'hardcopy', '/tmp/screen_log.txt',
-                    stdout=asyncio.subprocess.PIPE
+                    'tail', '-n', '100', log_path,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
                 )
-                await process.communicate()
                 
-                with open('/tmp/screen_log.txt', 'r') as f:
-                    log_content = f.read()
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode != 0:
+                    await self.send(text_data=json.dumps({
+                        'error': f'Error reading log file: {stderr.decode()}'
+                    }))
+                    return
+                    
+                log_content = stdout.decode('utf-8', errors='replace')
                 
                 await self.send(text_data=json.dumps({
                     'log': log_content,
-                    'type': 'update'
+                    'type': 'initial'
                 }))
                 
-                await asyncio.sleep(2)
+                # Get file size to track changes
+                last_size = os.path.getsize(log_path)
+                
+                # Poll for updates every 2 seconds
+                while not self.should_stop:
+                    await asyncio.sleep(2)
+                    
+                    current_size = os.path.getsize(log_path)
+                    
+                    if current_size > last_size:
+                        # File has new content, get only the new lines
+                        process = await asyncio.create_subprocess_exec(
+                            'tail', '-c', f'+{last_size+1}', log_path,
+                            stdout=asyncio.subprocess.PIPE
+                        )
+                        stdout, _ = await process.communicate()
+                        
+                        new_content = stdout.decode('utf-8', errors='replace')
+                        
+                        # Get full log (limited to last 500 lines to prevent browser overload)
+                        process = await asyncio.create_subprocess_exec(
+                            'tail', '-n', '500', log_path,
+                            stdout=asyncio.subprocess.PIPE
+                        )
+                        stdout, _ = await process.communicate()
+                        full_content = stdout.decode('utf-8', errors='replace')
+                        
+                        await self.send(text_data=json.dumps({
+                            'log': full_content,
+                            'new_content': new_content,
+                            'type': 'update'
+                        }))
+                        
+                        last_size = current_size
+                    
+            except Exception as e:
+                await self.send(text_data=json.dumps({
+                    'error': f'Error streaming logs: {str(e)}'
+                }))
                 
         except Exception as e:
             await self.send(text_data=json.dumps({
-                'error': str(e)
+                'error': f'Invalid log file ID: {str(e)}'
             }))
             
     async def receive(self, text_data):
@@ -110,3 +146,4 @@ class LogsConsumer(AsyncWebsocketConsumer):
                 'message': 'Stopped log streaming',
                 'type': 'info'
             }))
+

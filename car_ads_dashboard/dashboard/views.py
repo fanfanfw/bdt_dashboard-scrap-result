@@ -9,9 +9,11 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
 from .models import CarsMudahmy, CarsCarlistmy, PriceHistoryMudahmy, PriceHistoryCarlistmy
-from django.contrib.auth.forms import AuthenticationForm
-from django.views.decorators.http import require_GET
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.models import User, Group
+from django.views.decorators.http import require_GET, require_POST
 from django.db import models
+from django import forms
 import pandas as pd
 from datetime import date, datetime
 import json
@@ -19,6 +21,31 @@ import traceback
 import psutil
 import platform
 import shutil
+
+# Helper function to get pending users count for sidebar badge
+def get_pending_users_count():
+    """Get count of users pending approval for sidebar badge"""
+    return User.objects.filter(is_active=False).count()
+
+# Custom Registration Form
+class CustomUserCreationForm(UserCreationForm):
+    email = forms.EmailField(required=True)
+    first_name = forms.CharField(max_length=30, required=True)
+    last_name = forms.CharField(max_length=30, required=True)
+
+    class Meta:
+        model = User
+        fields = ("username", "email", "first_name", "last_name", "password1", "password2")
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data["email"]
+        user.first_name = self.cleaned_data["first_name"]
+        user.last_name = self.cleaned_data["last_name"]
+        user.is_active = False  # User needs admin approval
+        if commit:
+            user.save()
+        return user
 
 class CustomLoginView(LoginView):
     form_class = AuthenticationForm
@@ -47,6 +74,57 @@ class CustomLoginView(LoginView):
             return reverse('user_dashboard', kwargs={'username': user.username})
         else:
             return super().get_success_url()
+
+# Registration View
+@require_POST
+@csrf_exempt
+def register_user(request):
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        data = request.POST
+
+    form = CustomUserCreationForm(data)
+    
+    if form.is_valid():
+        # Check if username already exists
+        if User.objects.filter(username=form.cleaned_data['username']).exists():
+            return JsonResponse({
+                'success': False,
+                'errors': {'username': ['Username already exists']}
+            })
+        
+        # Check if email already exists
+        if User.objects.filter(email=form.cleaned_data['email']).exists():
+            return JsonResponse({
+                'success': False,
+                'errors': {'email': ['Email already registered']}
+            })
+        
+        # Save user (inactive by default)
+        user = form.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Registration successful! Please wait for admin approval.'
+        })
+    else:
+        return JsonResponse({
+            'success': False,
+            'errors': form.errors
+        })
+
+# Check username availability
+@require_GET
+def check_username(request):
+    username = request.GET.get('username', '')
+    if username:
+        exists = User.objects.filter(username=username).exists()
+        return JsonResponse({
+            'available': not exists,
+            'message': 'Username already taken' if exists else 'Username available'
+        })
+    return JsonResponse({'available': False, 'message': 'Username required'})
 
 @login_required
 @group_required('User')
@@ -302,10 +380,36 @@ def user_dashboard_data(request, username):
 @group_required('Admin')
 @user_is_owner_or_admin
 def admin_dashboard(request, username):
+    # Get user statistics
+    total_users = User.objects.count()
+    pending_users_count = User.objects.filter(is_active=False).count()
+    active_users_count = User.objects.filter(is_active=True).count()
+    
+    # Get admin and regular user counts
+    try:
+        admin_group = Group.objects.get(name='Admin')
+        user_group = Group.objects.get(name='User')
+        admin_users_count = admin_group.user_set.filter(is_active=True).count()
+        regular_users_count = user_group.user_set.filter(is_active=True).count()
+    except Group.DoesNotExist:
+        admin_users_count = 0
+        regular_users_count = 0
+    
+    # Get recent registrations (last 7 days)
+    from datetime import datetime, timedelta
+    week_ago = datetime.now() - timedelta(days=7)
+    recent_registrations = User.objects.filter(date_joined__gte=week_ago).count()
+    
     context = {
         'username': request.user.username,
         'role': 'Admin',
-        'message': 'Welcome to Admin Dashboard! Here you can manage dashboard settings.'
+        'message': 'Welcome to Admin Dashboard! Here you can manage dashboard settings.',
+        'total_users': total_users,
+        'pending_users_count': pending_users_count,
+        'active_users_count': active_users_count,
+        'admin_users_count': admin_users_count,
+        'regular_users_count': regular_users_count,
+        'recent_registrations': recent_registrations,
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
@@ -314,11 +418,187 @@ def admin_dashboard(request, username):
 @user_is_owner_or_admin
 def admin_user_approval(request, username):
     """Admin page for user approval management"""
+    # Get pending users (inactive users)
+    pending_users = User.objects.filter(is_active=False).order_by('-date_joined')
+    
+    # Get recently approved users
+    user_group = Group.objects.get(name='User')
+    approved_users = User.objects.filter(
+        is_active=True, 
+        groups=user_group
+    ).order_by('-date_joined')[:10]
+    
     context = {
         'username': username,
-        'role': 'Admin'
+        'role': 'Admin',
+        'pending_users': pending_users,
+        'approved_users': approved_users,
+        'pending_count': pending_users.count()
     }
     return render(request, 'dashboard/admin_user_approval.html', context)
+
+# Approve user endpoint
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def approve_user(request, username):
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        
+        if not target_username:
+            return JsonResponse({'success': False, 'error': 'Username required'})
+        
+        user_to_approve = User.objects.get(username=target_username, is_active=False)
+        
+        # Activate user
+        user_to_approve.is_active = True
+        user_to_approve.save()
+        
+        # Add to User group
+        user_group, created = Group.objects.get_or_create(name='User')
+        user_to_approve.groups.add(user_group)
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'User {target_username} has been approved successfully'
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+# Reject user endpoint
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def reject_user(request, username):
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        
+        if not target_username:
+            return JsonResponse({'success': False, 'error': 'Username required'})
+        
+        user_to_reject = User.objects.get(username=target_username, is_active=False)
+        
+        # Delete the user completely
+        user_to_reject.delete()
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'User {target_username} has been rejected and removed'
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+# Approve all users endpoint
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def approve_all_users(request, username):
+    try:
+        pending_users = User.objects.filter(is_active=False)
+        user_group, created = Group.objects.get_or_create(name='User')
+        
+        approved_count = 0
+        for user in pending_users:
+            user.is_active = True
+            user.save()
+            user.groups.add(user_group)
+            approved_count += 1
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'{approved_count} users have been approved successfully'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+# Get user details endpoint
+@login_required
+@group_required('Admin')
+@require_GET
+def get_user_details(request, username):
+    try:
+        target_username = request.GET.get('target_username')
+        
+        if not target_username:
+            return JsonResponse({'success': False, 'error': 'Username required'})
+        
+        user = User.objects.get(username=target_username)
+        
+        # Get user's last login IP and user agent (if you have middleware to track this)
+        # For now, we'll use placeholder data
+        user_details = {
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'date_joined': user.date_joined.strftime('%Y-%m-%d %H:%M:%S'),
+            'is_active': user.is_active,
+            'last_login': user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else 'Never',
+            'groups': [group.name for group in user.groups.all()],
+            # Placeholder data - you can extend this with real tracking
+            'ip_address': '192.168.1.100',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        return JsonResponse({'success': True, 'user': user_details})
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+# Get dashboard stats for admin
+@login_required
+@group_required('Admin')
+@require_GET
+def admin_dashboard_stats(request, username):
+    try:
+        # Get user statistics
+        total_users = User.objects.count()
+        pending_users_count = User.objects.filter(is_active=False).count()
+        active_users_count = User.objects.filter(is_active=True).count()
+        
+        # Get admin and regular user counts
+        try:
+            admin_group = Group.objects.get(name='Admin')
+            user_group = Group.objects.get(name='User')
+            admin_users_count = admin_group.user_set.filter(is_active=True).count()
+            regular_users_count = user_group.user_set.filter(is_active=True).count()
+        except Group.DoesNotExist:
+            admin_users_count = 0
+            regular_users_count = 0
+        
+        # Get recent registrations
+        from datetime import datetime, timedelta
+        week_ago = datetime.now() - timedelta(days=7)
+        recent_registrations = User.objects.filter(date_joined__gte=week_ago).count()
+        
+        return JsonResponse({
+            'success': True,
+            'stats': {
+                'total_users': total_users,
+                'pending_users_count': pending_users_count,
+                'active_users_count': active_users_count,
+                'admin_users_count': admin_users_count,
+                'regular_users_count': regular_users_count,
+                'recent_registrations': recent_registrations,
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
 @group_required('Admin')
@@ -327,7 +607,8 @@ def admin_server_monitor(request, username):
     """Admin page for server monitoring"""
     context = {
         'username': username,
-        'role': 'Admin'
+        'role': 'Admin',
+        'pending_users_count': get_pending_users_count()
     }
     return render(request, 'dashboard/admin_server_monitor.html', context)
 
@@ -436,9 +717,43 @@ def admin_analytics(request, username):
     """Admin page for analytics"""
     context = {
         'username': username,
-        'role': 'Admin'
+        'role': 'Admin',
+        'pending_users_count': get_pending_users_count()
     }
     return render(request, 'dashboard/admin_analytics.html', context)
+
+@user_is_owner_or_admin
+def admin_logs(request, username):
+    """Admin page for viewing system logs"""
+    # Get list of available screen sessions
+    import subprocess
+    
+    try:
+        result = subprocess.run(['screen', '-ls'], capture_output=True, text=True)
+        screen_output = result.stdout
+        
+        # Parse screen output to get session names
+        import re
+        screen_sessions = []
+        
+        if "No Sockets found" not in screen_output:
+            matches = re.findall(r'\t(\d+\.([^\s\t]+))', screen_output)
+            for match in matches:
+                screen_sessions.append({
+                    'id': match[0],
+                    'name': match[1]
+                })
+    except Exception as e:
+        screen_sessions = []
+    
+    context = {
+        'username': username,
+        'role': 'Admin',
+        'pending_users_count': get_pending_users_count(),
+        'screen_sessions': screen_sessions,
+    }
+    
+    return render(request, 'dashboard/admin_logs.html', context)
 
 @staff_member_required
 @csrf_exempt  # Karena pake JS fetch, pastikan csrf token sudah dikirim

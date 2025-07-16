@@ -13,9 +13,12 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.views.decorators.http import require_GET
 from django.db import models
 import pandas as pd
-from datetime import date
+from datetime import date, datetime
 import json
 import traceback
+import psutil
+import platform
+import shutil
 
 class CustomLoginView(LoginView):
     form_class = AuthenticationForm
@@ -327,6 +330,104 @@ def admin_server_monitor(request, username):
         'role': 'Admin'
     }
     return render(request, 'dashboard/admin_server_monitor.html', context)
+
+@require_GET
+def server_metrics_api(request):
+    """API endpoint for real-time server metrics"""
+    try:
+        # CPU Information
+        cpu_count = psutil.cpu_count(logical=True)
+        cpu_count_physical = psutil.cpu_count(logical=False)
+        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_freq = psutil.cpu_freq()
+        load_avg = psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
+        
+        # Memory Information
+        memory = psutil.virtual_memory()
+        memory_percent = memory.percent
+        memory_used_gb = round(memory.used / (1024**3), 2)
+        memory_total_gb = round(memory.total / (1024**3), 2)
+        
+        # Disk Information
+        disk = psutil.disk_usage('/')
+        storage_percent = round((disk.used / disk.total) * 100, 1)
+        storage_used_gb = round(disk.used / (1024**3), 1)
+        storage_total_gb = round(disk.total / (1024**3), 1)
+        
+        # Network Information
+        net_io = psutil.net_io_counters()
+        
+        # System Information
+        boot_time = datetime.fromtimestamp(psutil.boot_time())
+        current_time = datetime.now()
+        uptime = current_time - boot_time
+        uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+        
+        # Process Information
+        processes = []
+        for proc in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_percent', 'status']):
+            try:
+                pinfo = proc.info
+                if pinfo['cpu_percent'] is not None and pinfo['cpu_percent'] > 0:
+                    processes.append({
+                        'pid': pinfo['pid'],
+                        'name': pinfo['name'],
+                        'username': pinfo['username'] or 'N/A',
+                        'cpu_percent': round(pinfo['cpu_percent'], 1),
+                        'memory_percent': round(pinfo['memory_percent'], 1),
+                        'status': pinfo['status']
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+        
+        # Sort by CPU usage and get top 10
+        processes = sorted(processes, key=lambda x: x['cpu_percent'], reverse=True)[:10]
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'cpu': {
+                    'count_logical': cpu_count,
+                    'count_physical': cpu_count_physical,
+                    'percent': round(cpu_percent, 1),
+                    'frequency': round(cpu_freq.current, 0) if cpu_freq else 0,
+                    'load_avg': round(load_avg[0], 2) if load_avg else 0
+                },
+                'memory': {
+                    'percent': round(memory_percent, 1),
+                    'used_gb': memory_used_gb,
+                    'total_gb': memory_total_gb,
+                    'available_gb': round(memory.available / (1024**3), 2)
+                },
+                'storage': {
+                    'percent': storage_percent,
+                    'used_gb': storage_used_gb,
+                    'total_gb': storage_total_gb,
+                    'free_gb': round(disk.free / (1024**3), 1)
+                },
+                'network': {
+                    'bytes_sent': net_io.bytes_sent,
+                    'bytes_recv': net_io.bytes_recv,
+                    'packets_sent': net_io.packets_sent,
+                    'packets_recv': net_io.packets_recv
+                },
+                'system': {
+                    'uptime': uptime_str,
+                    'boot_time': boot_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'platform': platform.system(),
+                    'platform_release': platform.release(),
+                    'hostname': platform.node()
+                },
+                'processes': processes,
+                'timestamp': current_time.strftime('%H:%M:%S')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 @login_required
 @group_required('Admin')

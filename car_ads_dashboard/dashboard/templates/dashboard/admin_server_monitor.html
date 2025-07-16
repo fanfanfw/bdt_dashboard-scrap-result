@@ -31,8 +31,8 @@
       </div>
       <div class="row text-center">
         <div class="col-12 mb-2">
-          <h3 class="fw-bold text-success mb-0" id="uptime">99.9%</h3>
-          <small class="text-muted">Uptime (30 days)</small>
+          <h3 class="fw-bold text-success mb-0" id="uptime">Loading...</h3>
+          <small class="text-muted">Uptime</small>
         </div>
         <div class="col-6">
           <h5 class="fw-bold text-primary mb-0" id="response-time">45ms</h5>
@@ -68,7 +68,7 @@
         </div>
         <div class="col-6">
           <small class="text-muted d-block">Cores</small>
-          <span class="fw-bold">4</span>
+          <span class="fw-bold" id="cpu-cores">-</span>
         </div>
       </div>
     </div>
@@ -96,7 +96,7 @@
         </div>
         <div class="col-6">
           <small class="text-muted d-block">Total</small>
-          <span class="fw-bold">10GB</span>
+          <span class="fw-bold" id="memory-total">-</span>
         </div>
       </div>
     </div>
@@ -124,7 +124,7 @@
         </div>
         <div class="col-6">
           <small class="text-muted d-block">Total</small>
-          <span class="fw-bold">200GB</span>
+          <span class="fw-bold" id="storage-total">-</span>
         </div>
       </div>
     </div>
@@ -358,9 +358,14 @@ let realtimeData = {
   storage: []
 };
 
+// Store previous network stats for calculating speed
+let previousNetworkStats = null;
+
 document.addEventListener('DOMContentLoaded', function() {
   initializeCharts();
   startRealTimeUpdates();
+  // Initial load
+  fetchServerMetrics();
 });
 
 function initializeCharts() {
@@ -370,7 +375,7 @@ function initializeCharts() {
     type: 'doughnut',
     data: {
       datasets: [{
-        data: [45, 55],
+        data: [0, 100],
         backgroundColor: ['#3498DB', 'rgba(52, 73, 94, 0.1)'],
         borderWidth: 0
       }]
@@ -391,7 +396,7 @@ function initializeCharts() {
     type: 'doughnut',
     data: {
       datasets: [{
-        data: [62, 38],
+        data: [0, 100],
         backgroundColor: ['#F39C12', 'rgba(52, 73, 94, 0.1)'],
         borderWidth: 0
       }]
@@ -412,7 +417,7 @@ function initializeCharts() {
     type: 'doughnut',
     data: {
       datasets: [{
-        data: [78, 22],
+        data: [0, 100],
         backgroundColor: ['#E74C3C', 'rgba(52, 73, 94, 0.1)'],
         borderWidth: 0
       }]
@@ -474,10 +479,10 @@ function initializeCharts() {
   networkChart = new Chart(networkCtx, {
     type: 'bar',
     data: {
-      labels: ['Upload', 'Download'],
+      labels: ['Upload (KB/s)', 'Download (KB/s)'],
       datasets: [{
-        label: 'Current (KB/s)',
-        data: [25, 150],
+        label: 'Current Speed',
+        data: [0, 0],
         backgroundColor: ['#27AE60', '#E74C3C'],
         borderRadius: 8
       }]
@@ -505,24 +510,60 @@ function startRealTimeUpdates() {
   // Update every 3 seconds
   setInterval(() => {
     if (isRealTimeActive) {
-      updateMetrics();
+      fetchServerMetrics();
     }
   }, 3000);
 }
 
-function updateMetrics() {
-  // Simulate real-time data
+async function fetchServerMetrics() {
+  try {
+    const response = await fetch('/dashboard/api/server-metrics/', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken')
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      updateMetricsWithRealData(result.data);
+    } else {
+      console.error('Server metrics API error:', result.error);
+      showNotification('Failed to fetch server metrics: ' + result.error, 'error');
+    }
+  } catch (error) {
+    console.error('Error fetching server metrics:', error);
+    showNotification('Error connecting to server metrics API', 'error');
+  }
+}
+
+function updateMetricsWithRealData(data) {
   const now = new Date();
   const timeStr = now.toLocaleTimeString();
   
-  const cpuUsage = Math.floor(Math.random() * 30) + 35; // 35-65%
-  const memoryUsage = Math.floor(Math.random() * 20) + 55; // 55-75%
-  const storageUsage = Math.floor(Math.random() * 10) + 75; // 75-85%
-  
-  // Update text displays
+  // Update CPU metrics
+  const cpuUsage = data.cpu.percent;
   document.getElementById('cpu-percentage').textContent = cpuUsage + '%';
+  document.getElementById('cpu-cores').textContent = data.cpu.count_logical;
+  document.getElementById('load-avg').textContent = data.cpu.load_avg;
+  
+  // Update Memory metrics
+  const memoryUsage = data.memory.percent;
   document.getElementById('memory-percentage').textContent = memoryUsage + '%';
+  document.getElementById('memory-used').textContent = data.memory.used_gb + 'GB';
+  document.getElementById('memory-total').textContent = data.memory.total_gb + 'GB';
+  
+  // Update Storage metrics
+  const storageUsage = data.storage.percent;
   document.getElementById('storage-percentage').textContent = storageUsage + '%';
+  document.getElementById('storage-used').textContent = data.storage.used_gb + 'GB';
+  document.getElementById('storage-total').textContent = data.storage.total_gb + 'GB';
   
   // Update doughnut charts
   cpuChart.data.datasets[0].data = [cpuUsage, 100 - cpuUsage];
@@ -551,18 +592,98 @@ function updateMetrics() {
   realtimeChart.data.datasets[1].data = realtimeData.memory;
   realtimeChart.update('none');
   
-  // Update network chart
-  const upload = Math.floor(Math.random() * 50) + 10;
-  const download = Math.floor(Math.random() * 200) + 100;
-  networkChart.data.datasets[0].data = [upload, download];
-  networkChart.update('none');
+  // Calculate and update network speed
+  if (previousNetworkStats) {
+    const timeDiff = 3; // 3 seconds interval
+    const uploadSpeed = Math.round((data.network.bytes_sent - previousNetworkStats.bytes_sent) / (1024 * timeDiff));
+    const downloadSpeed = Math.round((data.network.bytes_recv - previousNetworkStats.bytes_recv) / (1024 * timeDiff));
+    
+    networkChart.data.datasets[0].data = [Math.max(0, uploadSpeed), Math.max(0, downloadSpeed)];
+    networkChart.update('none');
+  }
   
-  // Update other metrics
-  document.getElementById('response-time').textContent = (Math.floor(Math.random() * 20) + 30) + 'ms';
-  document.getElementById('requests').textContent = (Math.floor(Math.random() * 500) + 1000) + '';
-  document.getElementById('load-avg').textContent = (Math.random() * 2 + 0.5).toFixed(2);
-  document.getElementById('memory-used').textContent = (memoryUsage * 0.1).toFixed(1) + 'GB';
-  document.getElementById('storage-used').textContent = Math.floor(storageUsage * 2) + 'GB';
+  // Store current network stats for next calculation
+  previousNetworkStats = {
+    bytes_sent: data.network.bytes_sent,
+    bytes_recv: data.network.bytes_recv
+  };
+  
+  // Update other system metrics
+  document.getElementById('uptime').textContent = data.system.uptime;
+  
+  // Update process table
+  updateProcessTable(data.processes);
+  
+  // Update response time with a simulated value based on actual performance
+  const simulatedResponseTime = Math.max(10, Math.round(cpuUsage / 2 + Math.random() * 20));
+  document.getElementById('response-time').textContent = simulatedResponseTime + 'ms';
+  
+  // Update requests per hour (simulated based on system load)
+  const simulatedRequests = Math.round(1000 + (100 - cpuUsage) * 10 + Math.random() * 200);
+  document.getElementById('requests').textContent = simulatedRequests.toLocaleString();
+}
+
+function updateProcessTable(processes) {
+  const tbody = document.getElementById('processes-table');
+  tbody.innerHTML = '';
+  
+  processes.slice(0, 10).forEach(process => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${process.pid}</td>
+      <td>
+        <div class="d-flex align-items-center">
+          <i class="fas fa-cog me-2 text-primary"></i>
+          <strong>${process.name}</strong>
+        </div>
+      </td>
+      <td>${process.username}</td>
+      <td>
+        <div class="d-flex align-items-center">
+          <div class="progress me-2" style="width: 60px; height: 6px;">
+            <div class="progress-bar bg-success" style="width: ${Math.min(process.cpu_percent * 2, 100)}%"></div>
+          </div>
+          <span>${process.cpu_percent}%</span>
+        </div>
+      </td>
+      <td>
+        <div class="d-flex align-items-center">
+          <div class="progress me-2" style="width: 60px; height: 6px;">
+            <div class="progress-bar bg-warning" style="width: ${Math.min(process.memory_percent * 2, 100)}%"></div>
+          </div>
+          <span>${process.memory_percent}%</span>
+        </div>
+      </td>
+      <td>
+        <span class="status-indicator ${process.status === 'running' ? 'status-success' : 'status-warning'}">
+          <i class="fas fa-${process.status === 'running' ? 'play' : 'pause'}"></i>
+          ${process.status}
+        </span>
+      </td>
+      <td>
+        <button class="btn-admin btn-danger btn-sm" onclick="killProcess(${process.pid})">
+          <i class="fas fa-stop"></i>
+        </button>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+// Helper function to get CSRF token
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
 }
 
 function toggleRealTime() {
@@ -581,7 +702,8 @@ function toggleRealTime() {
 }
 
 function refreshProcesses() {
-  // Simulate process list refresh
+  // Fetch fresh data
+  fetchServerMetrics();
   showNotification('Process list refreshed', 'success');
   
   // Add animation effect
@@ -594,26 +716,21 @@ function refreshProcesses() {
 
 function killProcess(pid) {
   if (confirm(`Are you sure you want to kill process ${pid}?`)) {
-    showNotification(`Process ${pid} has been terminated`, 'success');
+    // In a real implementation, you would send a request to kill the process
+    // For now, just show a notification
+    showNotification(`Process termination requested for PID ${pid}`, 'warning');
     
-    // Remove process from table with animation
-    const rows = document.querySelectorAll('#processes-table tr');
-    rows.forEach(row => {
-      if (row.cells[0].textContent === pid.toString()) {
-        row.style.transition = 'opacity 0.3s ease';
-        row.style.opacity = '0';
-        setTimeout(() => row.remove(), 300);
-      }
-    });
+    // Note: Actual process killing would require additional backend API
+    // and proper permissions/security measures
   }
 }
 
 function showNotification(message, type) {
   const notification = document.createElement('div');
-  notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+  notification.className = `alert alert-${type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'danger'} alert-dismissible fade show position-fixed`;
   notification.style.cssText = 'top: 90px; right: 20px; z-index: 9999; min-width: 300px;';
   notification.innerHTML = `
-    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'exclamation-triangle'} me-2"></i>
     ${message}
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   `;
@@ -626,8 +743,5 @@ function showNotification(message, type) {
     }
   }, 3000);
 }
-
-// Start real-time updates when page loads
-updateMetrics();
 </script>
 {% endblock %}

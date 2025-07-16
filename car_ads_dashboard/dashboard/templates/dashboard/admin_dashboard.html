@@ -51,12 +51,16 @@
       </h3>
     </div>
     <div class="text-center">
-      <h2 class="fw-bold text-warning mb-2">3</h2>
+      <h2 class="fw-bold text-warning mb-2">{{ pending_users_count }}</h2>
       <p class="text-muted mb-3">Users awaiting approval</p>
-      <a href="#" class="btn-admin btn-warning">
-        <i class="fas fa-eye"></i>
-        Review
-      </a>
+      {% if pending_users_count > 0 %}
+        <a href="{% url 'admin_user_approval' username=username %}" class="btn-admin btn-warning">
+          <i class="fas fa-eye"></i>
+          Review
+        </a>
+      {% else %}
+        <span class="text-muted">All users processed</span>
+      {% endif %}
     </div>
   </div>
 
@@ -173,35 +177,35 @@
           <i class="fas fa-user-plus"></i>
         </div>
         <div class="flex-grow-1">
-          <p class="mb-1"><strong>New user registered:</strong> john_doe</p>
-          <small class="text-muted">5 minutes ago</small>
+          <p class="mb-1"><strong>New registrations this week:</strong> {{ recent_registrations }}</p>
+          <small class="text-muted">{{ recent_registrations }} new user{{ recent_registrations|pluralize }} registered</small>
         </div>
       </div>
       <div class="activity-item d-flex align-items-center mb-3">
         <div class="activity-icon bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
-          <i class="fas fa-sync-alt"></i>
+          <i class="fas fa-users"></i>
         </div>
         <div class="flex-grow-1">
-          <p class="mb-1"><strong>Data sync completed</strong></p>
-          <small class="text-muted">2 hours ago</small>
+          <p class="mb-1"><strong>Total active users:</strong> {{ active_users_count }}</p>
+          <small class="text-muted">{{ active_users_count }} user{{ active_users_count|pluralize }} currently active</small>
         </div>
       </div>
       <div class="activity-item d-flex align-items-center mb-3">
         <div class="activity-icon bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
-          <i class="fas fa-exclamation-triangle"></i>
+          <i class="fas fa-clock"></i>
         </div>
         <div class="flex-grow-1">
-          <p class="mb-1"><strong>High memory usage detected</strong></p>
-          <small class="text-muted">3 hours ago</small>
+          <p class="mb-1"><strong>Pending approvals:</strong> {{ pending_users_count }}</p>
+          <small class="text-muted">{{ pending_users_count }} user{{ pending_users_count|pluralize }} awaiting approval</small>
         </div>
       </div>
       <div class="activity-item d-flex align-items-center">
         <div class="activity-icon bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
-          <i class="fas fa-database"></i>
+          <i class="fas fa-shield-alt"></i>
         </div>
         <div class="flex-grow-1">
-          <p class="mb-1"><strong>Database backup completed</strong></p>
-          <small class="text-muted">6 hours ago</small>
+          <p class="mb-1"><strong>Admin users:</strong> {{ admin_users_count }}</p>
+          <small class="text-muted">{{ admin_users_count }} administrator{{ admin_users_count|pluralize }} in system</small>
         </div>
       </div>
     </div>
@@ -335,10 +339,116 @@ socket.onerror = function(e) {
 document.addEventListener('DOMContentLoaded', function() {
     initializeCharts();
     updateSystemMetrics();
+    updateDashboardStats();
     
     // Update metrics every 30 seconds
     setInterval(updateSystemMetrics, 30000);
+    
+    // Update dashboard stats every 60 seconds
+    setInterval(updateDashboardStats, 60000);
 });
+
+function updateDashboardStats() {
+    fetch(`/dashboard/admin/{{ username }}/stats/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const stats = data.stats;
+                
+                // Update pending users count
+                const pendingCountEl = document.querySelector('.text-warning.fw-bold');
+                if (pendingCountEl) {
+                    const oldCount = parseInt(pendingCountEl.textContent);
+                    const newCount = stats.pending_users_count;
+                    
+                    if (oldCount !== newCount) {
+                        pendingCountEl.textContent = newCount;
+                        
+                        // Show notification if new pending users
+                        if (newCount > oldCount) {
+                            showNotification(`${newCount - oldCount} new user registration${newCount - oldCount > 1 ? 's' : ''} pending approval!`, 'info');
+                        }
+                        
+                        // Update review button visibility
+                        const reviewBtn = document.querySelector('.btn-warning');
+                        const reviewContainer = reviewBtn.closest('.text-center');
+                        if (newCount > 0) {
+                            reviewContainer.innerHTML = `
+                                <h2 class="fw-bold text-warning mb-2">${newCount}</h2>
+                                <p class="text-muted mb-3">Users awaiting approval</p>
+                                <a href="/dashboard/admin/{{ username }}/users/" class="btn-admin btn-warning">
+                                    <i class="fas fa-eye"></i>
+                                    Review
+                                </a>
+                            `;
+                        } else {
+                            reviewContainer.innerHTML = `
+                                <h2 class="fw-bold text-warning mb-2">0</h2>
+                                <p class="text-muted mb-3">Users awaiting approval</p>
+                                <span class="text-muted">All users processed</span>
+                            `;
+                        }
+                    }
+                }
+                
+                // Update activity chart
+                if (window.activityChart) {
+                    window.activityChart.data.datasets[0].data = [
+                        stats.regular_users_count,
+                        stats.pending_users_count,
+                        stats.admin_users_count
+                    ];
+                    window.activityChart.update();
+                }
+                
+                // Update recent activity
+                const activityFeed = document.querySelector('.activity-feed');
+                if (activityFeed) {
+                    activityFeed.innerHTML = `
+                        <div class="activity-item d-flex align-items-center mb-3">
+                            <div class="activity-icon bg-success text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                <i class="fas fa-user-plus"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <p class="mb-1"><strong>New registrations this week:</strong> ${stats.recent_registrations}</p>
+                                <small class="text-muted">${stats.recent_registrations} new user${stats.recent_registrations !== 1 ? 's' : ''} registered</small>
+                            </div>
+                        </div>
+                        <div class="activity-item d-flex align-items-center mb-3">
+                            <div class="activity-icon bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <p class="mb-1"><strong>Total active users:</strong> ${stats.active_users_count}</p>
+                                <small class="text-muted">${stats.active_users_count} user${stats.active_users_count !== 1 ? 's' : ''} currently active</small>
+                            </div>
+                        </div>
+                        <div class="activity-item d-flex align-items-center mb-3">
+                            <div class="activity-icon bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <p class="mb-1"><strong>Pending approvals:</strong> ${stats.pending_users_count}</p>
+                                <small class="text-muted">${stats.pending_users_count} user${stats.pending_users_count !== 1 ? 's' : ''} awaiting approval</small>
+                            </div>
+                        </div>
+                        <div class="activity-item d-flex align-items-center">
+                            <div class="activity-icon bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <p class="mb-1"><strong>Admin users:</strong> ${stats.admin_users_count}</p>
+                                <small class="text-muted">${stats.admin_users_count} administrator${stats.admin_users_count !== 1 ? 's' : ''} in system</small>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error updating dashboard stats:', error);
+        });
+}
 
 function initializeCharts() {
     // Performance Chart
@@ -382,16 +492,16 @@ function initializeCharts() {
 
     // User Activity Chart
     const activityCtx = document.getElementById('activityChart').getContext('2d');
-    const activityChart = new Chart(activityCtx, {
+    window.activityChart = new Chart(activityCtx, {
         type: 'doughnut',
         data: {
-            labels: ['Active Users', 'Pending Approval', 'Inactive'],
+            labels: ['Active Users', 'Pending Approval', 'Admin Users'],
             datasets: [{
-                data: [45, 3, 12],
+                data: [{{ regular_users_count }}, {{ pending_users_count }}, {{ admin_users_count }}],
                 backgroundColor: [
                     '#27AE60',
                     '#F39C12',
-                    '#95A5A6'
+                    '#E74C3C'
                 ],
                 borderWidth: 3,
                 borderColor: '#ffffff'

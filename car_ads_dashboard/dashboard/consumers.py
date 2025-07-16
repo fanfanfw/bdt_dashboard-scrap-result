@@ -72,7 +72,7 @@ class CronLogConsumer(AsyncWebsocketConsumer):
             # Initial log fetch - get the last 100 lines to start
             try:
                 process = await asyncio.create_subprocess_exec(
-                    'tail', '-n', '100', log_path,
+                    '/usr/bin/tail', '-n', '100', log_path,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
@@ -104,7 +104,7 @@ class CronLogConsumer(AsyncWebsocketConsumer):
                     if current_size > last_size:
                         # File has new content, get only the new lines
                         process = await asyncio.create_subprocess_exec(
-                            'tail', '-c', f'+{last_size+1}', log_path,
+                            '/usr/bin/tail', '-c', f'+{last_size+1}', log_path,
                             stdout=asyncio.subprocess.PIPE
                         )
                         stdout, _ = await process.communicate()
@@ -113,7 +113,7 @@ class CronLogConsumer(AsyncWebsocketConsumer):
                         
                         # Get full log (limited to last 500 lines to prevent browser overload)
                         process = await asyncio.create_subprocess_exec(
-                            'tail', '-n', '500', log_path,
+                            '/usr/bin/tail', '-n', '500', log_path,
                             stdout=asyncio.subprocess.PIPE
                         )
                         stdout, _ = await process.communicate()

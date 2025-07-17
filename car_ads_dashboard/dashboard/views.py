@@ -715,96 +715,81 @@ def admin_logs(request, username):
     """Admin page for viewing system logs from cronjobs"""
     import os
     import base64
-    import re
     from collections import defaultdict
+    from datetime import datetime
     
-    # Define the log directories and file patterns
-    log_files = []
-    
-    # Log locations to check
-    log_locations = [
-        '/home/scrapper/bdt_new_scrap/logs/',
-        '/home/scrapper/bdt_dashboard-scrap-result/logs/',
-        '/home/scrapper/bdt_scrap_telegram/'
-    ]
-    
-    cron_job_info = {
-        'file.log': {
+    # Define specific log files to monitor
+    log_files_config = [
+        {
             'name': 'Mudah.my Scraper',
+            'path': '/home/scrapper/bdt_new_scrap/logs/file.log',
             'schedule': '*/15 * * * *',
-            'command': 'scrap_mudahmy_monitors_playwright.run_scraper'
+            'command': 'scrap_mudahmy_monitors_playwright.run_scraper',
+            'group': 'Scraper Services'
         },
-        'file_carlist.log': {
-            'name': 'Carlist.my Scraper',
+        {
+            'name': 'Carlist.my Scraper', 
+            'path': '/home/scrapper/bdt_new_scrap/logs/file_carlist.log',
             'schedule': '*/10 * * * *',
-            'command': 'scrap_carlistmy_monitors_playwright.run_scraper'
-        },
-        'file_sync.log': {
-            'name': 'Dashboard Sync',
-            'schedule': '*/10 * * * *',
-            'command': 'python sync.py'
-        },
-        'cronlog.txt': {
-            'name': 'Telegram Scraper',
-            'schedule': '0 6,9,12,18,0 * * *',
-            'command': 'python get_message.py'
+            'command': 'scrap_carlistmy_monitors_playwright.run_scraper',
+            'group': 'Scraper Services'
         }
-    }
+    ]
     
     # Group log files by type
     log_groups = defaultdict(list)
     
     try:
-        # Find all log files in the specified directories
-        for log_dir in log_locations:
-            if os.path.exists(log_dir) and os.path.isdir(log_dir):
-                for filename in os.listdir(log_dir):
-                    if filename.endswith('.log') or filename == 'cronlog.txt':
-                        full_path = os.path.join(log_dir, filename)
-                        if os.path.isfile(full_path):
-                            # Get basic file info
-                            file_stats = os.stat(full_path)
-                            size_mb = file_stats.st_size / (1024 * 1024)
-                            
-                            # Create a base64 encoded ID for the filepath
-                            file_id = base64.b64encode(full_path.encode()).decode()
-                            
-                            # Get job info if available
-                            job_info = cron_job_info.get(filename, {
-                                'name': filename,
-                                'schedule': 'Unknown',
-                                'command': 'Unknown'
-                            })
-                            
-                            log_file = {
-                                'id': file_id,
-                                'name': job_info['name'],
-                                'path': full_path,
-                                'filename': filename,
-                                'size': f'{size_mb:.2f} MB',
-                                'modified': file_stats.st_mtime,
-                                'schedule': job_info['schedule'],
-                                'command': job_info['command']
-                            }
-                            
-                            # Determine which group this belongs to
-                            if 'mudah' in filename.lower():
-                                log_groups['Mudah.my'].append(log_file)
-                            elif 'carlist' in filename.lower():
-                                log_groups['Carlist.my'].append(log_file)
-                            elif 'sync' in filename.lower():
-                                log_groups['Sync'].append(log_file)
-                            elif 'telegram' in filename.lower() or filename == 'cronlog.txt':
-                                log_groups['Telegram'].append(log_file)
-                            else:
-                                log_groups['Other'].append(log_file)
+        # Process only the specified log files
+        for log_config in log_files_config:
+            full_path = log_config['path']
+            if os.path.exists(full_path) and os.path.isfile(full_path):
+                # Get basic file info
+                file_stats = os.stat(full_path)
+                size_mb = file_stats.st_size / (1024 * 1024)
+                
+                # Create a base64 encoded ID for the filepath
+                file_id = base64.b64encode(full_path.encode()).decode()
+                
+                log_file = {
+                    'id': file_id,
+                    'name': log_config['name'],
+                    'path': full_path,
+                    'filename': os.path.basename(full_path),
+                    'size': f'{size_mb:.2f} MB',
+                    'modified': datetime.fromtimestamp(file_stats.st_mtime),
+                    'schedule': log_config['schedule'],
+                    'command': log_config['command'],
+                    'exists': True
+                }
+                
+                log_groups[log_config['group']].append(log_file)
+            else:
+                # File doesn't exist - create placeholder entry
+                file_id = base64.b64encode(full_path.encode()).decode()
+                log_file = {
+                    'id': file_id,
+                    'name': log_config['name'],
+                    'path': full_path,
+                    'filename': os.path.basename(full_path),
+                    'size': 'N/A',
+                    'modified': None,
+                    'schedule': log_config['schedule'],
+                    'command': log_config['command'],
+                    'exists': False
+                }
+                log_groups[log_config['group']].append(log_file)
+                
     except Exception as e:
-        log_files = []
         log_groups = {}
     
     # Sort log files by last modified time (newest first)
     for group in log_groups:
-        log_groups[group] = sorted(log_groups[group], key=lambda x: x['modified'], reverse=True)
+        log_groups[group] = sorted(
+            log_groups[group], 
+            key=lambda x: x['modified'] if x['modified'] is not None else datetime.min, 
+            reverse=True
+        )
     
     # Get running processes related to the scrapers
     running_processes = []

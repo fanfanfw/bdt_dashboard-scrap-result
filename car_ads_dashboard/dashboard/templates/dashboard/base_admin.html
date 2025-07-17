@@ -113,6 +113,14 @@
       font-size: 1.8rem;
     }
 
+    .brand-full {
+      display: inline;
+    }
+
+    .brand-short {
+      display: none;
+    }
+
     .header-right {
       display: flex;
       align-items: center;
@@ -466,6 +474,52 @@
     @media (max-width: 768px) {
       :root {
         --sidebar-width: 100%;
+        --header-height: 60px;
+      }
+      
+      .admin-header {
+        padding: 0 1rem;
+      }
+      
+      .app-brand {
+        font-size: 1rem;
+      }
+      
+      .brand-full {
+        font-size: 0.9rem;
+        margin-left: 0.25rem;
+      }
+      
+      .brand-short {
+        display: none;
+      }
+      
+      .app-brand i {
+        font-size: 1.1rem;
+      }
+      
+      .header-right {
+        gap: 0.5rem;
+      }
+      
+      .user-dropdown {
+        padding: 0.25rem 0.5rem;
+      }
+      
+      .user-dropdown span {
+        display: none;
+      }
+      
+      .user-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 0.875rem;
+      }
+      
+      .dropdown-menu {
+        right: 0;
+        left: auto;
+        min-width: 200px;
       }
       
       .admin-sidebar {
@@ -487,6 +541,51 @@
       
       .page-title {
         font-size: 1.5rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      :root {
+        --header-height: 55px;
+      }
+      
+      .admin-header {
+        padding: 0 0.75rem;
+      }
+      
+      .app-brand {
+        font-size: 0.875rem;
+      }
+      
+      .brand-full {
+        display: none;
+      }
+      
+      .brand-short {
+        display: inline;
+        font-size: 0.9rem;
+        font-weight: 700;
+        margin-left: 0.3rem;
+      }
+      
+      .app-brand i {
+        font-size: 1.1rem;
+      }
+      
+      .theme-toggle,
+      .sidebar-toggle {
+        padding: 0.25rem;
+        font-size: 1rem;
+      }
+      
+      .user-avatar {
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
+      }
+      
+      .admin-main {
+        padding: 0.75rem;
       }
     }
 
@@ -538,6 +637,23 @@
       box-shadow: 0 8px 32px var(--color-shadow);
       padding: 0.5rem;
       margin-top: 0.5rem;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      z-index: 1050;
+      min-width: 180px;
+    }
+
+    .user-menu {
+      position: relative;
+    }
+
+    .user-menu .dropdown-menu {
+      display: none;
+    }
+
+    .user-menu .dropdown-menu.show {
+      display: block;
     }
 
     .dropdown-item {
@@ -559,6 +675,13 @@
     .dark-mode .dropdown-item:hover {
       background: rgba(231, 76, 60, 0.1);
     }
+
+    .dropdown-divider {
+      height: 1px;
+      margin: 0.5rem 0;
+      background: var(--color-border);
+      border: 0;
+    }
   </style>
 </head>
 <body>
@@ -570,7 +693,8 @@
       </button>
       <a href="#" class="app-brand">
         <i class="fas fa-chart-line"></i>
-        ScrapResultDash
+        <span class="brand-full">ScrapResultDash</span>
+        <span class="brand-short">SRD</span>
       </a>
     </div>
     <div class="header-right">
@@ -578,7 +702,7 @@
         <i class="fas fa-moon"></i>
       </button>
       <div class="user-menu">
-        <button class="user-dropdown" data-bs-toggle="dropdown">
+        <button class="user-dropdown">
           <div class="user-avatar">
             {{ username|first|upper }}
           </div>
@@ -767,6 +891,30 @@
         link.classList.add('active');
       }
     });
+
+    // Custom dropdown handling for better mobile support
+    const userDropdown = document.querySelector('.user-dropdown');
+    const dropdownMenu = document.querySelector('.user-menu .dropdown-menu');
+    
+    if (userDropdown && dropdownMenu) {
+      userDropdown.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropdownMenu.classList.toggle('show');
+      });
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', function(event) {
+        if (!userDropdown.contains(event.target) && !dropdownMenu.contains(event.target)) {
+          dropdownMenu.classList.remove('show');
+        }
+      });
+
+      // Close dropdown on window resize
+      window.addEventListener('resize', function() {
+        dropdownMenu.classList.remove('show');
+      });
+    }
   </script>
   
   {% block extra_js %}

@@ -15,7 +15,6 @@ urlpatterns = [
     path('admin/<str:username>/users/details/', views.get_user_details, name='get_user_details'),
     path('admin/<str:username>/stats/', views.admin_dashboard_stats, name='admin_dashboard_stats'),
     path('admin/<str:username>/server/', views.admin_server_monitor, name='admin_server_monitor'),
-    path('admin/<str:username>/analytics/', views.admin_analytics, name='admin_analytics'),
     path('admin/<str:username>/logs/', views.admin_logs, name='admin_logs'),
     path('admin/<str:username>/sync/', trigger_sync, name='trigger_sync'),
     path('api/server-metrics/', views.server_metrics_api, name='server_metrics_api'),

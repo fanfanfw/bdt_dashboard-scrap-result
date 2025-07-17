@@ -710,18 +710,6 @@ def server_metrics_api(request):
             'error': str(e)
         }, status=500)
 
-@login_required
-@group_required('Admin')
-@user_is_owner_or_admin
-def admin_analytics(request, username):
-    """Admin page for analytics"""
-    context = {
-        'username': username,
-        'role': 'Admin',
-        'pending_users_count': get_pending_users_count()
-    }
-    return render(request, 'dashboard/admin_analytics.html', context)
-
 @user_is_owner_or_admin
 def admin_logs(request, username):
     """Admin page for viewing system logs from cronjobs"""

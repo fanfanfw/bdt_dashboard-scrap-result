@@ -10,49 +10,6 @@
   <p class="page-subtitle">View real-time logs from cronjobs and running processes</p>
 </div>
 
-<!-- Running Processes Section -->
-<div class="admin-card mb-4">
-  <div class="card-header">
-    <h2 class="card-title">Running Processes</h2>
-    <div class="card-actions">
-      <button id="refreshProcesses" class="btn-admin btn-primary">
-        <i class="fas fa-sync-alt"></i> Refresh
-      </button>
-    </div>
-  </div>
-  
-  <div class="table-responsive">
-    <table class="table table-hover">
-      <thead>
-        <tr>
-          <th>User</th>
-          <th>PID</th>
-          <th>CPU %</th>
-          <th>Memory %</th>
-          <th>Command</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% if running_processes %}
-          {% for process in running_processes %}
-          <tr>
-            <td>{{ process.user }}</td>
-            <td>{{ process.pid }}</td>
-            <td>{{ process.cpu }}%</td>
-            <td>{{ process.mem }}%</td>
-            <td><code class="small">{{ process.command }}</code></td>
-          </tr>
-          {% endfor %}
-        {% else %}
-          <tr>
-            <td colspan="5" class="text-center">No running scraper processes found</td>
-          </tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
 <!-- Log Files Section -->
 <div class="admin-card">
   <div class="card-header">

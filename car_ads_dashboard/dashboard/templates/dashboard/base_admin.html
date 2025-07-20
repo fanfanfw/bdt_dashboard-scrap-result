@@ -756,52 +756,17 @@
       <div class="nav-section">
         <div class="nav-section-title">User Management</div>
         <div class="nav-item">
-          <a href="{% url 'admin_user_approval' username=username %}" class="nav-link">
-            <i class="fas fa-users"></i>
-            <span>User Approval</span>
+          <a href="{% url 'admin_user_management' username=username %}" class="nav-link">
+            <i class="fas fa-users-cog"></i>
+            <span>User Management</span>
             {% if pending_users_count and pending_users_count > 0 %}
               <span class="nav-badge" id="pending-users-badge">{{ pending_users_count }}</span>
             {% endif %}
           </a>
         </div>
-        {% comment %} <div class="nav-item">
-          <a href="#" class="nav-link">
-            <i class="fas fa-user-shield"></i>
-            <span>Permissions</span>
-          </a>
-        </div> {% endcomment %}
       </div>
-
-      {% comment %} <div class="nav-section">
-        <div class="nav-section-title">Data Management</div>
-        <div class="nav-item">
-          <a href="#" class="nav-link">
-            <i class="fas fa-sync-alt"></i>
-            <span>Data Sync</span>
-          </a>
-        </div>
-        <div class="nav-item">
-          <a href="#" class="nav-link">
-            <i class="fas fa-database"></i>
-            <span>Database</span>
-          </a>
-        </div>
-        <div class="nav-item">
-          <a href="#" class="nav-link">
-            <i class="fas fa-download"></i>
-            <span>Backup</span>
-          </a>
-        </div>
-      </div> {% endcomment %}
-
       <div class="nav-section">
         <div class="nav-section-title">System</div>
-        {% comment %} <div class="nav-item">
-          <a href="#" class="nav-link">
-            <i class="fas fa-cogs"></i>
-            <span>Settings</span>
-          </a>
-        </div> {% endcomment %}
         <div class="nav-item">
           <a href="{% url 'admin_logs' username=username %}" class="nav-link">
             <i class="fas fa-history"></i>

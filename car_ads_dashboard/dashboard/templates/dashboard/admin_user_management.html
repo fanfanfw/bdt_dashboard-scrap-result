@@ -1,0 +1,1044 @@
+{% extends "dashboard/base_admin.html" %}
+{% load humanize %}
+{% block title %}User Management{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+  <div>
+    <h1 class="page-title">
+      <i class="fas fa-users-cog me-2"></i>
+      User Management
+    </h1>
+    <p class="page-subtitle">Manage users, roles, and permissions</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn-admin btn-primary" onclick="showCreateUserModal()">
+      <i class="fas fa-user-plus"></i>
+      Add New User
+    </button>
+  </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="admin-grid grid-4">
+  <div class="admin-card">
+    <div class="card-header">
+      <h4 class="card-title text-primary">
+        <i class="fas fa-users"></i>
+        Total Users
+      </h4>
+    </div>
+    <div class="stat-value">{{ stats.total_users }}</div>
+  </div>
+  
+  <div class="admin-card">
+    <div class="card-header">
+      <h4 class="card-title text-warning">
+        <i class="fas fa-clock"></i>
+        Pending Approval
+      </h4>
+    </div>
+    <div class="stat-value">{{ stats.pending_users }}</div>
+  </div>
+  
+  <div class="admin-card">
+    <div class="card-header">
+      <h4 class="card-title text-success">
+        <i class="fas fa-check-circle"></i>
+        Active Users
+      </h4>
+    </div>
+    <div class="stat-value">{{ stats.approved_users }}</div>
+  </div>
+  
+  <div class="admin-card">
+    <div class="card-header">
+      <h4 class="card-title text-danger">
+        <i class="fas fa-user-slash"></i>
+        Inactive Users
+      </h4>
+    </div>
+    <div class="stat-value">{{ stats.inactive_users }}</div>
+  </div>
+</div>
+
+<!-- Filters and Search -->
+<div class="admin-card">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-filter me-2"></i>
+      Filters & Search
+    </h3>
+  </div>
+  
+  <form method="GET" class="filter-form">
+    <div class="row">
+      <div class="col-md-3">
+        <label for="status" class="form-label">Status</label>
+        <select name="status" id="status" class="form-select">
+          <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Users</option>
+          <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending Approval</option>
+          <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Active Users</option>
+          <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive Users</option>
+          <option value="super_admin" {% if status_filter == 'super_admin' %}selected{% endif %}>Super Admin Users</option>
+          <option value="admin" {% if status_filter == 'admin' %}selected{% endif %}>Admin Users</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label for="search" class="form-label">Search</label>
+        <input type="text" name="search" id="search" class="form-control" 
+               placeholder="Search by username, email, or name..." 
+               value="{{ search_query }}">
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn-admin btn-primary me-2">
+          <i class="fas fa-search"></i>
+          Filter
+        </button>
+        <a href="{% url 'admin_user_management' username=username %}" class="btn-admin btn-secondary">
+          <i class="fas fa-times"></i>
+          Clear
+        </a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Users Table -->
+<div class="admin-card">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-table me-2"></i>
+      Users ({{ page_obj.paginator.count }} total)
+    </h3>
+  </div>
+  
+  <div class="table-responsive">
+    {% if users %}
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Registration Date</th>
+            <th>Last Login</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user_data in user_list %}
+            <tr data-user-id="{{ user_data.user.id }}" data-username="{{ user_data.user.username }}">
+              <td>
+                <div class="d-flex align-items-center">
+                  <div class="user-avatar me-3" style="width: 40px; height: 40px; font-size: 1rem;">
+                    {{ user_data.user.first_name|first|upper|default:user_data.user.username|first|upper }}
+                  </div>
+                  <div>
+                    <strong>{{ user_data.user.username }}</strong>
+                    <br>
+                    <small class="text-muted">{{ user_data.user.first_name }} {{ user_data.user.last_name }}</small>
+                  </div>
+                </div>
+              </td>
+              <td>{{ user_data.user.email }}</td>
+              <td>
+                {% if user_data.profile.is_super_admin %}
+                  <span class="badge bg-danger">Super Admin</span>
+                {% elif user_data.user.groups.all %}
+                  {% for group in user_data.user.groups.all %}
+                    <span class="badge bg-{% if group.name == 'Admin' %}warning{% else %}info{% endif %}">{{ group.name }}</span>
+                  {% endfor %}
+                {% else %}
+                  <span class="badge bg-secondary">No Role</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not user_data.profile.is_approved %}
+                  <span class="status-indicator status-warning">
+                    <i class="fas fa-clock"></i>
+                    Pending Approval
+                  </span>
+                {% elif not user_data.user.is_active %}
+                  <span class="status-indicator status-danger">
+                    <i class="fas fa-times-circle"></i>
+                    Inactive
+                  </span>
+                {% else %}
+                  <span class="status-indicator status-success">
+                    <i class="fas fa-check-circle"></i>
+                    Active
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="text-muted">{{ user_data.user.date_joined|date:"M d, Y" }}</span>
+                <br>
+                <small class="text-muted">{{ user_data.user.date_joined|timesince }} ago</small>
+              </td>
+              <td>
+                {% if user_data.user.last_login %}
+                  <span class="text-muted">{{ user_data.user.last_login|date:"M d, Y" }}</span>
+                  <br>
+                  <small class="text-muted">{{ user_data.user.last_login|timesince }} ago</small>
+                {% else %}
+                  <span class="text-muted">Never</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="btn-group" role="group">
+                  <button class="btn-admin btn-info btn-sm" onclick="viewUserDetails('{{ user_data.user.username }}')">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                  
+                  {% if not user_data.profile.is_approved %}
+                    <button class="btn-admin btn-success btn-sm" onclick="approveUser('{{ user_data.user.username }}')">
+                      <i class="fas fa-check"></i>
+                    </button>
+                  {% endif %}
+                  
+                  {% if user_data.user.username != username %}
+                    {% comment %} Check if current user can manage this target user {% endcomment %}
+                    {% if user_data.can_manage %}
+                      <button class="btn-admin btn-warning btn-sm" onclick="toggleUserStatus('{{ user_data.user.username }}', {{ user_data.user.is_active|yesno:'false,true' }})">
+                        <i class="fas fa-{% if user_data.user.is_active %}pause{% else %}play{% endif %}"></i>
+                      </button>
+                      
+                      <div class="dropdown">
+                        <button class="btn-admin btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                          <i class="fas fa-cog"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                          <li><a class="dropdown-item" href="#" onclick="showEditUserModal('{{ user_data.user.username }}')">
+                            <i class="fas fa-edit"></i> Edit Profile</a></li>
+                          {% if not user_data.profile.is_super_admin or current_user_profile.is_super_admin %}
+                            <li><a class="dropdown-item" href="#" onclick="showResetPasswordModal('{{ user_data.user.username }}')">
+                              <i class="fas fa-key"></i> Reset Password</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="showChangeRoleModal('{{ user_data.user.username }}')">
+                              <i class="fas fa-user-tag"></i> Change Role</a></li>
+                          {% endif %}
+                          <li><hr class="dropdown-divider"></li>
+                          {% if not user_data.profile.is_super_admin or current_user_profile.is_super_admin %}
+                            <li><a class="dropdown-item text-danger" href="#" onclick="showDeleteUserModal('{{ user_data.user.username }}')">
+                              <i class="fas fa-trash"></i> Delete User</a></li>
+                          {% endif %}
+                        </ul>
+                      </div>
+                    {% else %}
+                      <span class="badge bg-warning">Protected</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="badge bg-primary">You</span>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      
+      <!-- Pagination -->
+      {% if page_obj.has_other_pages %}
+        <nav aria-label="User pagination">
+          <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page=1{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">&laquo; First</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Previous</a>
+              </li>
+            {% endif %}
+            
+            <li class="page-item active">
+              <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Next</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Last &raquo;</a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      {% endif %}
+    {% else %}
+      <div class="text-center py-5">
+        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">No Users Found</h5>
+        <p class="text-muted">No users match your search criteria</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Create User Modal -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-user-plus me-2"></i>
+          Create New User
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="createUserForm">
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="newUsername" class="form-label">Username *</label>
+                <input type="text" class="form-control" id="newUsername" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="newEmail" class="form-label">Email *</label>
+                <input type="email" class="form-control" id="newEmail" required>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="newFirstName" class="form-label">First Name *</label>
+                <input type="text" class="form-control" id="newFirstName" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="newLastName" class="form-label">Last Name *</label>
+                <input type="text" class="form-control" id="newLastName" required>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="newPassword" class="form-label">Password *</label>
+                <input type="password" class="form-control" id="newPassword" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="newRole" class="form-label">Role *</label>
+                <select class="form-select" id="newRole" required>
+                  <option value="User">User</option>
+                  <option value="Admin">Admin</option>
+                  {% if current_user_profile.is_super_admin %}
+                    <option value="Super Admin">Super Admin</option>
+                  {% endif %}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-admin btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-admin btn-primary">
+            <i class="fas fa-plus"></i>
+            Create User
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-user-edit me-2"></i>
+          Edit User
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editUserForm">
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="editUsername" class="form-label">Username *</label>
+                <input type="text" class="form-control" id="editUsername" required readonly>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="editEmail" class="form-label">Email *</label>
+                <input type="email" class="form-control" id="editEmail" required>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="editFirstName" class="form-label">First Name *</label>
+                <input type="text" class="form-control" id="editFirstName" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="editLastName" class="form-label">Last Name *</label>
+                <input type="text" class="form-control" id="editLastName" required>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-admin btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-admin btn-primary">
+            <i class="fas fa-save"></i>
+            Update User
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- User Details Modal -->
+<div class="modal fade" id="userDetailsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-user me-2"></i>
+          User Details
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="userDetailsContent">
+        <!-- User details will be loaded here -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-key me-2"></i>
+          Reset Password
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="resetPasswordForm">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="resetUsername" class="form-label">Username</label>
+            <input type="text" class="form-control" id="resetUsername" readonly>
+          </div>
+          <div class="mb-3">
+            <label for="newPasswordReset" class="form-label">New Password *</label>
+            <input type="password" class="form-control" id="newPasswordReset" required>
+          </div>
+          <div class="mb-3">
+            <label for="confirmPasswordReset" class="form-label">Confirm Password *</label>
+            <input type="password" class="form-control" id="confirmPasswordReset" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-admin btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-admin btn-warning">
+            <i class="fas fa-key"></i>
+            Reset Password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Change Role Modal -->
+<div class="modal fade" id="changeRoleModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-user-tag me-2"></i>
+          Change User Role
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="changeRoleForm">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="roleUsername" class="form-label">Username</label>
+            <input type="text" class="form-control" id="roleUsername" readonly>
+          </div>
+          <div class="mb-3">
+            <label for="userRole" class="form-label">New Role *</label>
+            <select class="form-select" id="userRole" required>
+              <option value="User">User</option>
+              <option value="Admin">Admin</option>
+              {% if current_user_profile.is_super_admin %}
+                <option value="Super Admin">Super Admin</option>
+              {% endif %}
+            </select>
+          </div>
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Warning:</strong> Changing user role will affect their access permissions.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-admin btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-admin btn-warning">
+            <i class="fas fa-user-tag"></i>
+            Change Role
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete User Modal -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-trash me-2"></i>
+          Delete User
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="deleteUserForm">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="deleteUsername" class="form-label">Username</label>
+            <input type="text" class="form-control" id="deleteUsername" readonly>
+          </div>
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="permanentDelete">
+              <label class="form-check-label" for="permanentDelete">
+                Permanent deletion (cannot be undone)
+              </label>
+            </div>
+            <small class="text-muted">If unchecked, user will be deactivated and can be restored later.</small>
+          </div>
+          <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Warning:</strong> This action will remove the user from the system.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-admin btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-admin btn-danger">
+            <i class="fas fa-trash"></i>
+            Delete User
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+.page-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.filter-form {
+  background: var(--color-background);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+}
+
+.form-label {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.form-control, .form-select {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  transition: all 0.3s ease;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 0.2rem rgba(52, 73, 94, 0.25);
+}
+
+.btn-group .btn-admin {
+  margin-right: 0.25rem;
+}
+
+.btn-group .btn-admin:last-child {
+  margin-right: 0;
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: 0.35em 0.65em;
+}
+
+.pagination .page-link {
+  color: var(--color-text-secondary);
+  background-color: var(--color-card);
+  border-color: var(--color-border);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  margin: 0 0.25rem;
+}
+
+.pagination .page-item.active .page-link {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.pagination .page-link:hover {
+  color: var(--color-text-primary);
+  background-color: rgba(52, 73, 94, 0.1);
+}
+
+.modal-content {
+  border: none;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px var(--color-shadow);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 20px 20px 0 0;
+}
+
+.modal-footer {
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 20px 20px;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Show create user modal
+function showCreateUserModal() {
+  new bootstrap.Modal(document.getElementById('createUserModal')).show();
+}
+
+// Create user form handler
+document.getElementById('createUserForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const formData = {
+    username: document.getElementById('newUsername').value,
+    email: document.getElementById('newEmail').value,
+    first_name: document.getElementById('newFirstName').value,
+    last_name: document.getElementById('newLastName').value,
+    password: document.getElementById('newPassword').value,
+    role: document.getElementById('newRole').value
+  };
+  
+  fetch(`/dashboard/admin/{{ username }}/users/create/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify(formData)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification(data.message, 'success');
+      bootstrap.Modal.getInstance(document.getElementById('createUserModal')).hide();
+      location.reload();
+    } else {
+      showNotification(data.error, 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showNotification('Network error occurred', 'error');
+  });
+});
+
+// View user details
+function viewUserDetails(username) {
+  fetch(`/dashboard/admin/{{ username }}/users/details/?target_username=${encodeURIComponent(username)}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const user = data.user;
+        const modalContent = document.getElementById('userDetailsContent');
+        modalContent.innerHTML = `
+          <div class="row">
+            <div class="col-md-4 text-center">
+              <div class="user-avatar mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
+                ${user.first_name ? user.first_name.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase()}
+              </div>
+              <h5>${user.username}</h5>
+              <p class="text-muted">${user.first_name} ${user.last_name}</p>
+            </div>
+            <div class="col-md-8">
+              <div class="row mb-3">
+                <div class="col-sm-4"><strong>Username:</strong></div>
+                <div class="col-sm-8">${user.username}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-4"><strong>Email:</strong></div>
+                <div class="col-sm-8">${user.email}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-4"><strong>Full Name:</strong></div>
+                <div class="col-sm-8">${user.first_name} ${user.last_name}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-4"><strong>Registration:</strong></div>
+                <div class="col-sm-8">${user.date_joined}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-4"><strong>Last Login:</strong></div>
+                <div class="col-sm-8">${user.last_login}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-4"><strong>Status:</strong></div>
+                <div class="col-sm-8">
+                  <span class="status-indicator ${user.is_approved && user.is_active ? 'status-success' : user.is_approved ? 'status-danger' : 'status-warning'}">
+                    <i class="fas fa-${user.is_approved && user.is_active ? 'check-circle' : user.is_approved ? 'times-circle' : 'clock'}"></i>
+                    ${user.status_display}
+                  </span>
+                </div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-4"><strong>Approval Date:</strong></div>
+                <div class="col-sm-8">${user.approval_date || 'Not approved yet'}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-4"><strong>Approved By:</strong></div>
+                <div class="col-sm-8">${user.approved_by || 'N/A'}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-4"><strong>Groups:</strong></div>
+                <div class="col-sm-8">${user.groups.join(', ') || 'None'}</div>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        new bootstrap.Modal(document.getElementById('userDetailsModal')).show();
+      } else {
+        showNotification(data.error || 'Failed to load user details', 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showNotification('Network error occurred', 'error');
+    });
+}
+
+// Approve user
+function approveUser(username) {
+  if (confirm(`Are you sure you want to approve user "${username}"?`)) {
+    fetch(`/dashboard/admin/{{ username }}/users/approve/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken()
+      },
+      body: JSON.stringify({ target_username: username })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showNotification(data.message, 'success');
+        location.reload();
+      } else {
+        showNotification(data.error || 'Failed to approve user', 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showNotification('Network error occurred', 'error');
+    });
+  }
+}
+
+// Toggle user status
+function toggleUserStatus(username, newStatus) {
+  const action = newStatus ? 'activate' : 'deactivate';
+  if (confirm(`Are you sure you want to ${action} user "${username}"?`)) {
+    fetch(`/dashboard/admin/{{ username }}/users/toggle-status/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken()
+      },
+      body: JSON.stringify({ target_username: username })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showNotification(data.message, 'success');
+        location.reload();
+      } else {
+        showNotification(data.error || 'Failed to change user status', 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showNotification('Network error occurred', 'error');
+    });
+  }
+}
+
+// Show edit user modal
+function showEditUserModal(username) {
+  // Fetch user details first
+  fetch(`/dashboard/admin/{{ username }}/users/details/?target_username=${encodeURIComponent(username)}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const user = data.user;
+        document.getElementById('editUsername').value = user.username;
+        document.getElementById('editEmail').value = user.email;
+        document.getElementById('editFirstName').value = user.first_name;
+        document.getElementById('editLastName').value = user.last_name;
+        
+        new bootstrap.Modal(document.getElementById('editUserModal')).show();
+      } else {
+        showNotification(data.error || 'Failed to load user details', 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showNotification('Network error occurred', 'error');
+    });
+}
+
+// Edit user form handler
+document.getElementById('editUserForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const formData = {
+    target_username: document.getElementById('editUsername').value,
+    email: document.getElementById('editEmail').value,
+    first_name: document.getElementById('editFirstName').value,
+    last_name: document.getElementById('editLastName').value
+  };
+  
+  fetch(`/dashboard/admin/{{ username }}/users/update/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify(formData)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification(data.message, 'success');
+      bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+      location.reload();
+    } else {
+      showNotification(data.error, 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showNotification('Network error occurred', 'error');
+  });
+});
+
+// Show reset password modal
+function showResetPasswordModal(username) {
+  document.getElementById('resetUsername').value = username;
+  new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
+}
+
+// Reset password form handler
+document.getElementById('resetPasswordForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const newPassword = document.getElementById('newPasswordReset').value;
+  const confirmPassword = document.getElementById('confirmPasswordReset').value;
+  
+  if (newPassword !== confirmPassword) {
+    showNotification('Passwords do not match', 'error');
+    return;
+  }
+  
+  const username = document.getElementById('resetUsername').value;
+  
+  fetch(`/dashboard/admin/{{ username }}/users/reset-password/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({
+      target_username: username,
+      new_password: newPassword
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification(data.message, 'success');
+      bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal')).hide();
+    } else {
+      showNotification(data.error || 'Failed to reset password', 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showNotification('Network error occurred', 'error');
+  });
+});
+
+// Show change role modal
+function showChangeRoleModal(username) {
+  document.getElementById('roleUsername').value = username;
+  new bootstrap.Modal(document.getElementById('changeRoleModal')).show();
+}
+
+// Change role form handler
+document.getElementById('changeRoleForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const username = document.getElementById('roleUsername').value;
+  const role = document.getElementById('userRole').value;
+  
+  fetch(`/dashboard/admin/{{ username }}/users/update-role/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({
+      target_username: username,
+      role: role
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification(data.message, 'success');
+      bootstrap.Modal.getInstance(document.getElementById('changeRoleModal')).hide();
+      location.reload();
+    } else {
+      showNotification(data.error || 'Failed to change role', 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showNotification('Network error occurred', 'error');
+  });
+});
+
+// Show delete user modal
+function showDeleteUserModal(username) {
+  document.getElementById('deleteUsername').value = username;
+  new bootstrap.Modal(document.getElementById('deleteUserModal')).show();
+}
+
+// Delete user form handler
+document.getElementById('deleteUserForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const username = document.getElementById('deleteUsername').value;
+  const permanent = document.getElementById('permanentDelete').checked;
+  
+  const confirmMessage = permanent 
+    ? `Are you sure you want to PERMANENTLY delete user "${username}"? This cannot be undone.`
+    : `Are you sure you want to deactivate user "${username}"? They can be restored later.`;
+  
+  if (confirm(confirmMessage)) {
+    fetch(`/dashboard/admin/{{ username }}/users/delete/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken()
+      },
+      body: JSON.stringify({
+        target_username: username,
+        permanent: permanent
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showNotification(data.message, 'success');
+        bootstrap.Modal.getInstance(document.getElementById('deleteUserModal')).hide();
+        location.reload();
+      } else {
+        showNotification(data.error || 'Failed to delete user', 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showNotification('Network error occurred', 'error');
+    });
+  }
+});
+
+// Helper functions
+function getCsrfToken() {
+  return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+}
+
+function showNotification(message, type) {
+  const notification = document.createElement('div');
+  notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+  notification.style.cssText = 'top: 90px; right: 20px; z-index: 9999; min-width: 300px;';
+  notification.innerHTML = `
+    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    if (notification.parentElement) {
+      notification.remove();
+    }
+  }, 5000);
+}
+
+// Add CSRF token to page
+document.addEventListener('DOMContentLoaded', function() {
+  if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = '{{ csrf_token }}';
+    document.body.appendChild(csrfInput);
+  }
+});
+</script>
+{% endblock %}

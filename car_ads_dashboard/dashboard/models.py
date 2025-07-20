@@ -1,5 +1,103 @@
 from django.db import models
 from django.contrib.postgres.fields import ArrayField
+from django.contrib.auth.models import User
+from django.conf import settings
+
+class UserProfile(models.Model):
+    """
+    Extended User model with approval and additional fields
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    is_approved = models.BooleanField(
+        default=False, 
+        help_text="Designates whether this user has been approved by admin."
+    )
+    created_by_admin = models.BooleanField(
+        default=False,
+        help_text="Designates whether this user was created by admin (auto-approved)."
+    )
+    approval_date = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text="Date when user was approved by admin."
+    )
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_user_profiles',
+        help_text="Admin who approved this user."
+    )
+    
+    def save(self, *args, **kwargs):
+        # Auto-approve if created by admin
+        if self.created_by_admin and not self.is_approved:
+            self.is_approved = True
+            if not self.approval_date:
+                from django.utils import timezone
+                self.approval_date = timezone.now()
+        
+        super().save(*args, **kwargs)
+    
+    def can_login(self):
+        """Check if user can login (must be both approved and active)"""
+        return self.is_approved and self.user.is_active
+    
+    @property
+    def status_display(self):
+        """Get human-readable status"""
+        if not self.is_approved:
+            return "Pending Approval"
+        elif not self.user.is_active:
+            return "Inactive"
+        else:
+            return "Active"
+    
+    @property
+    def role_display(self):
+        """Get user role display"""
+        if self.user.groups.filter(name='Super Admin').exists():
+            return "Super Admin"
+        elif self.user.groups.filter(name='Admin').exists():
+            return "Admin"
+        elif self.user.groups.filter(name='User').exists():
+            return "User"
+        else:
+            return "No Role"
+    
+    @property
+    def is_super_admin(self):
+        """Check if user is super admin"""
+        return self.user.groups.filter(name='Super Admin').exists()
+    
+    @property
+    def is_admin(self):
+        """Check if user is admin or super admin"""
+        return self.user.groups.filter(name__in=['Admin', 'Super Admin']).exists()
+    
+    def can_manage_user(self, target_user):
+        """Check if this user can manage target user"""
+        # Get target user's profile
+        if hasattr(target_user, 'profile'):
+            target_profile = target_user.profile
+        else:
+            # Create profile if it doesn't exist
+            target_profile, created = UserProfile.objects.get_or_create(user=target_user)
+        
+        # Super Admin can manage everyone except themselves for dangerous operations
+        if self.is_super_admin:
+            return True
+        
+        # Admin can only manage regular users, not other admins or super admins
+        if self.is_admin and not self.is_super_admin:
+            return not target_profile.is_admin and not target_profile.is_super_admin
+        
+        # Regular users can't manage anyone
+        return False
+    
+    def __str__(self):
+        return f"{self.user.username} Profile"
 
 class CarsStandard(models.Model):
     brand_norm = models.CharField(max_length=100, blank=True, null=True)
@@ -121,3 +219,36 @@ class LocationStandard(models.Model):
 
     def __str__(self):
         return f"{self.town}, {self.district}, {self.states}"
+
+class SyncStatus(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('success', 'Success'),
+        ('failure', 'Failure'),
+    ]
+    
+    task_id = models.CharField(max_length=255, unique=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    message = models.TextField(blank=True, null=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+    progress_percentage = models.IntegerField(default=0)
+    current_step = models.CharField(max_length=255, blank=True, null=True)
+    total_steps = models.IntegerField(default=1)
+    
+    class Meta:
+        ordering = ['-started_at']
+    
+    def __str__(self):
+        return f"Sync {self.task_id} - {self.status}"
+    
+    @classmethod
+    def get_latest_sync(cls):
+        """Get the latest sync status"""
+        return cls.objects.first()
+    
+    @classmethod
+    def is_sync_running(cls):
+        """Check if there's currently a sync running"""
+        return cls.objects.filter(status='in_progress').exists()

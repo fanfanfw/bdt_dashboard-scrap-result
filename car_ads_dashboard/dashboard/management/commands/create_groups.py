@@ -3,10 +3,10 @@ from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 
 class Command(BaseCommand):
-    help = 'Create default groups Admin and User'
+    help = 'Create default groups Super Admin, Admin and User'
 
     def handle(self, *args, **kwargs):
-        groups = ['Admin', 'User']
+        groups = ['Super Admin', 'Admin', 'User']
         for group_name in groups:
             group, created = Group.objects.get_or_create(name=group_name)
             if created:

@@ -80,8 +80,8 @@
       <small class="text-muted d-block mb-3" id="last-sync-time">--</small>
       <form id="sync-form" class="d-inline">
         {% csrf_token %}
-        <button type="submit" class="btn-admin btn-success">
-          <i class="fas fa-sync-alt"></i>
+        <button type="submit" id="sync-button" class="btn-admin btn-success">
+          <i class="fas fa-sync-alt me-2"></i>
           Sync Now
         </button>
       </form>
@@ -248,11 +248,35 @@
       Synchronization Status
     </h3>
   </div>
-  <div class="text-center">
-    <div class="spinner-border text-primary mb-3" role="status">
-      <span class="visually-hidden">Loading...</span>
+  <div class="card-body">
+    <div class="text-center mb-4">
+      <div class="spinner-border text-primary mb-3" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="text-muted mb-3" id="sync-detailed-status">Synchronization in progress...</p>
     </div>
-    <p class="text-muted" id="sync-detailed-status">Synchronization in progress...</p>
+    
+    <!-- Progress Bar -->
+    <div class="mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="text-sm text-muted">Progress</span>
+        <span class="text-sm text-muted" id="sync-progress-text">0%</span>
+      </div>
+      <div class="progress" style="height: 8px;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+             role="progressbar" 
+             style="width: 0%;" 
+             aria-valuenow="0" 
+             aria-valuemin="0" 
+             aria-valuemax="100">
+        </div>
+      </div>
+    </div>
+    
+    <!-- Current Step -->
+    <div class="text-center">
+      <small class="text-muted" id="sync-step-text">Initializing...</small>
+    </div>
   </div>
 </div>
 
@@ -293,6 +317,18 @@
   transform: translateY(-4px) scale(1.02);
 }
 
+/* Sync button styling */
+.btn-admin:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.btn-admin:disabled:hover {
+  transform: none !important;
+  border-color: transparent !important;
+}
+
 /* Chart containers */
 canvas {
   width: 100% !important;
@@ -318,12 +354,213 @@ const socket = new WebSocket(ws_scheme + window.location.host + '/ws/sync_notify
 
 socket.onmessage = function(e) {
     const data = JSON.parse(e.data);
-    updateSyncStatus(data.detail);
+    handleSyncStatusUpdate(data);
 };
 
 socket.onerror = function(e) {
     console.error('WebSocket error:', e);
 };
+
+socket.onopen = function(e) {
+    console.log('WebSocket connected');
+    // Check current sync status when WebSocket connects
+    checkCurrentSyncStatus();
+};
+
+// Function to handle sync status updates from WebSocket
+function handleSyncStatusUpdate(data) {
+    const statusIndicator = document.getElementById('sync-status-indicator');
+    const statusText = document.getElementById('sync-status-text');
+    const syncDisplay = document.getElementById('sync-status-display');
+    const detailedStatus = document.getElementById('sync-detailed-status');
+    const lastSyncTimeElement = document.getElementById('last-sync-time');
+    const syncButton = document.getElementById('sync-button');
+    
+    if (detailedStatus) {
+        detailedStatus.textContent = data.detail || data.message || 'Processing...';
+    }
+    
+    // Update UI based on status
+    if (data.status === 'in_progress') {
+        if (statusIndicator) {
+            statusIndicator.className = 'status-indicator status-warning';
+            statusIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>In Progress</span>';
+        }
+        if (statusText) statusText.textContent = 'In Progress';
+        if (syncDisplay) syncDisplay.style.display = 'block';
+        
+        // Disable sync button during sync
+        if (syncButton) {
+            syncButton.disabled = true;
+            syncButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Syncing...';
+            syncButton.classList.add('btn-secondary');
+            syncButton.classList.remove('btn-success');
+        }
+        
+        // Update progress if provided
+        if (data.progress !== undefined) {
+            updateSyncProgress(data.progress, data.current_step);
+        }
+        
+    } else if (data.status === 'success') {
+        if (statusIndicator) {
+            statusIndicator.className = 'status-indicator status-success';
+            statusIndicator.innerHTML = '<i class="fas fa-check-circle"></i><span>Completed</span>';
+        }
+        if (statusText) statusText.textContent = 'Completed';
+        if (syncDisplay) syncDisplay.style.display = 'none';
+        
+        // Re-enable sync button
+        if (syncButton) {
+            syncButton.disabled = false;
+            syncButton.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Sync Now';
+            syncButton.classList.remove('btn-secondary');
+            syncButton.classList.add('btn-success');
+        }
+        
+        // Update the last sync time
+        const now = new Date();
+        localStorage.setItem('lastSyncTime', now.getTime());
+        if (lastSyncTimeElement) lastSyncTimeElement.textContent = "Just now";
+        
+        showNotification('Synchronization completed successfully!', 'success');
+        
+    } else if (data.status === 'failure') {
+        if (statusIndicator) {
+            statusIndicator.className = 'status-indicator status-danger';
+            statusIndicator.innerHTML = '<i class="fas fa-times-circle"></i><span>Failed</span>';
+        }
+        if (statusText) statusText.textContent = 'Failed';
+        if (syncDisplay) syncDisplay.style.display = 'none';
+        
+        // Re-enable sync button
+        if (syncButton) {
+            syncButton.disabled = false;
+            syncButton.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Sync Now';
+            syncButton.classList.remove('btn-secondary');
+            syncButton.classList.add('btn-success');
+        }
+        
+        showNotification('Synchronization failed. Please try again.', 'error');
+    }
+}
+
+// Function to update sync progress
+function updateSyncProgress(progress, currentStep) {
+    const progressBar = document.querySelector('#sync-status-display .progress-bar');
+    const progressText = document.getElementById('sync-progress-text');
+    const stepText = document.getElementById('sync-step-text');
+    
+    if (progressBar) {
+        progressBar.style.width = progress + '%';
+        progressBar.setAttribute('aria-valuenow', progress);
+    }
+    
+    if (progressText) {
+        progressText.textContent = progress + '%';
+    }
+    
+    if (stepText && currentStep) {
+        stepText.textContent = currentStep;
+    }
+}
+
+// Function to check current sync status from server
+function checkCurrentSyncStatus() {
+    fetch(`{% url 'get_sync_status' username=username %}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.sync_status) {
+            const syncStatus = data.sync_status;
+            const syncButton = document.getElementById('sync-button');
+            
+            // Update UI based on current status
+            if (syncStatus.status === 'in_progress') {
+                handleSyncStatusUpdate({
+                    status: 'in_progress',
+                    detail: syncStatus.message || 'Synchronization in progress...',
+                    progress: syncStatus.progress || 0,
+                    current_step: syncStatus.current_step
+                });
+            } else if (syncStatus.status === 'success') {
+                const statusIndicator = document.getElementById('sync-status-indicator');
+                const statusText = document.getElementById('sync-status-text');
+                
+                if (statusIndicator) {
+                    statusIndicator.className = 'status-indicator status-success';
+                    statusIndicator.innerHTML = '<i class="fas fa-check-circle"></i><span>Completed</span>';
+                }
+                if (statusText) statusText.textContent = 'Completed';
+                
+                // Ensure sync button is enabled for completed status
+                if (syncButton) {
+                    syncButton.disabled = false;
+                    syncButton.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Sync Now';
+                    syncButton.classList.remove('btn-secondary');
+                    syncButton.classList.add('btn-success');
+                }
+                
+                // Update last sync time based on completed_at
+                if (syncStatus.completed_at) {
+                    updateLastSyncTime(syncStatus.completed_at);
+                }
+            } else if (syncStatus.status === 'failure') {
+                const statusIndicator = document.getElementById('sync-status-indicator');
+                const statusText = document.getElementById('sync-status-text');
+                
+                if (statusIndicator) {
+                    statusIndicator.className = 'status-indicator status-danger';
+                    statusIndicator.innerHTML = '<i class="fas fa-times-circle"></i><span>Failed</span>';
+                }
+                if (statusText) statusText.textContent = 'Failed';
+                
+                // Ensure sync button is enabled for failed status
+                if (syncButton) {
+                    syncButton.disabled = false;
+                    syncButton.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Sync Now';
+                    syncButton.classList.remove('btn-secondary');
+                    syncButton.classList.add('btn-success');
+                }
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error checking sync status:', error);
+    });
+}
+
+// Function to update last sync time display
+function updateLastSyncTime(completedAtISO) {
+    const lastSyncTimeElement = document.getElementById('last-sync-time');
+    if (!lastSyncTimeElement || !completedAtISO) return;
+    
+    const completedAt = new Date(completedAtISO);
+    const now = new Date();
+    const diffMs = now - completedAt;
+    const diffMins = Math.round(diffMs / 60000);
+    
+    let timeText;
+    if (diffMins < 1) {
+        timeText = "Just now";
+    } else if (diffMins === 1) {
+        timeText = "1 minute ago";
+    } else if (diffMins < 60) {
+        timeText = `${diffMins} minutes ago`;
+    } else if (diffMins < 120) {
+        timeText = "1 hour ago";
+    } else {
+        const diffHours = Math.floor(diffMins / 60);
+        timeText = `${diffHours} hours ago`;
+    }
+    
+    lastSyncTimeElement.textContent = timeText;
+}
 
 // Helper function to get CSRF token
 function getCookie(name) {
@@ -534,15 +771,30 @@ function initializeCharts() {
 document.getElementById('sync-form').addEventListener('submit', function(event) {
     event.preventDefault();
     
-    // Update UI
+    // Update UI to show sync starting
     const statusIndicator = document.getElementById('sync-status-indicator');
     const statusText = document.getElementById('sync-status-text');
     const syncDisplay = document.getElementById('sync-status-display');
+    const syncButton = document.getElementById('sync-button');
+    
+    // Disable sync button immediately to prevent multiple clicks
+    if (syncButton) {
+        syncButton.disabled = true;
+        syncButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting...';
+        syncButton.classList.add('btn-secondary');
+        syncButton.classList.remove('btn-success');
+    }
     
     statusIndicator.className = 'status-indicator status-warning';
-    statusIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>In Progress</span>';
-    statusText.textContent = 'In Progress';
+    statusIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Starting</span>';
+    statusText.textContent = 'Starting';
     syncDisplay.style.display = 'block';
+    
+    // Update sync display
+    const detailedStatus = document.getElementById('sync-detailed-status');
+    if (detailedStatus) {
+        detailedStatus.textContent = 'Initializing synchronization...';
+    }
 
     fetch("{% url 'trigger_sync' username=username %}", {
         method: "POST",
@@ -554,19 +806,65 @@ document.getElementById('sync-form').addEventListener('submit', function(event) 
         body: JSON.stringify({})
     })
     .then(response => {
-        if (!response.ok) throw new Error('Request failed with status ' + response.status);
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.message || 'Request failed with status ' + response.status);
+            });
+        }
         return response.json();
     })
     .then(data => {
         console.log('Synchronization started:', data);
-        // Status will be updated via WebSocket
+        
+        if (data.status === 'already_running') {
+            // If sync is already running, update UI accordingly
+            statusIndicator.className = 'status-indicator status-warning';
+            statusIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>In Progress</span>';
+            statusText.textContent = 'In Progress';
+            if (detailedStatus) {
+                detailedStatus.textContent = data.message;
+            }
+            
+            // Keep button disabled since sync is already running
+            if (syncButton) {
+                syncButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Syncing...';
+            }
+            
+            showNotification(data.message, 'warning');
+        } else {
+            // Sync started successfully - status will be updated via WebSocket
+            if (detailedStatus) {
+                detailedStatus.textContent = 'Synchronization started successfully...';
+            }
+            
+            // Update button to show syncing state
+            if (syncButton) {
+                syncButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Syncing...';
+            }
+        }
     })
     .catch(error => {
-        updateSyncStatus('❌ Synchronization failed: ' + error.message);
+        console.error('Sync request failed:', error);
+        
+        // Update UI to show error
         statusIndicator.className = 'status-indicator status-danger';
         statusIndicator.innerHTML = '<i class="fas fa-times-circle"></i><span>Failed</span>';
         statusText.textContent = 'Failed';
         syncDisplay.style.display = 'none';
+        
+        if (detailedStatus) {
+            detailedStatus.textContent = 'Failed to start synchronization: ' + error.message;
+        }
+        
+        showNotification('Failed to start synchronization: ' + error.message, 'error');
+        
+        // Re-enable sync button on error
+        if (syncButton) {
+            syncButton.disabled = false;
+            syncButton.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Sync Now';
+            syncButton.classList.remove('btn-secondary');
+            syncButton.classList.add('btn-success');
+        }
     });
 });
 
@@ -776,50 +1074,3 @@ function viewLogs() {
 }
 </script>
 {% endblock %}
-
-<script>
-// Setup WebSocket untuk notifikasi
-const ws_scheme = window.location.protocol === "https:" ? "wss://" : "ws://";
-const socket = new WebSocket(ws_scheme + window.location.host + '/ws/sync_notify/');
-
-socket.onmessage = function(e) {
-    const data = JSON.parse(e.data);
-    document.getElementById('sync-status').innerText = data.detail;
-    alert(data.detail);
-};
-
-socket.onerror = function(e) {
-    console.error('WebSocket error:', e);
-};
-
-// Submit form via AJAX fetch, jangan reload page
-document.getElementById('sync-form').addEventListener('submit', function(event) {
-    event.preventDefault();
-    document.getElementById('sync-status').innerText = '⏳ Sinkronisasi sedang berjalan...';
-
-    fetch("{% url 'trigger_sync' username=username %}", {
-        method: "POST",
-        headers: {
-            "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({})
-    })
-    .then(response => {
-        if (!response.ok) throw new Error('Request gagal dengan status ' + response.status);
-        return response.json();
-    })
-    .then(data => {
-        // Bisa update status di sini juga jika perlu
-        console.log('Sinkronisasi dimulai:', data);
-    })
-    .catch(error => {
-        document.getElementById('sync-status').innerText = '❌ Sinkronisasi gagal: ' + error.message;
-        alert('Sinkronisasi gagal: ' + error.message);
-    });
-});
-</script>
-
-</body>
-</html>

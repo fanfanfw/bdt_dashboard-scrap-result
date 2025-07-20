@@ -15,7 +15,15 @@
 </div>
 
 <!-- Pending Users Table -->
-<div class="admin-card">
+<d                <div class="row mb-3">
+                  <div class="col-sm-4"><strong>Status:</strong></div>
+                  <div class="col-sm-8">
+                    <span class="status-indicator ${user.is_approved && user.is_active ? 'status-success' : user.is_approved ? 'status-danger' : 'status-warning'}">
+                      <i class="fas fa-${user.is_approved && user.is_active ? 'check-circle' : user.is_approved ? 'times-circle' : 'clock'}"></i>
+                      ${user.status_display}
+                    </span>
+                  </div>
+                </div>"admin-card">
   <div class="card-header">
     <h3 class="card-title">
       <i class="fas fa-clock me-2"></i>
@@ -75,10 +83,22 @@
                 </span>
               </td>
               <td>
-                <span class="status-indicator status-warning">
-                  <i class="fas fa-clock"></i>
-                  Pending
-                </span>
+                {% if not user.is_approved %}
+                  <span class="status-indicator status-warning">
+                    <i class="fas fa-clock"></i>
+                    Pending Approval
+                  </span>
+                {% elif not user.is_active %}
+                  <span class="status-indicator status-danger">
+                    <i class="fas fa-times-circle"></i>
+                    Inactive
+                  </span>
+                {% else %}
+                  <span class="status-indicator status-success">
+                    <i class="fas fa-check-circle"></i>
+                    Active
+                  </span>
+                {% endif %}
               </td>
               <td>
                 <div class="btn-group" role="group">

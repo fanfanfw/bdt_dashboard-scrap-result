@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .views import trigger_sync
+from .views import trigger_sync, get_sync_status
 
 urlpatterns = [
     path('register/', views.register_user, name='register_user'),
@@ -8,16 +8,25 @@ urlpatterns = [
     path('user/<str:username>/', views.user_dashboard, name='user_dashboard'),
     path('listing/<str:username>/', views.user_dataListing, name='user_dataListing'),
     path('admin/<str:username>/', views.admin_dashboard, name='admin_dashboard'),
-    path('admin/<str:username>/users/', views.admin_user_approval, name='admin_user_approval'),
+    path('admin/<str:username>/users/', views.admin_user_management, name='admin_user_management'),
+    path('admin/<str:username>/users/approval/', views.admin_user_approval, name='admin_user_approval'),
     path('admin/<str:username>/users/approve/', views.approve_user, name='approve_user'),
     path('admin/<str:username>/users/reject/', views.reject_user, name='reject_user'),
     path('admin/<str:username>/users/approve-all/', views.approve_all_users, name='approve_all_users'),
     path('admin/<str:username>/users/details/', views.get_user_details, name='get_user_details'),
+    path('admin/<str:username>/users/create/', views.create_user, name='create_user'),
+    path('admin/<str:username>/users/update/', views.update_user, name='update_user'),
+    path('admin/<str:username>/users/toggle-status/', views.toggle_user_status, name='toggle_user_status'),
+    path('admin/<str:username>/users/delete/', views.delete_user, name='delete_user'),
+    path('admin/<str:username>/users/reset-password/', views.reset_user_password, name='reset_user_password'),
+    path('admin/<str:username>/users/update-role/', views.update_user_role, name='update_user_role'),
+    path('admin/<str:username>/users/change-role/', views.change_user_role, name='change_user_role'),
     path('admin/<str:username>/stats/', views.admin_dashboard_stats, name='admin_dashboard_stats'),
     path('admin/<str:username>/server/', views.admin_server_monitor, name='admin_server_monitor'),
     path('admin/<str:username>/logs/', views.admin_logs, name='admin_logs'),
     path('admin/<str:username>/profile/', views.admin_profile, name='admin_profile'),
     path('admin/<str:username>/sync/', trigger_sync, name='trigger_sync'),
+    path('admin/<str:username>/sync-status/', get_sync_status, name='get_sync_status'),
     path('api/server-metrics/', views.server_metrics_api, name='server_metrics_api'),
     path('get-models/', views.get_models, name='get_models'),
     path('get-variants/', views.get_variants, name='get_variants'),

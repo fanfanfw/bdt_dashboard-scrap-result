@@ -8,7 +8,7 @@ from .tasks import sync_data_task
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
-from .models import CarsMudahmy, CarsCarlistmy, PriceHistoryMudahmy, PriceHistoryCarlistmy
+from .models import CarsMudahmy, CarsCarlistmy, PriceHistoryMudahmy, PriceHistoryCarlistmy, UserProfile
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
@@ -28,7 +28,7 @@ import shutil
 # Helper function to get pending users count for sidebar badge
 def get_pending_users_count():
     """Get count of users pending approval for sidebar badge"""
-    return User.objects.filter(is_active=False).count()
+    return UserProfile.objects.filter(is_approved=False).count()
 
 # Custom Registration Form
 class CustomUserCreationForm(UserCreationForm):
@@ -45,9 +45,14 @@ class CustomUserCreationForm(UserCreationForm):
         user.email = self.cleaned_data["email"]
         user.first_name = self.cleaned_data["first_name"]
         user.last_name = self.cleaned_data["last_name"]
-        user.is_active = False  # User needs admin approval
+        user.is_active = True  # Account is active but needs approval
         if commit:
             user.save()
+            # Create UserProfile for approval tracking
+            UserProfile.objects.create(
+                user=user,
+                is_approved=False  # User needs admin approval
+            )
         return user
 
 class CustomLoginView(LoginView):
@@ -61,22 +66,56 @@ class CustomLoginView(LoginView):
     
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            if request.user.groups.filter(name='Admin').exists():
-                return redirect('admin_dashboard', username=request.user.username)
-            elif request.user.groups.filter(name='User').exists():
-                return redirect('user_dashboard', username=request.user.username)
-            else:
+            # Check user profile and approval status
+            try:
+                profile, created = UserProfile.objects.get_or_create(user=request.user)
+                
+                # Check if user is approved
+                if not profile.is_approved:
+                    # User not approved, logout and show message
+                    from django.contrib.auth import logout
+                    logout(request)
+                    return redirect('login')
+                
+                # Route based on user groups
+                if request.user.groups.filter(name='Super Admin').exists():
+                    return redirect('admin_dashboard', username=request.user.username)
+                elif request.user.groups.filter(name='Admin').exists():
+                    return redirect('admin_dashboard', username=request.user.username)
+                elif request.user.groups.filter(name='User').exists():
+                    return redirect('user_dashboard', username=request.user.username)
+                else:
+                    # User has no groups, logout and redirect to login
+                    from django.contrib.auth import logout
+                    logout(request)
+                    return redirect('login')
+            except Exception as e:
+                # Handle any exceptions by logging out user
+                from django.contrib.auth import logout
+                logout(request)
                 return redirect('login')
         return super().dispatch(request, *args, **kwargs)
 
     def get_success_url(self):
         user = self.request.user
-        if user.groups.filter(name='Admin').exists():
-            return reverse('admin_dashboard', kwargs={'username': user.username})
-        elif user.groups.filter(name='User').exists():
-            return reverse('user_dashboard', kwargs={'username': user.username})
-        else:
-            return super().get_success_url()
+        try:
+            profile, created = UserProfile.objects.get_or_create(user=user)
+            
+            # Check if user is approved
+            if not profile.is_approved:
+                return reverse('login')
+            
+            # Route based on user groups
+            if user.groups.filter(name='Super Admin').exists():
+                return reverse('admin_dashboard', kwargs={'username': user.username})
+            elif user.groups.filter(name='Admin').exists():
+                return reverse('admin_dashboard', kwargs={'username': user.username})
+            elif user.groups.filter(name='User').exists():
+                return reverse('user_dashboard', kwargs={'username': user.username})
+            else:
+                return reverse('login')
+        except Exception as e:
+            return reverse('login')
 
 # Registration View
 @require_POST
@@ -385,15 +424,25 @@ def user_dashboard_data(request, username):
 def admin_dashboard(request, username):
     # Get user statistics
     total_users = User.objects.count()
-    pending_users_count = User.objects.filter(is_active=False).count()
-    active_users_count = User.objects.filter(is_active=True).count()
+    pending_users_count = UserProfile.objects.filter(is_approved=False).count()
+    
+    # Get approved and active users
+    approved_profiles = UserProfile.objects.filter(is_approved=True)
+    active_users_count = approved_profiles.filter(user__is_active=True).count()
+    inactive_users_count = approved_profiles.filter(user__is_active=False).count()
     
     # Get admin and regular user counts
     try:
         admin_group = Group.objects.get(name='Admin')
         user_group = Group.objects.get(name='User')
-        admin_users_count = admin_group.user_set.filter(is_active=True).count()
-        regular_users_count = user_group.user_set.filter(is_active=True).count()
+        admin_users_count = admin_group.user_set.filter(
+            is_active=True,
+            profile__is_approved=True
+        ).count()
+        regular_users_count = user_group.user_set.filter(
+            is_active=True,
+            profile__is_approved=True
+        ).count()
     except Group.DoesNotExist:
         admin_users_count = 0
         regular_users_count = 0
@@ -410,6 +459,7 @@ def admin_dashboard(request, username):
         'total_users': total_users,
         'pending_users_count': pending_users_count,
         'active_users_count': active_users_count,
+        'inactive_users_count': inactive_users_count,
         'admin_users_count': admin_users_count,
         'regular_users_count': regular_users_count,
         'recent_registrations': recent_registrations,
@@ -421,22 +471,24 @@ def admin_dashboard(request, username):
 @user_is_owner_or_admin
 def admin_user_approval(request, username):
     """Admin page for user approval management"""
-    # Get pending users (inactive users)
-    pending_users = User.objects.filter(is_active=False).order_by('-date_joined')
+    # Get pending users (not approved yet)
+    pending_profiles = UserProfile.objects.filter(is_approved=False).select_related('user').order_by('-user__date_joined')
+    pending_users = [profile.user for profile in pending_profiles]
     
     # Get recently approved users
     user_group = Group.objects.get(name='User')
-    approved_users = User.objects.filter(
-        is_active=True, 
-        groups=user_group
-    ).order_by('-date_joined')[:10]
+    approved_profiles = UserProfile.objects.filter(
+        is_approved=True,
+        user__groups=user_group
+    ).select_related('user').order_by('-approval_date')[:10]
+    approved_users = [profile.user for profile in approved_profiles]
     
     context = {
         'username': username,
         'role': 'Admin',
         'pending_users': pending_users,
         'approved_users': approved_users,
-        'pending_count': pending_users.count()
+        'pending_count': len(pending_users)
     }
     return render(request, 'dashboard/admin_user_approval.html', context)
 
@@ -453,11 +505,18 @@ def approve_user(request, username):
         if not target_username:
             return JsonResponse({'success': False, 'error': 'Username required'})
         
-        user_to_approve = User.objects.get(username=target_username, is_active=False)
+        user_to_approve = User.objects.get(username=target_username)
+        profile, created = UserProfile.objects.get_or_create(user=user_to_approve)
         
-        # Activate user
-        user_to_approve.is_active = True
-        user_to_approve.save()
+        if profile.is_approved:
+            return JsonResponse({'success': False, 'error': 'User is already approved'})
+        
+        # Approve user
+        profile.is_approved = True
+        profile.approved_by = request.user
+        from django.utils import timezone
+        profile.approval_date = timezone.now()
+        profile.save()
         
         # Add to User group
         user_group, created = Group.objects.get_or_create(name='User')
@@ -486,10 +545,14 @@ def reject_user(request, username):
         if not target_username:
             return JsonResponse({'success': False, 'error': 'Username required'})
         
-        user_to_reject = User.objects.get(username=target_username, is_active=False)
+        user_to_reject = User.objects.get(username=target_username)
+        profile = UserProfile.objects.filter(user=user_to_reject, is_approved=False).first()
+        
+        if not profile:
+            return JsonResponse({'success': False, 'error': 'User not found or already processed'})
         
         # Delete the user completely
-        user_to_reject.delete()
+        user_to_reject.delete()  # This will also delete the profile due to CASCADE
         
         return JsonResponse({
             'success': True, 
@@ -508,14 +571,17 @@ def reject_user(request, username):
 @csrf_exempt
 def approve_all_users(request, username):
     try:
-        pending_users = User.objects.filter(is_active=False)
+        pending_profiles = UserProfile.objects.filter(is_approved=False).select_related('user')
         user_group, created = Group.objects.get_or_create(name='User')
         
         approved_count = 0
-        for user in pending_users:
-            user.is_active = True
-            user.save()
-            user.groups.add(user_group)
+        from django.utils import timezone
+        for profile in pending_profiles:
+            profile.is_approved = True
+            profile.approved_by = request.user
+            profile.approval_date = timezone.now()
+            profile.save()
+            profile.user.groups.add(user_group)
             approved_count += 1
         
         return JsonResponse({
@@ -538,6 +604,7 @@ def get_user_details(request, username):
             return JsonResponse({'success': False, 'error': 'Username required'})
         
         user = User.objects.get(username=target_username)
+        profile, created = UserProfile.objects.get_or_create(user=user)
         
         # Get user's last login IP and user agent (if you have middleware to track this)
         # For now, we'll use placeholder data
@@ -548,6 +615,10 @@ def get_user_details(request, username):
             'last_name': user.last_name,
             'date_joined': user.date_joined.strftime('%Y-%m-%d %H:%M:%S'),
             'is_active': user.is_active,
+            'is_approved': profile.is_approved,
+            'approval_date': profile.approval_date.strftime('%Y-%m-%d %H:%M:%S') if profile.approval_date else None,
+            'approved_by': profile.approved_by.username if profile.approved_by else None,
+            'status_display': profile.status_display,
             'last_login': user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else 'Never',
             'groups': [group.name for group in user.groups.all()],
             # Placeholder data - you can extend this with real tracking
@@ -562,6 +633,72 @@ def get_user_details(request, username):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+# Change user role endpoint
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def change_user_role(request, username):
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        new_role = data.get('role')
+        
+        if not target_username or not new_role:
+            return JsonResponse({'success': False, 'error': 'Username and role required'})
+        
+        target_user = User.objects.get(username=target_username)
+        target_profile = UserProfile.objects.get(user=target_user)
+        current_user_profile = UserProfile.objects.get(user=request.user)
+        
+        # Security checks
+        # 1. Cannot manage self
+        if target_user == request.user:
+            return JsonResponse({'success': False, 'error': 'Cannot change your own role'})
+        
+        # 2. Only Super Admin can create/modify Super Admin
+        if new_role == 'Super Admin' and not current_user_profile.is_super_admin:
+            return JsonResponse({'success': False, 'error': 'Only Super Admin can assign Super Admin role'})
+        
+        # 3. Admin cannot manage other Admins or Super Admins
+        if current_user_profile.is_admin and not current_user_profile.is_super_admin:
+            if target_profile.is_admin or target_profile.is_super_admin:
+                return JsonResponse({'success': False, 'error': 'Admin users cannot manage other Admin or Super Admin users'})
+        
+        # Clear all existing groups
+        target_user.groups.clear()
+        
+        # Set new role
+        if new_role == 'Super Admin':
+            super_admin_group, _ = Group.objects.get_or_create(name='Super Admin')
+            target_user.groups.add(super_admin_group)
+            target_user.is_staff = True
+            target_user.is_superuser = True
+        elif new_role == 'Admin':
+            admin_group, _ = Group.objects.get_or_create(name='Admin')
+            target_user.groups.add(admin_group)
+            target_user.is_staff = True
+            target_user.is_superuser = False
+        else:  # User
+            user_group, _ = Group.objects.get_or_create(name='User')
+            target_user.groups.add(user_group)
+            target_user.is_staff = False
+            target_user.is_superuser = False
+        
+        target_user.save()
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'{target_username} role changed to {new_role} successfully'
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User profile not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
 # Get dashboard stats for admin
 @login_required
 @group_required('Admin')
@@ -570,15 +707,25 @@ def admin_dashboard_stats(request, username):
     try:
         # Get user statistics
         total_users = User.objects.count()
-        pending_users_count = User.objects.filter(is_active=False).count()
-        active_users_count = User.objects.filter(is_active=True).count()
+        pending_users_count = UserProfile.objects.filter(is_approved=False).count()
+        
+        # Get approved and active users
+        approved_profiles = UserProfile.objects.filter(is_approved=True)
+        active_users_count = approved_profiles.filter(user__is_active=True).count()
+        inactive_users_count = approved_profiles.filter(user__is_active=False).count()
         
         # Get admin and regular user counts
         try:
             admin_group = Group.objects.get(name='Admin')
             user_group = Group.objects.get(name='User')
-            admin_users_count = admin_group.user_set.filter(is_active=True).count()
-            regular_users_count = user_group.user_set.filter(is_active=True).count()
+            admin_users_count = admin_group.user_set.filter(
+                is_active=True,
+                profile__is_approved=True
+            ).count()
+            regular_users_count = user_group.user_set.filter(
+                is_active=True,
+                profile__is_approved=True
+            ).count()
         except Group.DoesNotExist:
             admin_users_count = 0
             regular_users_count = 0
@@ -837,11 +984,63 @@ def admin_logs(request, username):
 def trigger_sync(request, username):
     if request.method == 'POST':
         try:
-            sync_data_task.delay()
-            return JsonResponse({'status': 'started', 'message': 'Sinkronisasi dimulai'})
+            from .models import SyncStatus
+            
+            # Check if there's already a sync running
+            if SyncStatus.is_sync_running():
+                return JsonResponse({
+                    'status': 'already_running', 
+                    'message': 'Sinkronisasi sedang berjalan. Mohon tunggu hingga selesai.'
+                }, status=409)
+            
+            # Start new sync task
+            task = sync_data_task.delay()
+            
+            return JsonResponse({
+                'status': 'started', 
+                'message': 'Sinkronisasi dimulai',
+                'task_id': task.id
+            })
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     return JsonResponse({'status': 'method not allowed'}, status=405)
+
+@staff_member_required
+@require_GET
+def get_sync_status(request, username):
+    """API endpoint to get current sync status"""
+    try:
+        from .models import SyncStatus
+        
+        latest_sync = SyncStatus.get_latest_sync()
+        
+        if latest_sync:
+            return JsonResponse({
+                'success': True,
+                'sync_status': {
+                    'task_id': latest_sync.task_id,
+                    'status': latest_sync.status,
+                    'message': latest_sync.message,
+                    'progress': latest_sync.progress_percentage,
+                    'current_step': latest_sync.current_step,
+                    'started_at': latest_sync.started_at.isoformat() if latest_sync.started_at else None,
+                    'completed_at': latest_sync.completed_at.isoformat() if latest_sync.completed_at else None,
+                }
+            })
+        else:
+            return JsonResponse({
+                'success': True,
+                'sync_status': {
+                    'status': 'no_sync',
+                    'message': 'No synchronization history found'
+                }
+            })
+            
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 @login_required
 @group_required('User')
@@ -1428,3 +1627,493 @@ def admin_profile(request, username):
     }
     
     return render(request, 'dashboard/admin_profile.html', context)
+
+# User Management Views
+@login_required
+@user_is_owner_or_admin
+def admin_user_management(request, username):
+    """Admin page for comprehensive user management"""
+    # Check if user is Admin or Super Admin
+    user_profile, created = UserProfile.objects.get_or_create(user=request.user)
+    if not (user_profile.is_admin or user_profile.is_super_admin):
+        return redirect('user_dashboard', username=request.user.username)
+    
+    # Get current user's profile for permission checking
+    current_user_profile = user_profile
+    
+    # Get all users with their profiles
+    users = User.objects.prefetch_related('profile').all().order_by('-date_joined')
+    
+    # Filter options
+    status_filter = request.GET.get('status', 'all')
+    search_query = request.GET.get('search', '')
+    
+    if status_filter == 'pending':
+        users = users.filter(profile__is_approved=False)
+    elif status_filter == 'approved':
+        users = users.filter(profile__is_approved=True, is_active=True)
+    elif status_filter == 'inactive':
+        users = users.filter(profile__is_approved=True, is_active=False)
+    elif status_filter == 'super_admin':
+        super_admin_group = Group.objects.filter(name='Super Admin').first()
+        if super_admin_group:
+            users = users.filter(groups=super_admin_group)
+    elif status_filter == 'admin':
+        admin_group = Group.objects.filter(name='Admin').first()
+        if admin_group:
+            users = users.filter(groups=admin_group)
+    
+    if search_query:
+        users = users.filter(
+            Q(username__icontains=search_query) |
+            Q(email__icontains=search_query) |
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query)
+        )
+    
+    # Add permission checking for each user
+    user_list = []
+    for user in users:
+        user_profile, created = UserProfile.objects.get_or_create(user=user)
+        user_data = {
+            'user': user,
+            'profile': user_profile,
+            'can_manage': current_user_profile.can_manage_user(user),
+        }
+        user_list.append(user_data)
+    
+    # Pagination
+    from django.core.paginator import Paginator
+    paginator = Paginator(user_list, 20)  # Show 20 users per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Statistics
+    stats = {
+        'total_users': User.objects.count(),
+        'pending_users': UserProfile.objects.filter(is_approved=False).count(),
+        'approved_users': UserProfile.objects.filter(is_approved=True, user__is_active=True).count(),
+        'inactive_users': UserProfile.objects.filter(is_approved=True, user__is_active=False).count(),
+        'super_admin_users': User.objects.filter(groups__name='Super Admin').count(),
+        'admin_users': User.objects.filter(groups__name='Admin').count(),
+    }
+    
+    context = {
+        'username': username,
+        'role': 'Admin',
+        'page_obj': page_obj,
+        'users': page_obj,  # For compatibility with existing template
+        'user_list': page_obj,  # New field with permission data
+        'stats': stats,
+        'status_filter': status_filter,
+        'search_query': search_query,
+        'pending_users_count': stats['pending_users'],
+        'current_user_profile': current_user_profile,
+    }
+    return render(request, 'dashboard/admin_user_management.html', context)
+
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def create_user(request, username):
+    """Create a new user by admin"""
+    try:
+        data = json.loads(request.body)
+        
+        # Validate required fields
+        required_fields = ['username', 'email', 'first_name', 'last_name', 'password']
+        for field in required_fields:
+            if not data.get(field):
+                return JsonResponse({'success': False, 'error': f'{field} is required'})
+        
+        # Check if username or email already exists
+        if User.objects.filter(username=data['username']).exists():
+            return JsonResponse({'success': False, 'error': 'Username already exists'})
+        
+        if User.objects.filter(email=data['email']).exists():
+            return JsonResponse({'success': False, 'error': 'Email already exists'})
+        
+        # Create user
+        user = User.objects.create_user(
+            username=data['username'],
+            email=data['email'],
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            password=data['password']
+        )
+        
+        # Create UserProfile with admin approval
+        from django.utils import timezone
+        profile = UserProfile.objects.create(
+            user=user,
+            created_by_admin=True,
+            is_approved=True,
+            approved_by=request.user,
+            approval_date=timezone.now()
+        )
+        
+        # Set role
+        role = data.get('role', 'User')
+        if role == 'Super Admin':
+            # Only Super Admin can create Super Admin
+            if not request.user.profile.is_super_admin:
+                user.delete()
+                return JsonResponse({'success': False, 'error': 'Only Super Admin can create Super Admin users'})
+            super_admin_group, _ = Group.objects.get_or_create(name='Super Admin')
+            user.groups.add(super_admin_group)
+            user.is_staff = True
+            user.is_superuser = True
+        elif role == 'Admin':
+            admin_group, _ = Group.objects.get_or_create(name='Admin')
+            user.groups.add(admin_group)
+            user.is_staff = True
+        else:
+            user_group, _ = Group.objects.get_or_create(name='User')
+            user.groups.add(user_group)
+        
+        user.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'User {user.username} created successfully',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'full_name': f"{user.first_name} {user.last_name}",
+                'status': profile.status_display,
+                'role': role,
+                'date_joined': user.date_joined.strftime('%Y-%m-%d')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def update_user(request, username):
+    """Update user profile information"""
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        email = data.get('email')
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
+        
+        if not target_username:
+            return JsonResponse({'success': False, 'error': 'Username required'})
+        
+        target_user = User.objects.get(username=target_username)
+        target_profile, created = UserProfile.objects.get_or_create(user=target_user)
+        current_user_profile, created = UserProfile.objects.get_or_create(user=request.user)
+        
+        # Security checks
+        if not current_user_profile.can_manage_user(target_profile):
+            return JsonResponse({'success': False, 'error': 'You do not have permission to edit this user'})
+        
+        # Check if email already exists (excluding current user)
+        if email and User.objects.filter(email=email).exclude(username=target_username).exists():
+            return JsonResponse({'success': False, 'error': 'Email already exists'})
+        
+        # Update user information
+        if email:
+            target_user.email = email
+        if first_name is not None:
+            target_user.first_name = first_name
+        if last_name is not None:
+            target_user.last_name = last_name
+        
+        target_user.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'User {target_username} updated successfully'
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def toggle_user_status(request, username):
+    """Toggle user active/inactive status"""
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        
+        if not target_username:
+            return JsonResponse({'success': False, 'error': 'Username required'})
+        
+        target_user = User.objects.get(username=target_username)
+        
+        # Don't allow deactivating self
+        if target_user.username == request.user.username:
+            return JsonResponse({'success': False, 'error': 'Cannot deactivate your own account'})
+        
+        # Toggle status
+        target_user.is_active = not target_user.is_active
+        target_user.save()
+        
+        status = "activated" if target_user.is_active else "deactivated"
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'User {target_username} has been {status}',
+            'new_status': target_user.is_active
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def delete_user(request, username):
+    """Delete a user (soft delete by setting inactive and removing groups)"""
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        permanent = data.get('permanent', False)
+        
+        if not target_username:
+            return JsonResponse({'success': False, 'error': 'Username required'})
+        
+        target_user = User.objects.get(username=target_username)
+        target_profile, created = UserProfile.objects.get_or_create(user=target_user)
+        current_user_profile, created = UserProfile.objects.get_or_create(user=request.user)
+        
+        # Security checks
+        # 1. Cannot delete self
+        if target_user.username == request.user.username:
+            return JsonResponse({'success': False, 'error': 'Cannot delete your own account'})
+        
+        # 2. Admin cannot delete other Admins or Super Admins
+        if current_user_profile.is_admin and not current_user_profile.is_super_admin:
+            if target_profile.is_admin or target_profile.is_super_admin:
+                return JsonResponse({'success': False, 'error': 'Admin users cannot delete other Admin or Super Admin users'})
+        
+        # 3. Only Super Admin can delete Super Admin
+        if target_profile.is_super_admin and not current_user_profile.is_super_admin:
+            return JsonResponse({'success': False, 'error': 'Only Super Admin can delete Super Admin users'})
+        
+        if permanent:
+            # Permanent deletion
+            target_user.delete()
+            message = f'User {target_username} has been permanently deleted'
+        else:
+            # Soft delete
+            target_user.is_active = False
+            target_profile.is_approved = False
+            target_user.groups.clear()
+            target_user.save()
+            target_profile.save()
+            message = f'User {target_username} has been deactivated and removed from all groups'
+        
+        return JsonResponse({
+            'success': True,
+            'message': message
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def reset_user_password(request, username):
+    """Reset user password"""
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        new_password = data.get('new_password')
+        
+        if not target_username or not new_password:
+            return JsonResponse({'success': False, 'error': 'Username and password required'})
+        
+        target_user = User.objects.get(username=target_username)
+        target_profile, created = UserProfile.objects.get_or_create(user=target_user)
+        current_user_profile, created = UserProfile.objects.get_or_create(user=request.user)
+        
+        # Security checks
+        # 1. Cannot reset own password through this method
+        if target_user.username == request.user.username:
+            return JsonResponse({'success': False, 'error': 'Use profile settings to change your own password'})
+        
+        # 2. Admin cannot reset password for other Admins or Super Admins
+        if current_user_profile.is_admin and not current_user_profile.is_super_admin:
+            if target_profile.is_admin or target_profile.is_super_admin:
+                return JsonResponse({'success': False, 'error': 'Admin users cannot reset password for other Admin or Super Admin users'})
+        
+        # 3. Only Super Admin can reset Super Admin password
+        if target_profile.is_super_admin and not current_user_profile.is_super_admin:
+            return JsonResponse({'success': False, 'error': 'Only Super Admin can reset Super Admin password'})
+        
+        target_user.set_password(new_password)
+        target_user.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Password for {target_username} has been reset successfully'
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def update_user_role(request, username):
+    """Update user role (Admin/User)"""
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        new_role = data.get('role')
+        
+        if not target_username or not new_role:
+            return JsonResponse({'success': False, 'error': 'Username and role required'})
+        
+        target_user = User.objects.get(username=target_username)
+        
+        # Remove from all groups first
+        target_user.groups.clear()
+        
+        if new_role == 'Admin':
+            admin_group, _ = Group.objects.get_or_create(name='Admin')
+            target_user.groups.add(admin_group)
+            target_user.is_staff = True
+            target_user.is_superuser = True
+        else:  # User role
+            user_group, _ = Group.objects.get_or_create(name='User')
+            target_user.groups.add(user_group)
+            target_user.is_staff = False
+            target_user.is_superuser = False
+        
+        target_user.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Role for {target_username} has been updated to {new_role}'
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+# Toggle user status (active/inactive)
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def toggle_user_status(request, username):
+    """Toggle user active/inactive status"""
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        
+        if not target_username:
+            return JsonResponse({'success': False, 'error': 'Username required'})
+        
+        target_user = User.objects.get(username=target_username)
+        
+        # Toggle status
+        target_user.is_active = not target_user.is_active
+        target_user.save()
+        
+        status = 'activated' if target_user.is_active else 'deactivated'
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'User {target_username} has been {status}'
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+# Delete user
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def delete_user(request, username):
+    """Delete or deactivate user"""
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        permanent = data.get('permanent', False)
+        
+        if not target_username:
+            return JsonResponse({'success': False, 'error': 'Username required'})
+        
+        if target_username == request.user.username:
+            return JsonResponse({'success': False, 'error': 'Cannot delete your own account'})
+        
+        target_user = User.objects.get(username=target_username)
+        
+        if permanent:
+            # Permanent deletion
+            target_user.delete()
+            message = f'User {target_username} has been permanently deleted'
+        else:
+            # Just deactivate
+            target_user.is_active = False
+            target_user.save()
+            message = f'User {target_username} has been deactivated'
+        
+        return JsonResponse({
+            'success': True,
+            'message': message
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+# Reset user password
+@login_required
+@group_required('Admin')
+@require_POST
+@csrf_exempt
+def reset_user_password(request, username):
+    """Reset user password"""
+    try:
+        data = json.loads(request.body)
+        target_username = data.get('target_username')
+        new_password = data.get('new_password')
+        
+        if not target_username or not new_password:
+            return JsonResponse({'success': False, 'error': 'Username and password required'})
+        
+        target_user = User.objects.get(username=target_username)
+        target_user.set_password(new_password)
+        target_user.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Password for {target_username} has been reset successfully'
+        })
+        
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})

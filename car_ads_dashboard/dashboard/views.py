@@ -1,7 +1,7 @@
 from django.contrib.auth.views import LoginView
 from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
-from .decorators import group_required, user_is_owner_or_admin
+from .decorators import group_required, user_is_owner_or_admin, strict_owner_only
 from django.contrib.admin.views.decorators import staff_member_required
 from django.urls import reverse
 from .tasks import sync_data_task
@@ -16,6 +16,7 @@ from django import forms
 from .forms import AdminProfileForm, AdminPasswordChangeForm, CustomAuthenticationForm, CustomUserCreationForm, UserProfileForm, UserPasswordChangeForm
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
+from .security_utils import validate_username_access, check_admin_access, check_super_admin_access
 import pandas as pd
 from datetime import date, datetime
 import json
@@ -157,6 +158,10 @@ def check_username(request):
 @group_required('User')
 @user_is_owner_or_admin
 def user_dashboard(request, username):
+    # Security check: user can only access their own dashboard
+    if request.user.username != username:
+        return redirect('user_dashboard', username=request.user.username)
+    
     source = request.GET.get('source', 'mudahmy')
     if source not in ['mudahmy', 'carlistmy']:
         source = 'mudahmy'
@@ -365,6 +370,10 @@ def user_dashboard(request, username):
 @user_is_owner_or_admin
 @require_GET
 def user_dashboard_data(request, username):
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
     source = request.GET.get('source', 'mudahmy')
     brand = request.GET.get('brand')
     year = request.GET.get('year')
@@ -407,6 +416,10 @@ def user_dashboard_data(request, username):
 @group_required('Admin')
 @user_is_owner_or_admin
 def admin_dashboard(request, username):
+    # Security check: user can only access their own dashboard
+    if request.user.username != username:
+        return redirect('admin_dashboard', username=request.user.username)
+    
     # Get user statistics
     total_users = User.objects.count()
     pending_users_count = UserProfile.objects.filter(is_approved=False).count()
@@ -456,6 +469,10 @@ def admin_dashboard(request, username):
 @user_is_owner_or_admin
 def admin_user_approval(request, username):
     """Admin page for user approval management"""
+    # Security check: user can only access their own pages
+    if request.user.username != username:
+        return redirect('admin_user_approval', username=request.user.username)
+    
     # Get pending users (not approved yet)
     pending_profiles = UserProfile.objects.filter(is_approved=False).select_related('user').order_by('-user__date_joined')
     pending_users = [profile.user for profile in pending_profiles]
@@ -689,6 +706,10 @@ def change_user_role(request, username):
 @group_required('Admin')
 @require_GET
 def admin_dashboard_stats(request, username):
+    # Security check: user can only access their own stats
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
     try:
         # Get user statistics
         total_users = User.objects.count()
@@ -740,6 +761,10 @@ def admin_dashboard_stats(request, username):
 @user_is_owner_or_admin
 def admin_server_monitor(request, username):
     """Admin page for server monitoring"""
+    # Security check: user can only access their own pages
+    if request.user.username != username:
+        return redirect('admin_server_monitor', username=request.user.username)
+    
     context = {
         'username': username,
         'role': 'Admin',
@@ -845,9 +870,15 @@ def server_metrics_api(request):
             'error': str(e)
         }, status=500)
 
+@login_required
+@group_required('Admin')
 @user_is_owner_or_admin
 def admin_logs(request, username):
     """Admin page for viewing system logs from cronjobs"""
+    # Security check: user can only access their own pages
+    if request.user.username != username:
+        return redirect('admin_logs', username=request.user.username)
+    
     import os
     import base64
     from collections import defaultdict
@@ -1031,6 +1062,10 @@ def get_sync_status(request, username):
 @group_required('User')
 @user_is_owner_or_admin
 def user_dataListing(request, username):
+    # Security check: user can only access their own data listing
+    if request.user.username != username:
+        return redirect('user_dataListing', username=request.user.username)
+    
     source = request.GET.get('source', 'mudahmy')
     if source not in ['mudahmy', 'carlistmy']:
         source = 'mudahmy'
@@ -1555,9 +1590,9 @@ def get_price_history(request, username):
 def user_profile(request, username):
     """User profile page with settings and password change"""
     
-    # Check if user owns this profile or is admin
-    if not (request.user.username == username or request.user.is_staff):
-        return redirect('user_dashboard', username=request.user.username)
+    # Strict security check: user can only access their own profile
+    if request.user.username != username:
+        return redirect('user_profile', username=request.user.username)
     
     user = request.user
     
@@ -1614,12 +1649,9 @@ def user_profile(request, username):
 
 @login_required
 @staff_member_required 
+@strict_owner_only
 def admin_profile(request, username):
     """Admin profile page with settings and password change"""
-    
-    # Check if user is admin and owns this profile or is superuser
-    if not (request.user.is_superuser or request.user.username == username):
-        return redirect('user_dashboard', username=request.user.username)
     
     user = request.user
     pending_users_count = get_pending_users_count()
@@ -1680,6 +1712,10 @@ def admin_profile(request, username):
 @user_is_owner_or_admin
 def admin_user_management(request, username):
     """Admin page for comprehensive user management"""
+    # Security check: user can only access their own pages
+    if request.user.username != username:
+        return redirect('admin_user_management', username=request.user.username)
+    
     # Check if user is Admin or Super Admin
     user_profile, created = UserProfile.objects.get_or_create(user=request.user)
     if not (user_profile.is_admin or user_profile.is_super_admin):

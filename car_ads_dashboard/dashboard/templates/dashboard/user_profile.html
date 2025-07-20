@@ -777,6 +777,18 @@
           firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
           firstInvalid.focus();
         }
+      } else {
+        // If this is the profile form, prepare for potential redirect
+        if (this.id === 'profileForm') {
+          const currentUsername = '{{ user.username }}';
+          const newUsername = document.getElementById('{{ profile_form.username.id_for_label }}').value;
+          
+          // Store the new username in sessionStorage if it changed
+          if (currentUsername !== newUsername) {
+            sessionStorage.setItem('usernameChanged', 'true');
+            sessionStorage.setItem('newUsername', newUsername);
+          }
+        }
       }
     });
   });
@@ -789,6 +801,49 @@
       bsAlert.close();
     });
   }, 5000);
+
+  // Check if we need to redirect after username change
+  document.addEventListener('DOMContentLoaded', function() {
+    // Check for success message indicating profile update
+    const successAlerts = document.querySelectorAll('.alert-success');
+    const profileSuccessFound = Array.from(successAlerts).some(alert => 
+      alert.textContent.includes('Profile updated successfully')
+    );
+    
+    if (profileSuccessFound && sessionStorage.getItem('usernameChanged') === 'true') {
+      const newUsername = sessionStorage.getItem('newUsername');
+      if (newUsername) {
+        // Clear the session storage
+        sessionStorage.removeItem('usernameChanged');
+        sessionStorage.removeItem('newUsername');
+        
+        // Show redirect message
+        const redirectMessage = document.createElement('div');
+        redirectMessage.className = 'alert alert-info alert-dismissible fade show';
+        redirectMessage.innerHTML = `
+          <i class="fas fa-info-circle"></i>
+          Redirecting to your updated profile...
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        const container = document.querySelector('.messages-container') || document.querySelector('.page-header');
+        if (container) {
+          container.appendChild(redirectMessage);
+        }
+        
+        // Redirect after a short delay
+        setTimeout(() => {
+          window.location.href = `/dashboard/user/${newUsername}/profile/`;
+        }, 2000);
+      }
+    }
+    
+    // Add existing error handling for page load
+    document.querySelectorAll('.form-control.is-invalid').forEach(input => {
+      const wrapper = input.closest('.password-input-wrapper');
+      if (wrapper) wrapper.classList.add('has-error');
+    });
+  });
 
   // Enhanced form feedback
   document.querySelectorAll('.form-control, .form-select').forEach(input => {
@@ -811,14 +866,6 @@
         this.classList.remove('is-invalid');
         if (wrapper) wrapper.classList.remove('has-error');
       }
-    });
-  });
-
-  // Check for existing errors on page load
-  document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.form-control.is-invalid').forEach(input => {
-      const wrapper = input.closest('.password-input-wrapper');
-      if (wrapper) wrapper.classList.add('has-error');
     });
   });
 </script>

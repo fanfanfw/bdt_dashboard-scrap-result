@@ -9,12 +9,11 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
 from .models import CarsMudahmy, CarsCarlistmy, PriceHistoryMudahmy, PriceHistoryCarlistmy, UserProfile
-from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
 from django.db import models
 from django import forms
-from .forms import AdminProfileForm, AdminPasswordChangeForm
+from .forms import AdminProfileForm, AdminPasswordChangeForm, CustomAuthenticationForm, CustomUserCreationForm
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 import pandas as pd
@@ -30,39 +29,25 @@ def get_pending_users_count():
     """Get count of users pending approval for sidebar badge"""
     return UserProfile.objects.filter(is_approved=False).count()
 
-# Custom Registration Form
-class CustomUserCreationForm(UserCreationForm):
-    email = forms.EmailField(required=True)
-    first_name = forms.CharField(max_length=30, required=True)
-    last_name = forms.CharField(max_length=30, required=True)
-
-    class Meta:
-        model = User
-        fields = ("username", "email", "first_name", "last_name", "password1", "password2")
-
-    def save(self, commit=True):
-        user = super().save(commit=False)
-        user.email = self.cleaned_data["email"]
-        user.first_name = self.cleaned_data["first_name"]
-        user.last_name = self.cleaned_data["last_name"]
-        user.is_active = True  # Account is active but needs approval
-        if commit:
-            user.save()
-            # Create UserProfile for approval tracking
-            UserProfile.objects.create(
-                user=user,
-                is_approved=False  # User needs admin approval
-            )
-        return user
-
 class CustomLoginView(LoginView):
-    form_class = AuthenticationForm
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        for visible in form.visible_fields():
-            visible.field.widget.attrs['class'] = 'form-control'
-            visible.field.widget.attrs['placeholder'] = visible.label
-        return form
+    form_class = CustomAuthenticationForm
+    template_name = 'registration/login.html'
+    
+    def form_valid(self, form):
+        """Security check before login"""
+        user = form.get_user()
+        
+        # Double check user approval status before allowing login
+        try:
+            profile, created = UserProfile.objects.get_or_create(user=user)
+            if not profile.is_approved:
+                form.add_error(None, "Akun Anda belum disetujui oleh administrator. Silakan tunggu persetujuan atau hubungi administrator.")
+                return self.form_invalid(form)
+        except Exception as e:
+            form.add_error(None, "Terjadi kesalahan sistem. Silakan coba lagi.")
+            return self.form_invalid(form)
+        
+        return super().form_valid(form)
     
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:

@@ -1,7 +1,8 @@
 from django import forms
 from django.contrib.auth.models import User
-from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.forms import PasswordChangeForm, AuthenticationForm
 from django.core.exceptions import ValidationError
+from .models import UserProfile
 
 
 class AdminProfileForm(forms.ModelForm):
@@ -84,3 +85,140 @@ class AdminPasswordChangeForm(PasswordChangeForm):
         self.fields['old_password'].label = 'Current Password'
         self.fields['new_password1'].label = 'New Password'
         self.fields['new_password2'].label = 'Confirm New Password'
+
+
+class CustomAuthenticationForm(AuthenticationForm):
+    """
+    Custom authentication form with detailed error messages
+    """
+    
+    def __init__(self, request=None, *args, **kwargs):
+        super().__init__(request, *args, **kwargs)
+        
+        # Add CSS classes and placeholders
+        for visible in self.visible_fields():
+            visible.field.widget.attrs['class'] = 'form-control'
+            if visible.name == 'username':
+                visible.field.widget.attrs['placeholder'] = 'Enter your username'
+            elif visible.name == 'password':
+                visible.field.widget.attrs['placeholder'] = 'Enter your password'
+    
+    def confirm_login_allowed(self, user):
+        """
+        Check if user is allowed to login with detailed error messages
+        """
+        # Check if user account is active
+        if not user.is_active:
+            raise forms.ValidationError(
+                "Akun Anda telah dinonaktifkan. Silakan hubungi administrator untuk mengaktifkan kembali akun Anda.",
+                code='account_disabled',
+            )
+        
+        # Check user profile and approval status
+        try:
+            profile = UserProfile.objects.get(user=user)
+            if not profile.is_approved:
+                raise forms.ValidationError(
+                    "Akun Anda belum disetujui oleh administrator. Silakan tunggu persetujuan atau hubungi administrator.",
+                    code='account_not_approved',
+                )
+        except UserProfile.DoesNotExist:
+            # Create profile if it doesn't exist and mark as not approved
+            UserProfile.objects.create(user=user, is_approved=False)
+            raise forms.ValidationError(
+                "Akun Anda belum disetujui oleh administrator. Silakan tunggu persetujuan atau hubungi administrator.",
+                code='account_not_approved',
+            )
+    
+    def clean(self):
+        username = self.cleaned_data.get('username')
+        password = self.cleaned_data.get('password')
+        
+        if username and password:
+            # Check if user exists first
+            try:
+                user = User.objects.get(username=username)
+                
+                # Check password manually
+                if not user.check_password(password):
+                    raise forms.ValidationError(
+                        "Username atau password yang Anda masukkan salah. Silakan periksa kembali dan coba lagi.",
+                        code='invalid_login',
+                    )
+                
+                # If password is correct, run the normal authentication
+                self.user_cache = user
+                self.confirm_login_allowed(user)
+                
+            except User.DoesNotExist:
+                raise forms.ValidationError(
+                    "Username yang Anda masukkan tidak terdaftar. Silakan daftar terlebih dahulu atau periksa kembali username Anda.",
+                    code='user_not_found',
+                )
+        
+        return self.cleaned_data
+
+
+class CustomUserCreationForm(forms.ModelForm):
+    """
+    Custom user creation form for registration
+    """
+    email = forms.EmailField(required=True)
+    first_name = forms.CharField(max_length=30, required=True)
+    last_name = forms.CharField(max_length=30, required=True)
+    password1 = forms.CharField(
+        label="Password",
+        widget=forms.PasswordInput,
+        help_text="Password harus minimal 8 karakter."
+    )
+    password2 = forms.CharField(
+        label="Konfirmasi Password",
+        widget=forms.PasswordInput,
+        help_text="Masukkan password yang sama untuk konfirmasi."
+    )
+
+    class Meta:
+        model = User
+        fields = ("username", "email", "first_name", "last_name")
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError("Username sudah digunakan. Silakan pilih username lain.")
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if User.objects.filter(email=email).exists():
+            raise forms.ValidationError("Email sudah terdaftar. Silakan gunakan email lain.")
+        return email
+
+    def clean_password2(self):
+        password1 = self.cleaned_data.get("password1")
+        password2 = self.cleaned_data.get("password2")
+        if password1 and password2 and password1 != password2:
+            raise forms.ValidationError("Password tidak cocok. Silakan periksa kembali.")
+        return password2
+
+    def clean_password1(self):
+        password1 = self.cleaned_data.get("password1")
+        if password1 and len(password1) < 8:
+            raise forms.ValidationError("Password harus minimal 8 karakter.")
+        return password1
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data["email"]
+        user.first_name = self.cleaned_data["first_name"]
+        user.last_name = self.cleaned_data["last_name"]
+        user.set_password(self.cleaned_data["password1"])
+        user.is_active = True  # Account is active but needs approval
+        
+        if commit:
+            user.save()
+            # Create UserProfile for approval tracking
+            UserProfile.objects.create(
+                user=user,
+                is_approved=False  # User needs admin approval
+            )
+        return user

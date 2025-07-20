@@ -1729,6 +1729,7 @@ def admin_user_management(request, username):
     
     # Filter options
     status_filter = request.GET.get('status', 'all')
+    role_filter = request.GET.get('role', 'all')
     search_query = request.GET.get('search', '')
     
     if status_filter == 'pending':
@@ -1745,6 +1746,24 @@ def admin_user_management(request, username):
         admin_group = Group.objects.filter(name='Admin').first()
         if admin_group:
             users = users.filter(groups=admin_group)
+    
+    # Apply role filter
+    if role_filter == 'user':
+        # Find users that belong to User group or have no role
+        user_group = Group.objects.filter(name='User').first()
+        if user_group:
+            users = users.filter(
+                Q(groups=user_group) | 
+                ~Q(groups__name__in=['Admin', 'Super Admin'])
+            )
+    elif role_filter == 'admin':
+        admin_group = Group.objects.filter(name='Admin').first()
+        if admin_group:
+            users = users.filter(groups=admin_group)
+    elif role_filter == 'super_admin':
+        super_admin_group = Group.objects.filter(name='Super Admin').first()
+        if super_admin_group:
+            users = users.filter(groups=super_admin_group)
     
     if search_query:
         users = users.filter(
@@ -1789,6 +1808,7 @@ def admin_user_management(request, username):
         'user_list': page_obj,  # New field with permission data
         'stats': stats,
         'status_filter': status_filter,
+        'role_filter': role_filter,
         'search_query': search_query,
         'pending_users_count': stats['pending_users'],
         'current_user_profile': current_user_profile,

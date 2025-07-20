@@ -137,6 +137,9 @@
               <button type="button" class="password-toggle" data-target="{{ password_form.old_password.id_for_label }}">
                 <i class="fas fa-eye"></i>
               </button>
+              {% if password_form.old_password.errors %}
+                <i class="fas fa-exclamation-triangle error-icon" title="Error in this field"></i>
+              {% endif %}
             </div>
             {% if password_form.old_password.errors %}
               <div class="form-error">
@@ -157,6 +160,9 @@
               <button type="button" class="password-toggle" data-target="{{ password_form.new_password1.id_for_label }}">
                 <i class="fas fa-eye"></i>
               </button>
+              {% if password_form.new_password1.errors %}
+                <i class="fas fa-exclamation-triangle error-icon" title="Error in this field"></i>
+              {% endif %}
             </div>
             {% if password_form.new_password1.errors %}
               <div class="form-error">
@@ -177,6 +183,9 @@
               <button type="button" class="password-toggle" data-target="{{ password_form.new_password2.id_for_label }}">
                 <i class="fas fa-eye"></i>
               </button>
+              {% if password_form.new_password2.errors %}
+                <i class="fas fa-exclamation-triangle error-icon" title="Error in this field"></i>
+              {% endif %}
             </div>
             {% if password_form.new_password2.errors %}
               <div class="form-error">
@@ -474,6 +483,11 @@
     padding-right: 3rem;
   }
 
+  /* Adjust padding when there's an error to make room for both icons */
+  .password-input-wrapper.has-error .form-control {
+    padding-right: 4.5rem;
+  }
+
   .password-toggle {
     position: absolute;
     right: 12px;
@@ -487,6 +501,11 @@
     transition: all 0.3s ease;
     z-index: 10;
     border-radius: 6px;
+  }
+
+  /* Move password toggle to the left when there's an error */
+  .password-input-wrapper.has-error .password-toggle {
+    right: 1.5rem;
   }
 
   .password-toggle:hover {
@@ -674,11 +693,29 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    position: relative;
   }
 
   .form-error::before {
     content: '⚠';
     font-size: 1rem;
+  }
+
+  /* Error icon for password fields - positioned inside the input */
+  .password-input-wrapper .error-icon {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #dc3545;
+    font-size: 1rem;
+    z-index: 11;
+    pointer-events: none;
+  }
+
+  /* Hide the regular error icon prefix when inside password wrapper */
+  .password-input-wrapper + .form-error::before {
+    display: none;
   }
 
   /* Responsive Design */
@@ -865,6 +902,17 @@
       if (this.classList.contains('is-invalid') && this.value.trim()) {
         this.classList.remove('is-invalid');
         if (wrapper) wrapper.classList.remove('has-error');
+      }
+    });
+  });
+
+  // Initialize error states on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add has-error class to password wrappers that have errors
+    document.querySelectorAll('.password-input-wrapper').forEach(wrapper => {
+      const errorIcon = wrapper.querySelector('.error-icon');
+      if (errorIcon) {
+        wrapper.classList.add('has-error');
       }
     });
   });

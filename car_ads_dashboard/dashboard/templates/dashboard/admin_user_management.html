@@ -197,6 +197,9 @@
                     <button class="btn-admin btn-success btn-sm" onclick="approveUser('{{ user_data.user.username }}')">
                       <i class="fas fa-check"></i>
                     </button>
+                    <button class="btn-admin btn-danger btn-sm" onclick="rejectUser('{{ user_data.user.username }}')">
+                      <i class="fas fa-times"></i>
+                    </button>
                   {% endif %}
                   
                   {% if user_data.user.username != username %}
@@ -548,6 +551,45 @@
   </div>
 </div>
 
+<!-- Reject User Modal -->
+<div class="modal fade" id="rejectUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-user-times me-2"></i>
+          Reject User Registration
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="rejectUserForm">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="rejectUsername" class="form-label">Username</label>
+            <input type="text" class="form-control" id="rejectUsername" readonly>
+          </div>
+          <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Warning:</strong> This action will permanently delete the user's registration and cannot be undone.
+          </div>
+          <div class="mb-3">
+            <label for="rejectReason" class="form-label">Reason for Rejection (Optional)</label>
+            <textarea class="form-control" id="rejectReason" rows="3" placeholder="Enter reason for rejection..."></textarea>
+            <small class="text-muted">This reason will be logged for administrative purposes.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-admin btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-admin btn-danger">
+            <i class="fas fa-user-times"></i>
+            Reject Registration
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <style>
 .page-actions {
   display: flex;
@@ -786,6 +828,46 @@ function approveUser(username) {
     });
   }
 }
+
+// Reject user
+function rejectUser(username) {
+  document.getElementById('rejectUsername').value = username;
+  new bootstrap.Modal(document.getElementById('rejectUserModal')).show();
+}
+
+// Reject user form handler
+document.getElementById('rejectUserForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const username = document.getElementById('rejectUsername').value;
+  const reason = document.getElementById('rejectReason').value;
+  
+  fetch(`/dashboard/admin/{{ username }}/users/reject/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({ 
+      target_username: username,
+      reason: reason
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification(data.message, 'success');
+      bootstrap.Modal.getInstance(document.getElementById('rejectUserModal')).hide();
+      location.reload();
+    } else {
+      showNotification(data.error || 'Failed to reject user', 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showNotification('Network error occurred', 'error');
+  });
+});
 
 // Toggle user status
 function toggleUserStatus(username, newStatus) {

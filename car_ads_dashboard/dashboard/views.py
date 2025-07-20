@@ -13,7 +13,7 @@ from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
 from django.db import models
 from django import forms
-from .forms import AdminProfileForm, AdminPasswordChangeForm, CustomAuthenticationForm, CustomUserCreationForm
+from .forms import AdminProfileForm, AdminPasswordChangeForm, CustomAuthenticationForm, CustomUserCreationForm, UserProfileForm, UserPasswordChangeForm
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 import pandas as pd
@@ -1548,6 +1548,68 @@ def get_price_history(request, username):
             'summary': None,
             'history': []
         }, status=500)
+
+
+@login_required
+@user_is_owner_or_admin
+def user_profile(request, username):
+    """User profile page with settings and password change"""
+    
+    # Check if user owns this profile or is admin
+    if not (request.user.username == username or request.user.is_staff):
+        return redirect('user_dashboard', username=request.user.username)
+    
+    user = request.user
+    
+    # Initialize forms with default values
+    profile_form = UserProfileForm(instance=user, user_instance=user)
+    password_form = UserPasswordChangeForm(user)
+    
+    # Handle different form submissions
+    if request.method == 'POST':
+        form_type = request.POST.get('form_type')
+        
+        if form_type == 'profile':
+            profile_form = UserProfileForm(
+                request.POST, 
+                instance=user,
+                user_instance=user
+            )
+            if profile_form.is_valid():
+                old_username = user.username
+                profile_form.save()
+                messages.success(request, 'Profile updated successfully!')
+                
+                # If username changed, redirect to new URL
+                if old_username != user.username:
+                    return redirect('user_profile', username=user.username)
+                
+                # Reset form after successful save
+                profile_form = UserProfileForm(instance=user, user_instance=user)
+            else:
+                messages.error(request, 'Please correct the errors below.')
+                
+        elif form_type == 'password':
+            password_form = UserPasswordChangeForm(user, request.POST)
+            if password_form.is_valid():
+                password_form.save()
+                update_session_auth_hash(request, password_form.user)  # Keep user logged in
+                messages.success(request, 'Password changed successfully!')
+                
+                # Reset form after successful save
+                password_form = UserPasswordChangeForm(user)
+            else:
+                messages.error(request, 'Please correct the password errors below.')
+    
+    context = {
+        'username': username,
+        'user': user,
+        'profile_form': profile_form,
+        'password_form': password_form,
+        'page_title': 'Profile Settings',
+    }
+    
+    return render(request, 'dashboard/user_profile.html', context)
 
 
 @login_required

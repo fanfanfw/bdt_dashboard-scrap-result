@@ -50,6 +50,36 @@
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
+
+    .app-brand {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #E74C3C;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .app-brand:hover {
+      color: #2C3E50;
+      text-decoration: none;
+    }
+
+    .app-brand i {
+      font-size: 1.8rem;
+      color: #E74C3C;
+    }
+
+    .brand-full {
+      display: inline;
+      color: #E74C3C;
+    }
+
+    .brand-short {
+      display: none;
+    }
     
     .user-icon {
       width: 40px;
@@ -183,6 +213,22 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+    }
+
+    .dark-mode .app-brand {
+      color: #E74C3C;
+    }
+
+    .dark-mode .app-brand:hover {
+      color: #F8F9FA;
+    }
+
+    .dark-mode .app-brand i {
+      color: #E74C3C;
+    }
+
+    .dark-mode .brand-full {
+      color: #E74C3C;
     }
     
     .dark-mode .nav-link {
@@ -647,6 +693,23 @@
         width: 44px;
         height: 44px;
       }
+
+      .app-brand {
+        font-size: 1.2rem;
+      }
+
+      .brand-full {
+        display: none;
+      }
+
+      .brand-short {
+        display: inline;
+        color: #E74C3C;
+      }
+
+      .dark-mode .brand-short {
+        color: #E74C3C;
+      }
     }
     
     /* Improved scrollbar for mobile */
@@ -747,7 +810,11 @@
   <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top shadow-sm">
     <div class="container-fluid">
       <!-- Brand -->
-      <a class="navbar-brand fw-bold" href="#">ScrapResultDash</a>
+      <a href="{% url 'user_dashboard' username %}" class="app-brand">
+        <i class="fas fa-chart-line"></i>
+        <span class="brand-full">ScrapResultDash</span>
+        <span class="brand-short">SRD</span>
+      </a>
       <!-- Toggler -->
       <button
         class="navbar-toggler"
@@ -837,6 +904,12 @@
                   <div class="text-muted small">{{ user.email }}</div>
                 </li>
                 <li><hr class="dropdown-divider"></li>
+                <li>
+                  <a class="dropdown-item d-flex align-items-center" href="{% url 'user_profile' username %}">
+                    <i class="fas fa-user-cog me-2"></i>
+                    Profile Settings
+                  </a>
+                </li>
                 <li>
                   <form method="post" action="{% url 'logout' %}" style="display:inline;">
                     {% csrf_token %}

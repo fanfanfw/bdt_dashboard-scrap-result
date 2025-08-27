@@ -233,32 +233,6 @@ def user_dashboard(request, username):
     price_labels = [item['brand'] or 'Unknown' for item in price_stats[:10]]
     price_data = [int(item['avg_price']) if item['avg_price'] else 0 for item in price_stats[:10]]
 
-    # Distribusi Transmisi
-    transmission_distribution = (
-        queryset.values('transmission')
-        .annotate(count=Count('id'))
-        .order_by('-count')
-    )
-    transmission_labels = [item['transmission'] or 'Unknown' for item in transmission_distribution]
-    transmission_data = [item['count'] for item in transmission_distribution]
-
-    # Distribusi Fuel Type
-    fuel_distribution = (
-        queryset.values('fuel_type')
-        .annotate(count=Count('id'))
-        .order_by('-count')
-    )
-    fuel_labels = [item['fuel_type'] or 'Unknown' for item in fuel_distribution]
-    fuel_data = [item['count'] for item in fuel_distribution]
-
-    # Distribusi Engine CC
-    engine_distribution = (
-        queryset.values('engine_cc')
-        .annotate(count=Count('id'))
-        .order_by('-count')
-    )
-    engine_labels = [str(item['engine_cc']) if item['engine_cc'] else 'Unknown' for item in engine_distribution[:10]]
-    engine_data = [item['count'] for item in engine_distribution[:10]]
 
     # Data untuk filter dropdown
     brands = CarModel.objects.filter(status__in=['active', 'sold']).values_list('brand', flat=True).distinct().order_by('brand')
@@ -353,12 +327,6 @@ def user_dashboard(request, username):
         'year_data': year_data,
         'price_labels': price_labels,
         'price_data': price_data,
-        'transmission_labels': transmission_labels,
-        'transmission_data': transmission_data,
-        'fuel_labels': fuel_labels,
-        'fuel_data': fuel_data,
-        'engine_labels': engine_labels,
-        'engine_data': engine_data,
         
         # Price trends data
         'price_trends': price_trends_data,
@@ -1195,7 +1163,7 @@ def get_listing_data(request, username):
         # Ordering
         order_column = int(request.GET.get('order[0][column]', 1))
         order_dir = request.GET.get('order[0][dir]', 'desc')
-        order_fields = ['images', 'year', 'brand', 'model', 'variant', 'transmission', 'mileage', 'price', 'price', 'created_at', 'status', 'sold_at']
+        order_fields = ['images', 'year', 'brand', 'model', 'variant', 'mileage', 'price', 'price', 'created_at', 'status', 'sold_at']
         
         if 0 <= order_column < len(order_fields):
             order_field = order_fields[order_column]
@@ -1258,7 +1226,6 @@ def get_listing_data(request, username):
                 'brand': car.brand or '-',
                 'model': car.model or '-',
                 'variant': car.variant or '-',
-                'transmission': car.transmission or '-',
                 'mileage': f"{car.mileage:,}" if car.mileage else '-',
                 'starting': starting_price if starting_price is not None else '-',
                 'latest': car.price if car.price is not None else '-',
@@ -1366,6 +1333,66 @@ def get_scatter_data(request, username):
         return JsonResponse(data, safe=False)
     except Exception as e:
         print(f"Error in get_scatter_data: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def get_scatter_statistics(request, username):
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        brand = request.GET.get('brand')
+        model = request.GET.get('model')
+        variant = request.GET.get('variant')
+        year = request.GET.get('year')
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Base queryset
+        queryset = CarModel.objects.filter(status__in=['active', 'sold'])
+        
+        # Apply filters
+        if brand:
+            queryset = queryset.filter(brand=brand)
+        if model:
+            queryset = queryset.filter(model=model)
+        if variant:
+            queryset = queryset.filter(variant=variant)
+        if year:
+            try:
+                year_int = int(year)
+                queryset = queryset.filter(year=year_int)
+            except ValueError:
+                pass
+
+        # Filter for valid price and mileage data
+        queryset = queryset.filter(price__gt=0, mileage__gt=0)
+
+        # Calculate statistics
+        from django.db.models import Avg, Max, Min, Count
+        stats = queryset.aggregate(
+            avg_price=Avg('price'),
+            avg_mileage=Avg('mileage'),
+            max_price=Max('price'),
+            min_price=Min('price'),
+            max_mileage=Max('mileage'),
+            total_points=Count('id')
+        )
+
+        # Handle None values and round numbers
+        result = {
+            'avg_price': round(stats['avg_price'], 2) if stats['avg_price'] else 0,
+            'avg_mileage': round(stats['avg_mileage'], 2) if stats['avg_mileage'] else 0,
+            'max_price': stats['max_price'] if stats['max_price'] else 0,
+            'min_price': stats['min_price'] if stats['min_price'] else 0,
+            'max_mileage': stats['max_mileage'] if stats['max_mileage'] else 0,
+            'total_points': stats['total_points'] if stats['total_points'] else 0
+        }
+
+        return JsonResponse(result)
+    except Exception as e:
+        print(f"Error in get_scatter_statistics: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
@@ -1540,9 +1567,6 @@ def get_price_history(request, username):
                 'condition': car.condition,
                 'current_price': car.price,
                 'location': car.location,
-                'transmission': car.transmission,
-                'fuel_type': car.fuel_type,
-                'engine_cc': car.engine_cc,
                 'last_status_check': car.last_status_check.isoformat(),
                 'price_change': None
             }

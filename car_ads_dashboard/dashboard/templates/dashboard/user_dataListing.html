@@ -1227,7 +1227,6 @@ select.form-select option {
               <th>Brand</th>
               <th>Model</th>
               <th>Variant</th>
-              <th>Transmisi</th>
               <th>Mileage (km)</th>
               <th>Starting (RM)</th>
               <th>Latest (RM)</th>
@@ -1359,7 +1358,6 @@ $(document).ready(function() {
       { data: 'brand' },
       { data: 'model' },
       { data: 'variant' },
-      { data: 'transmission' },
       { data: 'mileage' },
       {
         data: 'starting',
@@ -1500,13 +1498,6 @@ $(document).ready(function() {
                                     <i class="fas fa-tachometer-alt text-primary"></i>
                                     <small class="text-muted d-block">Mileage</small>
                                     <span class="fw-semibold">${item.mileage || '-'}</span>
-                                </div>
-                            </div>
-                            <div class="col">
-                                <div class="stat-item">
-                                    <i class="fas fa-cogs text-info"></i>
-                                    <small class="text-muted d-block">Transmission</small>
-                                    <span class="fw-semibold">${item.transmission || '-'}</span>
                                 </div>
                             </div>
                             <div class="col">

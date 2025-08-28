@@ -502,6 +502,75 @@ def approve_user(request, username):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
+
 # Reject user endpoint
 @login_required
 @group_required('Admin')
@@ -534,6 +603,75 @@ def reject_user(request, username):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
+
 # Approve all users endpoint
 @login_required
 @group_required('Admin')
@@ -561,6 +699,75 @@ def approve_all_users(request, username):
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
 
 # Get user details endpoint
 @login_required
@@ -602,6 +809,75 @@ def get_user_details(request, username):
         return JsonResponse({'success': False, 'error': 'User not found'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
 
 # Change user role endpoint
 @login_required
@@ -669,6 +945,75 @@ def change_user_role(request, username):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
+
 # Get dashboard stats for admin
 @login_required
 @group_required('Admin')
@@ -723,6 +1068,75 @@ def admin_dashboard_stats(request, username):
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
 
 @login_required
 @group_required('Admin')
@@ -1919,6 +2333,75 @@ def create_user(request, username):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
+
+@login_required
 @group_required('Admin')
 @require_POST
 @csrf_exempt
@@ -1967,6 +2450,75 @@ def update_user(request, username):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
+
+@login_required
 @group_required('Admin')
 @require_POST
 @csrf_exempt
@@ -2001,6 +2553,75 @@ def toggle_user_status(request, username):
         return JsonResponse({'success': False, 'error': 'User not found'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
 
 @login_required
 @group_required('Admin')
@@ -2058,6 +2679,75 @@ def delete_user(request, username):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
+
+@login_required
 @group_required('Admin')
 @require_POST
 @csrf_exempt
@@ -2103,6 +2793,75 @@ def reset_user_password(request, username):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
+
+@login_required
 @group_required('Admin')
 @require_POST
 @csrf_exempt
@@ -2144,6 +2903,75 @@ def update_user_role(request, username):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
+
 # Toggle user status (active/inactive)
 @login_required
 @group_required('Admin')
@@ -2175,6 +3003,75 @@ def toggle_user_status(request, username):
         return JsonResponse({'success': False, 'error': 'User not found'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
 
 # Delete user
 @login_required
@@ -2216,6 +3113,75 @@ def delete_user(request, username):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)
+
 # Reset user password
 @login_required
 @group_required('Admin')
@@ -2244,3 +3210,72 @@ def reset_user_password(request, username):
         return JsonResponse({'success': False, 'error': 'User not found'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@group_required('User')
+@user_is_owner_or_admin
+@require_GET
+def get_todays_data(request, username):
+    """Get today's scraped data"""
+    # Security check: user can only access their own data
+    if request.user.username != username:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    try:
+        source = request.GET.get('source', 'mudahmy')
+        if source not in ['mudahmy', 'carlistmy']:
+            source = 'mudahmy'
+
+        if source == 'carlistmy':
+            from .models import CarsCarlistmy as CarModel
+        else:
+            from .models import CarsMudahmy as CarModel
+
+        # Get today's data
+        today_queryset = CarModel.objects.filter(
+            information_ads_date=date.today(),
+            status__in=['active', 'sold']
+        ).order_by('-created_at')
+
+        data = []
+        for car in today_queryset[:100]:  # Limit to 100 records for performance
+            # Get first image
+            first_image = ''
+            if car.images:
+                try:
+                    import json
+                    images_list = json.loads(car.images)
+                    if isinstance(images_list, list) and images_list:
+                        first_image = images_list[0]
+                except:
+                    first_image = car.images
+
+            data.append({
+                'id': car.id,
+                'brand': car.brand or '-',
+                'model': car.model or '-',
+                'variant': car.variant or '-',
+                'year': car.year,
+                'mileage': car.mileage,
+                'latest_price': car.price,
+                'status': car.status,
+                'img_url': first_image,
+                'created_at': car.created_at.isoformat() if car.created_at else None,
+                'information_ads_date': car.information_ads_date.isoformat() if car.information_ads_date else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total_count': today_queryset.count(),
+            'date': date.today().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in get_todays_data: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'data': [],
+            'total_count': 0
+        }, status=500)

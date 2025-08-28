@@ -275,6 +275,51 @@
     </div>
   </div>
 
+  <!-- Today's Data Section -->
+  <div class="today-data-section">
+    <div class="today-data-grid">
+      <!-- Today's Data Table -->
+      <div class="today-data-card">
+        <div class="today-data-header">
+          <h3 class="today-data-title">
+            <i class="fas fa-calendar-day"></i>
+            Data Scraping Hari Ini
+          </h3>
+          <div class="today-data-subtitle">Daftar data mobil yang berhasil di-scraping hari ini</div>
+        </div>
+        <div class="today-data-content">
+          <div class="table-responsive">
+            <table id="todayDataTable" class="table table-striped table-bordered align-middle w-100">
+              <thead>
+                <tr>
+                  <th>Img</th>
+                  <th>Brand</th>
+                  <th>Model</th>
+                  <th>Variant</th>
+                  <th>Year</th>
+                  <th>Mileage (km)</th>
+                  <th>Harga (RM)</th>
+                  <th>Status</th>
+                  <th>Waktu Scraping</th>
+                </tr>
+              </thead>
+              <tbody id="todayDataTableBody">
+                <tr>
+                  <td colspan="9" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Memuat data hari ini...</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Price Trends Section -->
   <div class="trends-section">
     <div class="trends-grid single-card">
@@ -860,6 +905,137 @@
   line-height: 1.2;
 }
 
+/* Today's Data Section */
+.today-data-section {
+  margin-bottom: 3rem;
+}
+
+.today-data-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.today-data-card {
+  background: var(--color-card);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px var(--color-shadow);
+  border: 1px solid var(--color-border);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.today-data-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+  opacity: 0.8;
+}
+
+.today-data-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 32px var(--color-shadow);
+}
+
+.today-data-header {
+  margin-bottom: 1.5rem;
+}
+
+.today-data-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.today-data-title i {
+  font-size: 1.1rem;
+  color: #22c55e;
+}
+
+.today-data-subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.today-data-content {
+  position: relative;
+}
+
+/* Today's Data Table Styling */
+#todayDataTable {
+  border-radius: 12px;
+  overflow: hidden;
+  border: none;
+  box-shadow: 0 4px 20px var(--color-shadow);
+}
+
+#todayDataTable thead th {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  border: none;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.875rem;
+  padding: 1rem 0.75rem;
+}
+
+#todayDataTable tbody td {
+  border-color: var(--color-border);
+  padding: 1rem 0.75rem;
+  color: var(--color-text-primary);
+  background: var(--color-card);
+}
+
+#todayDataTable tbody tr:hover {
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.dark-mode #todayDataTable tbody tr:hover {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+/* Today's Data Status Badges */
+#todayDataTable .badge.bg-success {
+  background: var(--color-success) !important;
+}
+
+#todayDataTable .badge.bg-danger {
+  background: var(--color-danger) !important;
+}
+
+#todayDataTable .badge.bg-secondary {
+  background: var(--color-text-secondary) !important;
+}
+
+/* Today's Data Loading State */
+#todayDataTable .loading-row {
+  animation: pulse 1.5s infinite;
+}
+
+.today-data-loading-skeleton {
+  background: linear-gradient(90deg, 
+    rgba(34, 197, 94, 0.1) 25%, 
+    rgba(22, 163, 74, 0.1) 50%, 
+    rgba(34, 197, 94, 0.1) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+  border-radius: var(--border-radius-md);
+}
+
 /* Trends Section */
 .trends-section {
   margin-bottom: 3rem;
@@ -1258,6 +1434,37 @@
 @media (max-width: 768px) {
   .modern-dashboard {
     padding: 1rem 0.5rem;
+  }
+
+  /* Today's Data Section Responsive */
+  .today-data-card {
+    padding: 1.5rem;
+    border-radius: 16px;
+  }
+
+  .today-data-title {
+    font-size: 1.1rem;
+    flex-direction: column;
+    gap: 0.25rem;
+    text-align: center;
+  }
+
+  #todayDataTable {
+    font-size: 0.875rem;
+  }
+
+  #todayDataTable thead th {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  #todayDataTable tbody td {
+    padding: 0.75rem 0.5rem;
+  }
+
+  #todayDataTable img {
+    width: 50px !important;
+    height: 38px !important;
   }
 
   .hero-section {
@@ -2009,6 +2216,125 @@ document.addEventListener('DOMContentLoaded', function() {
   // Load initial scatter data
   fetchScatterData();
   loadAvgMileagePerYear();
+  
+  // Load today's data
+  loadTodaysData();
+
+  // Function to load today's data
+  function loadTodaysData() {
+    const tableBody = $('#todayDataTableBody');
+    
+    $.ajax({
+      url: '/dashboard/user/{{ username }}/todays-data/',
+      method: 'GET',
+      data: {
+        source: '{{ source }}'
+      },
+      success: function(response) {
+        tableBody.empty();
+        
+        if (response.data && response.data.length > 0) {
+          response.data.forEach(function(item, index) {
+            let statusBadge = '';
+            if (item.status && item.status.toLowerCase() === 'sold') {
+              statusBadge = '<span class="badge bg-danger">Sold</span>';
+            } else if (item.status && item.status.toLowerCase() === 'active') {
+              statusBadge = '<span class="badge bg-success">Active</span>';
+            } else {
+              statusBadge = '<span class="badge bg-secondary">' + (item.status || '-') + '</span>';
+            }
+
+            let priceFormatted = 'RM -';
+            if (item.latest_price && item.latest_price !== null && item.latest_price !== '-') {
+              priceFormatted = 'RM ' + parseInt(item.latest_price).toLocaleString();
+            }
+
+            let mileageFormatted = '-';
+            if (item.mileage && item.mileage !== null && item.mileage !== '-') {
+              mileageFormatted = parseInt(item.mileage).toLocaleString() + ' km';
+            }
+
+            const row = `
+              <tr class="fadeInUp" style="animation-delay: ${index * 0.1}s;">
+                <td>
+                  ${item.img_url ? 
+                    `<img src="${item.img_url}" alt="Car Image" style="width:60px; height:45px; object-fit:cover; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">` 
+                    : '<div class="bg-light d-flex align-items-center justify-content-center" style="width:60px; height:45px; border-radius:6px;"><i class="fas fa-car text-muted"></i></div>'
+                  }
+                </td>
+                <td><span class="fw-semibold">${item.brand || '-'}</span></td>
+                <td>${item.model || '-'}</td>
+                <td class="text-muted">${item.variant || '-'}</td>
+                <td><span class="badge bg-info">${item.year || '-'}</span></td>
+                <td><span class="text-primary fw-semibold">${mileageFormatted}</span></td>
+                <td><span class="text-success fw-bold">${priceFormatted}</span></td>
+                <td>${statusBadge}</td>
+                <td class="text-muted small">${new Date(item.created_at).toLocaleDateString('id-ID', {
+                  day: '2-digit',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</td>
+              </tr>
+            `;
+            tableBody.append(row);
+          });
+          
+          // Initialize DataTable if not already initialized
+          if (!$.fn.DataTable.isDataTable('#todayDataTable')) {
+            $('#todayDataTable').DataTable({
+              pageLength: 10,
+              lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+              order: [[8, "desc"]], // Order by created_at descending
+              language: {
+                search: "Cari:",
+                lengthMenu: "Tampilkan _MENU_ data",
+                info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+                infoEmpty: "Menampilkan 0 sampai 0 dari 0 data",
+                infoFiltered: "(disaring dari _MAX_ total data)",
+                zeroRecords: "Tidak ada data yang cocok",
+                emptyTable: "Tidak ada data tersedia",
+                paginate: {
+                  first: '<i class="fas fa-angle-double-left"></i>',
+                  previous: '<i class="fas fa-angle-left"></i>',
+                  next: '<i class="fas fa-angle-right"></i>',
+                  last: '<i class="fas fa-angle-double-right"></i>'
+                }
+              },
+              responsive: true,
+              dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rtip'
+            });
+          }
+        } else {
+          tableBody.html(`
+            <tr>
+              <td colspan="9" class="text-center py-4">
+                <div class="text-muted">
+                  <i class="fas fa-info-circle mb-2" style="font-size: 2rem;"></i>
+                  <p class="mb-0">Belum ada data scraping hari ini</p>
+                  <small>Data akan muncul setelah proses scraping berjalan</small>
+                </div>
+              </td>
+            </tr>
+          `);
+        }
+      },
+      error: function(xhr, error, thrown) {
+        console.error('Error loading today\'s data:', error);
+        tableBody.html(`
+          <tr>
+            <td colspan="9" class="text-center py-4">
+              <div class="text-danger">
+                <i class="fas fa-exclamation-triangle mb-2" style="font-size: 2rem;"></i>
+                <p class="mb-0">Gagal memuat data hari ini</p>
+                <small>Silakan refresh halaman atau coba lagi nanti</small>
+              </div>
+            </td>
+          </tr>
+        `);
+      }
+    });
+  }
 
   // Brand change handler
   $('#scatterBrand').change(function() {

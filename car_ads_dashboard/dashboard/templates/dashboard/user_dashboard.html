@@ -283,9 +283,9 @@
         <div class="today-data-header">
           <h3 class="today-data-title">
             <i class="fas fa-calendar-day"></i>
-            Data Scraping Hari Ini
+            Data Terbaru Hari Ini
           </h3>
-          <div class="today-data-subtitle">Daftar data mobil yang berhasil di-scraping hari ini</div>
+          <div class="today-data-subtitle">Daftar data mobil terbaru hari ini</div>
         </div>
         <div class="today-data-content">
           <div class="table-responsive">
@@ -300,7 +300,7 @@
                   <th>Mileage (km)</th>
                   <th>Harga (RM)</th>
                   <th>Status</th>
-                  <th>Waktu Scraping</th>
+                  <th>Waktu Update</th>
                 </tr>
               </thead>
               <tbody id="todayDataTableBody">
@@ -936,7 +936,7 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #22c55e, #16a34a);
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
   opacity: 0.8;
 }
 
@@ -961,7 +961,7 @@
 
 .today-data-title i {
   font-size: 1.1rem;
-  color: #22c55e;
+  color: var(--color-accent);
 }
 
 .today-data-subtitle {
@@ -983,7 +983,7 @@
 }
 
 #todayDataTable thead th {
-  background: linear-gradient(135deg, #22c55e, #16a34a);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
   color: white;
   border: none;
   font-weight: 600;
@@ -1001,11 +1001,11 @@
 }
 
 #todayDataTable tbody tr:hover {
-  background: rgba(34, 197, 94, 0.05);
+  background: rgba(48, 71, 94, 0.05);
 }
 
 .dark-mode #todayDataTable tbody tr:hover {
-  background: rgba(34, 197, 94, 0.1);
+  background: rgba(240, 84, 84, 0.1);
 }
 
 /* Today's Data Status Badges */
@@ -1021,6 +1021,10 @@
   background: var(--color-text-secondary) !important;
 }
 
+#todayDataTable .badge.bg-info {
+  background: var(--color-info) !important;
+}
+
 /* Today's Data Loading State */
 #todayDataTable .loading-row {
   animation: pulse 1.5s infinite;
@@ -1028,12 +1032,105 @@
 
 .today-data-loading-skeleton {
   background: linear-gradient(90deg, 
-    rgba(34, 197, 94, 0.1) 25%, 
-    rgba(22, 163, 74, 0.1) 50%, 
-    rgba(34, 197, 94, 0.1) 75%);
+    rgba(48, 71, 94, 0.1) 25%, 
+    rgba(240, 84, 84, 0.1) 50%, 
+    rgba(48, 71, 94, 0.1) 75%);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
   border-radius: var(--border-radius-md);
+}
+
+/* Today's Data Table Pagination Styling */
+.today-data-content .dataTables_wrapper .dataTables_paginate .paginate_button {
+  border-radius: 8px !important;
+  margin: 0 2px;
+  border: 1px solid var(--color-border) !important;
+  background: var(--color-card) !important;
+  color: var(--color-text-primary) !important;
+  padding: 0.375rem 0.75rem;
+  font-weight: 500;
+}
+
+.today-data-content .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+  background: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+  color: white !important;
+}
+
+.today-data-content .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent)) !important;
+  border-color: var(--color-accent) !important;
+  color: white !important;
+}
+
+.today-data-content .dataTables_wrapper .dataTables_info {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.today-data-content .dataTables_wrapper .dataTables_length select {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: var(--color-card);
+  color: var(--color-text-primary);
+}
+
+.today-data-content .dataTables_wrapper .dataTables_filter input {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  background: var(--color-card);
+  color: var(--color-text-primary);
+}
+
+.today-data-content .dataTables_wrapper .dataTables_filter input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(240, 84, 84, 0.1);
+}
+
+/* Additional DataTable Pagination Fixes */
+.today-data-content .dataTables_wrapper .dataTables_paginate {
+  margin-top: 1rem;
+}
+
+.today-data-content .dataTables_wrapper .dataTables_paginate .paginate_button.disabled {
+  background: var(--color-border) !important;
+  color: var(--color-text-muted) !important;
+  border-color: var(--color-border) !important;
+  cursor: not-allowed !important;
+}
+
+.today-data-content .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover {
+  background: var(--color-border) !important;
+  color: var(--color-text-muted) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* DataTable Wrapper Layout */
+.today-data-content .dataTables_wrapper .row {
+  margin: 0;
+  align-items: center;
+}
+
+.today-data-content .dataTables_wrapper .dataTables_length {
+  margin-bottom: 1rem;
+}
+
+.today-data-content .dataTables_wrapper .dataTables_filter {
+  margin-bottom: 1rem;
+  text-align: right;
+}
+
+.today-data-content .dataTables_wrapper .dataTables_info {
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+/* Custom pagination button class */
+.today-data-content .btn-custom-pagination {
+  transition: all 0.3s ease;
 }
 
 /* Trends Section */
@@ -1444,8 +1541,9 @@
 
   .today-data-title {
     font-size: 1.1rem;
-    flex-direction: column;
-    gap: 0.25rem;
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.5rem;
     text-align: center;
   }
 
@@ -1465,6 +1563,22 @@
   #todayDataTable img {
     width: 50px !important;
     height: 38px !important;
+  }
+  
+  .today-data-content .dataTables_wrapper .dataTables_paginate .paginate_button {
+    padding: 0.25rem 0.5rem !important;
+    margin: 0 1px !important;
+    font-size: 0.875rem !important;
+  }
+  
+  .today-data-content .dataTables_wrapper .dataTables_filter input {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+  }
+  
+  .today-data-content .dataTables_wrapper .dataTables_length select {
+    padding: 0.375rem;
+    font-size: 0.875rem;
   }
 
   .hero-section {
@@ -2280,31 +2394,40 @@ document.addEventListener('DOMContentLoaded', function() {
             tableBody.append(row);
           });
           
-          // Initialize DataTable if not already initialized
-          if (!$.fn.DataTable.isDataTable('#todayDataTable')) {
-            $('#todayDataTable').DataTable({
-              pageLength: 10,
-              lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-              order: [[8, "desc"]], // Order by created_at descending
-              language: {
-                search: "Cari:",
-                lengthMenu: "Tampilkan _MENU_ data",
-                info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
-                infoEmpty: "Menampilkan 0 sampai 0 dari 0 data",
-                infoFiltered: "(disaring dari _MAX_ total data)",
-                zeroRecords: "Tidak ada data yang cocok",
-                emptyTable: "Tidak ada data tersedia",
-                paginate: {
-                  first: '<i class="fas fa-angle-double-left"></i>',
-                  previous: '<i class="fas fa-angle-left"></i>',
-                  next: '<i class="fas fa-angle-right"></i>',
-                  last: '<i class="fas fa-angle-double-right"></i>'
-                }
-              },
-              responsive: true,
-              dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rtip'
-            });
+          // Destroy existing DataTable if it exists
+          if ($.fn.DataTable.isDataTable('#todayDataTable')) {
+            $('#todayDataTable').DataTable().destroy();
           }
+          
+          // Initialize fresh DataTable
+          $('#todayDataTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+            order: [[8, "desc"]], // Order by created_at descending
+            language: {
+              search: "Cari:",
+              lengthMenu: "Tampilkan _MENU_ data",
+              info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+              infoEmpty: "Menampilkan 0 sampai 0 dari 0 data",
+              infoFiltered: "(disaring dari _MAX_ total data)",
+              zeroRecords: "Tidak ada data yang cocok",
+              emptyTable: "Tidak ada data tersedia",
+              paginate: {
+                first: '<i class="fas fa-angle-double-left"></i>',
+                previous: '<i class="fas fa-angle-left"></i>',
+                next: '<i class="fas fa-angle-right"></i>',
+                last: '<i class="fas fa-angle-double-right"></i>'
+              }
+            },
+            responsive: true,
+            dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rtip',
+            drawCallback: function(settings) {
+              // Apply custom styling after each draw
+              $('.today-data-content .dataTables_wrapper .dataTables_paginate .paginate_button').each(function() {
+                $(this).addClass('btn-custom-pagination');
+              });
+            }
+          });
         } else {
           tableBody.html(`
             <tr>
@@ -2317,6 +2440,33 @@ document.addEventListener('DOMContentLoaded', function() {
               </td>
             </tr>
           `);
+          
+          // Still initialize DataTable for empty table
+          if ($.fn.DataTable.isDataTable('#todayDataTable')) {
+            $('#todayDataTable').DataTable().destroy();
+          }
+          
+          $('#todayDataTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+            language: {
+              search: "Cari:",
+              lengthMenu: "Tampilkan _MENU_ data",
+              info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+              infoEmpty: "Tidak ada data untuk ditampilkan",
+              infoFiltered: "(disaring dari _MAX_ total data)",
+              zeroRecords: "Belum ada data scraping hari ini",
+              emptyTable: "Belum ada data scraping hari ini",
+              paginate: {
+                first: '<i class="fas fa-angle-double-left"></i>',
+                previous: '<i class="fas fa-angle-left"></i>',
+                next: '<i class="fas fa-angle-right"></i>',
+                last: '<i class="fas fa-angle-double-right"></i>'
+              }
+            },
+            responsive: true,
+            dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rtip'
+          });
         }
       },
       error: function(xhr, error, thrown) {

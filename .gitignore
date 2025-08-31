@@ -85,3 +85,5 @@ note.txt
 skipped_*
 
 logs/
+
+failed_cars_standard_id_*.csv

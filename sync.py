@@ -51,6 +51,11 @@ async def sync_data_today():
         data_carlistmy, services.TB_CARLISTMY, 'carlistmy')
     logger.info(f"[CarlistMY] Inserted: {inserted_carlistmy}, Skipped: {skipped_carlistmy}")
 
+    # Sinkronisasi price_history CarlistMY
+    data_price_history_carlistmy = await services.fetch_price_history_from_remote_db(remote_conn_carlistmy, 'carlistmy')
+    await services.insert_or_update_price_history(data_price_history_carlistmy, services.TB_PRICE_HISTORY_CARLISTMY)
+    logger.info("[CarlistMY] Sinkronisasi price_history selesai.")
+
     # MudahMY
     logger.info("[MudahMY] Membuka koneksi remote...")
     remote_conn_mudahmy = await services.get_remote_db_connection(
@@ -61,6 +66,11 @@ async def sync_data_today():
     inserted_mudahmy, skipped_mudahmy = await services.insert_or_update_data_into_local_db(
         data_mudahmy, services.TB_MUDAHMY, 'mudahmy')
     logger.info(f"[MudahMY] Inserted: {inserted_mudahmy}, Skipped: {skipped_mudahmy}")
+
+    # Sinkronisasi price_history MudahMY
+    data_price_history_mudahmy = await services.fetch_price_history_from_remote_db(remote_conn_mudahmy, 'mudahmy')
+    await services.insert_or_update_price_history(data_price_history_mudahmy, services.TB_PRICE_HISTORY_MUDAHMY)
+    logger.info("[MudahMY] Sinkronisasi price_history selesai.")
 
     # Sinkronisasi data last_status_check 30 hari terakhir dari remote CarlistMY & MudahMY secara paralel
     logger.info("[SYNC] Sinkronisasi data last_status_check 30 hari terakhir dari remote (paralel)...")

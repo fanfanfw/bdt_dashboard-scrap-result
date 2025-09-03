@@ -8,7 +8,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from fastapi import HTTPException  # Anda bisa ganti ini jika mau pakai Exception biasa
 
-load_dotenv()
+load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 

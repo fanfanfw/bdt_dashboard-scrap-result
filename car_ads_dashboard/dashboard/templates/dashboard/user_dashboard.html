@@ -2553,8 +2553,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const brand = $('#scatterBrand').val();
     const model = $('#scatterModel').val();
     const variant = $(this).val();
-    fetchScatterData(brand, model, variant);
-    loadAvgMileagePerYear(brand, model, variant);
+    const year = $('#scatterYear').val();
+    fetchScatterData(brand, model, variant, year);
+    loadAvgMileagePerYear(brand, model, variant, year);
   });
 
   // Year change handler

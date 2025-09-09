@@ -1173,7 +1173,7 @@ def get_variants(request):
         variants = CarModel.objects.filter(
             brand=brand,
             model=model,
-            status='active'
+            status__in=['active', 'sold']
         ).values_list('variant', flat=True).distinct().order_by('variant')
         
         variants_list = list(variants)

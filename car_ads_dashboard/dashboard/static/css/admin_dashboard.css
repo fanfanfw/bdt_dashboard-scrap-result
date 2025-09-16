@@ -1,0 +1,61 @@
+/* Custom progress bars */
+.progress {
+  background-color: rgba(52, 73, 94, 0.1);
+  border-radius: 10px;
+}
+
+.dark-mode .progress {
+  background-color: rgba(231, 76, 60, 0.1);
+}
+
+/* Activity feed styling */
+.activity-feed {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.activity-item {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+/* Quick actions styling */
+.quick-actions .btn-admin {
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.quick-actions .btn-admin:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-4px) scale(1.02);
+}
+
+/* Sync button styling */
+.btn-admin:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.btn-admin:disabled:hover {
+  transform: none !important;
+  border-color: transparent !important;
+}
+
+/* Chart containers */
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .quick-actions .col-6 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}

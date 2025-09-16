@@ -435,32 +435,6 @@ def admin_dashboard(request, username):
 @login_required
 @group_required('Admin')
 @user_is_owner_or_admin
-def admin_user_approval(request, username):
-    """Admin page for user approval management"""
-    # Security check: user can only access their own pages
-    if request.user.username != username:
-        return redirect('admin_user_approval', username=request.user.username)
-    
-    # Get pending users (not approved yet)
-    pending_profiles = UserProfile.objects.filter(is_approved=False).select_related('user').order_by('-user__date_joined')
-    pending_users = [profile.user for profile in pending_profiles]
-    
-    # Get recently approved users
-    user_group = Group.objects.get(name='User')
-    approved_profiles = UserProfile.objects.filter(
-        is_approved=True,
-        user__groups=user_group
-    ).select_related('user').order_by('-approval_date')[:10]
-    approved_users = [profile.user for profile in approved_profiles]
-    
-    context = {
-        'username': username,
-        'role': 'Admin',
-        'pending_users': pending_users,
-        'approved_users': approved_users,
-        'pending_count': len(pending_users)
-    }
-    return render(request, 'dashboard/admin_user_approval.html', context)
 
 # Approve user endpoint
 @login_required

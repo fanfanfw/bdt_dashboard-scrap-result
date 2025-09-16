@@ -10,7 +10,6 @@ urlpatterns = [
     path('listing/<str:username>/', views.user_dataListing, name='user_dataListing'),
     path('admin/<str:username>/', views.admin_dashboard, name='admin_dashboard'),
     path('admin/<str:username>/users/', views.admin_user_management, name='admin_user_management'),
-    path('admin/<str:username>/users/approval/', views.admin_user_approval, name='admin_user_approval'),
     path('admin/<str:username>/users/approve/', views.approve_user, name='approve_user'),
     path('admin/<str:username>/users/reject/', views.reject_user, name='reject_user'),
     path('admin/<str:username>/users/approve-all/', views.approve_all_users, name='approve_all_users'),

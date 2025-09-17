@@ -113,8 +113,12 @@ class CustomAuthenticationForm(AuthenticationForm):
                 "Akun Anda telah dinonaktifkan. Silakan hubungi administrator untuk mengaktifkan kembali akun Anda.",
                 code='account_disabled',
             )
-        
-        # Check user profile and approval status
+
+        # Check if user is Admin - Admin users don't need approval
+        if user.groups.filter(name='Admin').exists() or user.is_superuser:
+            return  # Admin users can login without approval
+
+        # Check user profile and approval status for non-Admin users
         try:
             profile = UserProfile.objects.get(user=user)
             if not profile.is_approved:
@@ -123,7 +127,7 @@ class CustomAuthenticationForm(AuthenticationForm):
                     code='account_not_approved',
                 )
         except UserProfile.DoesNotExist:
-            # Create profile if it doesn't exist and mark as not approved
+            # Create profile if it doesn't exist and mark as not approved for non-Admin users
             UserProfile.objects.create(user=user, is_approved=False)
             raise forms.ValidationError(
                 "Akun Anda belum disetujui oleh administrator. Silakan tunggu persetujuan atau hubungi administrator.",

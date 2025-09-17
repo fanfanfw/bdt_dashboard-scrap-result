@@ -1,7 +1,7 @@
 {% extends "dashboard/base_user.html" %}
 {% load humanize %}
 {% load static %}
-{% block title %}Dashboard - {{ source|capfirst }}{% endblock %}
+{% block title %}Dashboard - Unified Cars Data{% endblock %}
 
 {% block content %}
 <link rel="stylesheet" href="{% static 'css/user_dashboard.css' %}">
@@ -10,7 +10,7 @@
   <div class="hero-section">
     <div class="hero-content">
       <h1 class="hero-title">Dashboard Analytics</h1>
-      <p class="hero-subtitle">{{ source|capfirst }} - Real-time car listing insights</p>
+      <p class="hero-subtitle">Unified Data - Real-time car listing insights</p>
       <div class="hero-stats">
         <span class="stat-badge">Live Data</span>
         <span class="stat-separator">•</span>
@@ -398,7 +398,6 @@
 <script>
 // Pass Django variables to JavaScript
 window.dashboardConfig = {
-  source: '{{ source }}',
   username: '{{ username }}',
   top_10_brands_labels: {{ top_10_brands_labels|safe }},
   top_10_brands_data: {{ top_10_brands_data|safe }},

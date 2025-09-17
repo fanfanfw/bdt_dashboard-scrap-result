@@ -86,7 +86,6 @@ $(document).ready(function() {
       type: "GET",
       dataType: "json",
       data: function(d) {
-        d.source = config.source;
         d.brand = $('#brandSelect').val();
         d.model = $('#modelSelect').val();
         d.variant = $('#variantSelect').val();
@@ -331,7 +330,7 @@ $(document).ready(function() {
     $.ajax({
       url: config.getBrandStatsUrl,
       type: "GET",
-      data: { source: config.source },
+      data: {},
       success: function(response) {
         brandsList.empty();
         if (response.brands && response.brands.length > 0) {
@@ -376,7 +375,7 @@ $(document).ready(function() {
       $.ajax({
         url: config.getModelStatsUrl,
         type: "GET",
-        data: { source: config.source, brand: brand },
+        data: { brand: brand },
         success: function(response) {
           if (response.models && response.models.length > 0) {
             response.models.forEach(function(model) {
@@ -437,7 +436,7 @@ $(document).ready(function() {
         url: config.getModelsUrl,
         type: "GET",
         dataType: "json",
-        data: { brand: brand, source: config.source },
+        data: { brand: brand },
         success: function(response) {
           if (response && response.length > 0) {
             response.forEach(function(model) {
@@ -485,7 +484,7 @@ $(document).ready(function() {
         url: config.getVariantsUrl,
         type: "GET",
         dataType: "json",
-        data: { brand: brand, model: model, source: config.source },
+        data: { brand: brand, model: model },
         success: function(response) {
           if (response && response.length > 0) {
             response.forEach(function(variant) {
@@ -533,11 +532,10 @@ $(document).ready(function() {
         url: config.getYearsUrl,
         type: "GET",
         dataType: "json",
-        data: { 
-          brand: brand, 
-          model: model || '', 
-          variant: variant || '', 
-          source: config.source 
+        data: {
+          brand: brand,
+          model: model || '',
+          variant: variant || ''
         },
         success: function(response) {
           if (response && response.length > 0) {

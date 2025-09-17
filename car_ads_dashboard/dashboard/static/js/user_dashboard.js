@@ -416,7 +416,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Function to fetch scatter data and statistics
   function fetchScatterData(brand = '', model = '', variant = '', year = '') {
     const params = new URLSearchParams();
-    params.append('source', config.source);
+    // Source parameter removed - using unified data
     if (brand) params.append('brand', brand);
     if (model) params.append('model', model);
     if (variant) params.append('variant', variant);
@@ -438,7 +438,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Function to fetch scatter plot statistics
   function fetchScatterStatistics(brand = '', model = '', variant = '', year = '') {
     const params = new URLSearchParams();
-    params.append('source', config.source);
+    // Source parameter removed - using unified data
     if (brand) params.append('brand', brand);
     if (model) params.append('model', model);
     if (variant) params.append('variant', variant);
@@ -488,7 +488,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Function to load average mileage per year
   function loadAvgMileagePerYear(brand = '', model = '', variant = '', year = '') {
     const params = new URLSearchParams();
-    params.append('source', config.source);
+    // Source parameter removed - using unified data
     if (brand) params.append('brand', brand);
     if (model) params.append('model', model);
     if (variant) params.append('variant', variant);
@@ -519,7 +519,7 @@ document.addEventListener('DOMContentLoaded', function() {
       url: `/dashboard/user/${config.username}/todays-data/`,
       method: 'GET',
       data: {
-        source: '{{ source }}'
+        // source parameter removed - using unified data
       },
       success: function(response) {
         tableBody.empty();
@@ -673,7 +673,7 @@ document.addEventListener('DOMContentLoaded', function() {
     $('#scatterYear').html('<option value="">Semua Tahun</option>');
     
     if (brand) {
-      fetch(`/dashboard/get-models/?brand=${brand}&source=${config.source}`)
+      fetch(`/dashboard/get-models/?brand=${brand}`)
         .then(response => response.json())
         .then(data => {
           data.forEach(model => {
@@ -696,7 +696,7 @@ document.addEventListener('DOMContentLoaded', function() {
     $('#scatterYear').html('<option value="">Semua Tahun</option>');
     
     if (model) {
-      fetch(`/dashboard/get-variants/?brand=${brand}&model=${model}&source=${config.source}`)
+      fetch(`/dashboard/get-variants/?brand=${brand}&model=${model}`)
         .then(response => response.json())
         .then(data => {
           data.forEach(variant => {
@@ -704,7 +704,7 @@ document.addEventListener('DOMContentLoaded', function() {
           });
         });
 
-      fetch(`/dashboard/get-years/?brand=${brand}&model=${model}&source=${config.source}`)
+      fetch(`/dashboard/get-years/?brand=${brand}&model=${model}`)
         .then(response => response.json())
         .then(data => {
           data.forEach(year => {
@@ -766,7 +766,7 @@ document.addEventListener('DOMContentLoaded', function() {
       url: config.priceHistoryUrl,
       method: 'GET',
       data: {
-        source: config.source,
+        // source parameter removed - using unified data
         brand: brand,
         model: model,
         variant: variant,

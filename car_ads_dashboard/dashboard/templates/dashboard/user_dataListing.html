@@ -9,7 +9,7 @@
   <div class="title-row">
     <h1>
       <i class="fas fa-database"></i>
-      Data Listing {{ source|title }} 
+      Data Listing Unified 
       <span class="badge">{{ total_data|intcomma }}</span>
     </h1>
     <p class="subtitle">Explore and analyze car listing data with advanced filtering options</p>
@@ -110,7 +110,7 @@
 <script>
 // Pass Django variables to JavaScript
 window.dataListingConfig = {
-  source: '{{ source }}',
+  // Source parameter removed - using unified data
   username: '{{ username }}',
   getListingDataUrl: '{% url "get_listing_data" username %}',
   getBrandStatsUrl: '{% url "get_brand_stats" %}',

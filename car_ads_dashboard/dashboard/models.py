@@ -205,35 +205,3 @@ class LocationStandard(models.Model):
     def __str__(self):
         return f"{self.town}, {self.district}, {self.states}"
 
-class SyncStatus(models.Model):
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('in_progress', 'In Progress'),
-        ('success', 'Success'),
-        ('failure', 'Failure'),
-    ]
-    
-    task_id = models.CharField(max_length=255, unique=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    message = models.TextField(blank=True, null=True)
-    started_at = models.DateTimeField(auto_now_add=True)
-    completed_at = models.DateTimeField(blank=True, null=True)
-    progress_percentage = models.IntegerField(default=0)
-    current_step = models.CharField(max_length=255, blank=True, null=True)
-    total_steps = models.IntegerField(default=1)
-    
-    class Meta:
-        ordering = ['-started_at']
-    
-    def __str__(self):
-        return f"Sync {self.task_id} - {self.status}"
-    
-    @classmethod
-    def get_latest_sync(cls):
-        """Get the latest sync status"""
-        return cls.objects.first()
-    
-    @classmethod
-    def is_sync_running(cls):
-        """Check if there's currently a sync running"""
-        return cls.objects.filter(status='in_progress').exists()

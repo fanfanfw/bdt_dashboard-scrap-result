@@ -6,17 +6,6 @@ import re
 import os
 import base64
 
-class SyncNotificationConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
-        await self.channel_layer.group_add("sync_group", self.channel_name)
-        await self.accept()
-
-    async def disconnect(self, close_code):
-        await self.channel_layer.group_discard("sync_group", self.channel_name)
-
-    async def sync_message(self, event):
-        await self.send(text_data=json.dumps(event["message"]))
-        
 class CronLogConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.log_file_id = self.scope['url_route']['kwargs']['log_file_id']

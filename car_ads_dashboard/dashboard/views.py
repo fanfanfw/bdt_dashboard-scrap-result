@@ -4,7 +4,6 @@ from django.contrib.auth.decorators import login_required
 from .decorators import group_required, user_is_owner_or_admin, strict_owner_only
 from django.contrib.admin.views.decorators import staff_member_required
 from django.urls import reverse
-from .tasks import sync_data_task
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
@@ -1113,68 +1112,6 @@ def admin_logs(request, username):
     
     return render(request, 'dashboard/admin_logs.html', context)
 
-@staff_member_required
-@csrf_exempt  # Karena pake JS fetch, pastikan csrf token sudah dikirim
-def trigger_sync(request, username):
-    if request.method == 'POST':
-        try:
-            from .models import SyncStatus
-            
-            # Check if there's already a sync running
-            if SyncStatus.is_sync_running():
-                return JsonResponse({
-                    'status': 'already_running', 
-                    'message': 'Sinkronisasi sedang berjalan. Mohon tunggu hingga selesai.'
-                }, status=409)
-            
-            # Start new sync task
-            task = sync_data_task.delay()
-            
-            return JsonResponse({
-                'status': 'started', 
-                'message': 'Sinkronisasi dimulai',
-                'task_id': task.id
-            })
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-    return JsonResponse({'status': 'method not allowed'}, status=405)
-
-@staff_member_required
-@require_GET
-def get_sync_status(request, username):
-    """API endpoint to get current sync status"""
-    try:
-        from .models import SyncStatus
-        
-        latest_sync = SyncStatus.get_latest_sync()
-        
-        if latest_sync:
-            return JsonResponse({
-                'success': True,
-                'sync_status': {
-                    'task_id': latest_sync.task_id,
-                    'status': latest_sync.status,
-                    'message': latest_sync.message,
-                    'progress': latest_sync.progress_percentage,
-                    'current_step': latest_sync.current_step,
-                    'started_at': latest_sync.started_at.isoformat() if latest_sync.started_at else None,
-                    'completed_at': latest_sync.completed_at.isoformat() if latest_sync.completed_at else None,
-                }
-            })
-        else:
-            return JsonResponse({
-                'success': True,
-                'sync_status': {
-                    'status': 'no_sync',
-                    'message': 'No synchronization history found'
-                }
-            })
-            
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
 
 @login_required
 @group_required('User')

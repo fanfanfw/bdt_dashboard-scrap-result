@@ -1,6 +1,5 @@
 from django.urls import path
 from . import views
-from .views import trigger_sync, get_sync_status
 
 urlpatterns = [
     path('register/', views.register_user, name='register_user'),
@@ -25,8 +24,6 @@ urlpatterns = [
     path('admin/<str:username>/server/', views.admin_server_monitor, name='admin_server_monitor'),
     path('admin/<str:username>/logs/', views.admin_logs, name='admin_logs'),
     path('admin/<str:username>/profile/', views.admin_profile, name='admin_profile'),
-    path('admin/<str:username>/sync/', trigger_sync, name='trigger_sync'),
-    path('admin/<str:username>/sync-status/', get_sync_status, name='get_sync_status'),
     path('api/server-metrics/', views.server_metrics_api, name='server_metrics_api'),
     path('get-models/', views.get_models, name='get_models'),
     path('get-variants/', views.get_variants, name='get_variants'),

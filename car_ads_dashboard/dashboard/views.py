@@ -206,8 +206,11 @@ def user_dashboard(request, username):
         price_labels = [brand]
         price_data = [int(avg_price)]
     else:
-        # Load basic stats without heavy joins on initial load
-        total_brand = 118  # Use cached/approximate value
+        # Calculate dynamic brand count for accurate reporting
+        total_brand = base_queryset.select_related('cars_standard').filter(
+            cars_standard__brand_norm__isnull=False
+        ).values('cars_standard__brand_norm').distinct().count()
+        
         avg_price = base_queryset.aggregate(avg=Avg('price'))['avg'] or 0
 
         # Simplified charts for initial load
@@ -512,10 +515,16 @@ def get_todays_data(request, username):
             from .models import CarsUnified as CarModel
 
         # Get today's data using cars_unified with cars_standard join
-        today_queryset = CarModel.objects.select_related('cars_standard').filter(
+        today_base_queryset = CarModel.objects.select_related('cars_standard').filter(
             information_ads_date=date.today(),
             status__in=['active', 'sold']
-        ).order_by('-last_scraped_at')[:50]  # Limit for performance
+        )
+        
+        # Get actual count for total_count
+        total_today_count = today_base_queryset.count()
+        
+        # Get all data ordered by latest scraped - no limit to show all data
+        today_queryset = today_base_queryset.order_by('-last_scraped_at')
 
         data = []
         for car in today_queryset:
@@ -547,7 +556,7 @@ def get_todays_data(request, username):
         return JsonResponse({
             'success': True,
             'data': data,
-            'total_count': today_queryset.count(),
+            'total_count': total_today_count,
             'date': date.today().isoformat()
         })
         

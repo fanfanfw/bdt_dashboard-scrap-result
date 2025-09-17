@@ -308,10 +308,16 @@ def user_dashboard(request, username):
     year_data = [15000, 20000, 25000, 30000, 28000, 25000, 12000]
 
 
-    # Simplified dropdown data - use static/cached values for better performance
+    # Get actual brand data from database for scatter plot dropdown
+    scatter_brands_queryset = base_queryset.select_related('cars_standard').filter(
+        cars_standard__brand_norm__isnull=False
+    ).values_list('cars_standard__brand_norm', flat=True).distinct().order_by('cars_standard__brand_norm')
+
+    scatter_brands = list(scatter_brands_queryset)
+
+    # Fallback to static data if no brands found or for other dropdowns
     brands = ['BMW', 'HONDA', 'MERCEDES BENZ', 'PERODUA', 'PROTON', 'TOYOTA', 'NISSAN', 'MAZDA', 'LEXUS', 'AUDI']
     years = [2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015]
-    scatter_brands = brands
 
     # Analisis tren harga model dan variant
     if source == 'carlistmy':

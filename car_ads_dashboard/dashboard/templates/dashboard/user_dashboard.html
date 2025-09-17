@@ -39,7 +39,15 @@
         <div class="kpi-content">
           <h3 class="kpi-value">{{ total_all|intcomma }}</h3>
           <p class="kpi-label">Total Semua Listing</p>
-          <div class="kpi-change">+12% dari bulan lalu</div>
+          <div class="kpi-change">
+            {% if kpi_changes.total_change > 0 %}
+              +{{ kpi_changes.total_change|floatformat:1 }}% dari bulan lalu
+            {% elif kpi_changes.total_change < 0 %}
+              {{ kpi_changes.total_change|floatformat:1 }}% dari bulan lalu
+            {% else %}
+              Tidak ada perubahan dari bulan lalu
+            {% endif %}
+          </div>
         </div>
       </div>
 
@@ -55,7 +63,15 @@
         <div class="kpi-content">
           <h3 class="kpi-value">{{ total_active|intcomma }}</h3>
           <p class="kpi-label">Listing Aktif</p>
-          <div class="kpi-change">+8% dari minggu lalu</div>
+          <div class="kpi-change">
+            {% if kpi_changes.active_change > 0 %}
+              +{{ kpi_changes.active_change|floatformat:1 }}% dari minggu lalu
+            {% elif kpi_changes.active_change < 0 %}
+              {{ kpi_changes.active_change|floatformat:1 }}% dari minggu lalu
+            {% else %}
+              Tidak ada perubahan dari minggu lalu
+            {% endif %}
+          </div>
         </div>
       </div>
 
@@ -71,7 +87,15 @@
         <div class="kpi-content">
           <h3 class="kpi-value">{{ total_sold|intcomma }}</h3>
           <p class="kpi-label">Listing Terjual</p>
-          <div class="kpi-change">-3% dari minggu lalu</div>
+          <div class="kpi-change">
+            {% if kpi_changes.sold_change > 0 %}
+              +{{ kpi_changes.sold_change|floatformat:1 }}% dari minggu lalu
+            {% elif kpi_changes.sold_change < 0 %}
+              {{ kpi_changes.sold_change|floatformat:1 }}% dari minggu lalu
+            {% else %}
+              Tidak ada perubahan dari minggu lalu
+            {% endif %}
+          </div>
         </div>
       </div>
 
@@ -87,7 +111,7 @@
         <div class="kpi-content">
           <h3 class="kpi-value">{{ total_brand|intcomma }}</h3>
           <p class="kpi-label">Total Brand</p>
-          <div class="kpi-change">Stabil</div>
+          <div class="kpi-change">{{ kpi_changes.brand_change }}</div>
         </div>
       </div>
 
@@ -103,7 +127,7 @@
         <div class="kpi-content">
           <h3 class="kpi-value">{{ total_today|intcomma }}</h3>
           <p class="kpi-label">Data Hari Ini</p>
-          <div class="kpi-change">Baru ditambahkan</div>
+          <div class="kpi-change">{{ kpi_changes.today_change }}</div>
         </div>
       </div>
     </div>

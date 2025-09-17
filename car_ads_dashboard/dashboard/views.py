@@ -25,6 +25,82 @@ import psutil
 import platform
 import shutil
 
+def calculate_percentage_change(current_value, previous_value):
+    """Calculate percentage change between current and previous values"""
+    if previous_value == 0:
+        return 100.0 if current_value > 0 else 0.0
+    return ((current_value - previous_value) / previous_value) * 100
+
+def get_kpi_percentage_changes(base_queryset):
+    """Calculate percentage changes for KPI metrics"""
+    today = date.today()
+    
+    # Define time periods
+    last_month_start = today.replace(day=1) - timedelta(days=1)
+    last_month_start = last_month_start.replace(day=1)
+    last_month_end = today.replace(day=1) - timedelta(days=1)
+    
+    current_month_start = today.replace(day=1)
+    
+    last_week_start = today - timedelta(days=today.weekday() + 7)
+    last_week_end = last_week_start + timedelta(days=6)
+    
+    current_week_start = today - timedelta(days=today.weekday())
+    
+    # Current period metrics
+    current_total = base_queryset.count()
+    current_active = base_queryset.filter(status='active').count()
+    current_sold = base_queryset.filter(status='sold').count()
+    current_today = base_queryset.filter(information_ads_date=today).count()
+    
+    # Last month metrics
+    last_month_total = base_queryset.filter(
+        information_ads_date__gte=last_month_start,
+        information_ads_date__lte=last_month_end
+    ).count()
+    
+    # Current month metrics  
+    current_month_total = base_queryset.filter(
+        information_ads_date__gte=current_month_start
+    ).count()
+    
+    # Last week metrics
+    last_week_active = base_queryset.filter(
+        status='active',
+        information_ads_date__gte=last_week_start,
+        information_ads_date__lte=last_week_end
+    ).count()
+    
+    last_week_sold = base_queryset.filter(
+        status='sold',
+        information_ads_date__gte=last_week_start,
+        information_ads_date__lte=last_week_end
+    ).count()
+    
+    # Current week metrics
+    current_week_active = base_queryset.filter(
+        status='active',
+        information_ads_date__gte=current_week_start
+    ).count()
+    
+    current_week_sold = base_queryset.filter(
+        status='sold',
+        information_ads_date__gte=current_week_start
+    ).count()
+    
+    # Calculate percentage changes
+    total_change = calculate_percentage_change(current_month_total, last_month_total)
+    active_change = calculate_percentage_change(current_week_active, last_week_active)
+    sold_change = calculate_percentage_change(current_week_sold, last_week_sold)
+    
+    return {
+        'total_change': total_change,
+        'active_change': active_change,
+        'sold_change': sold_change,
+        'today_change': 'Baru ditambahkan',  # Always new for today
+        'brand_change': 'Stabil'  # Brands don't change frequently
+    }
+
 # Helper function to get pending users count for sidebar badge
 def get_pending_users_count():
     """Get count of users pending approval for sidebar badge"""
@@ -225,6 +301,9 @@ def user_dashboard(request, username):
     # Tambah: total data terbaru hari ini
     total_today = base_queryset.filter(information_ads_date=date.today()).count()
 
+    # Calculate percentage changes for KPIs
+    kpi_changes = get_kpi_percentage_changes(base_queryset)
+
     # Simplified year distribution
     year_labels = ['2018', '2019', '2020', '2021', '2022', '2023', '2024']
     year_data = [15000, 20000, 25000, 30000, 28000, 25000, 12000]
@@ -332,6 +411,9 @@ def user_dashboard(request, username):
         'brands': brands,
         'years': years,
         'scatter_brands': scatter_brands,
+
+        # KPI percentage changes
+        'kpi_changes': kpi_changes,
 
         # Chart data
         'top_10_brands_labels': top_10_brands_labels,

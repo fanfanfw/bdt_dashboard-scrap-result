@@ -38,14 +38,14 @@
         </div>
         <div class="kpi-content">
           <h3 class="kpi-value">{{ total_all|intcomma }}</h3>
-          <p class="kpi-label">Total Semua Listing</p>
+          <p class="kpi-label">Total of All Listings</p>
           <div class="kpi-change">
             {% if kpi_changes.total_change > 0 %}
-              +{{ kpi_changes.total_change|floatformat:1 }}% dari bulan lalu
+              +{{ kpi_changes.total_change|floatformat:1 }}% from last month
             {% elif kpi_changes.total_change < 0 %}
-              {{ kpi_changes.total_change|floatformat:1 }}% dari bulan lalu
+              {{ kpi_changes.total_change|floatformat:1 }}% from last month
             {% else %}
-              Tidak ada perubahan dari bulan lalu
+              No change from last month
             {% endif %}
           </div>
         </div>
@@ -62,14 +62,14 @@
         </div>
         <div class="kpi-content">
           <h3 class="kpi-value">{{ total_active|intcomma }}</h3>
-          <p class="kpi-label">Listing Aktif</p>
+          <p class="kpi-label">Active Listing</p>
           <div class="kpi-change">
             {% if kpi_changes.active_change > 0 %}
-              +{{ kpi_changes.active_change|floatformat:1 }}% dari minggu lalu
+              +{{ kpi_changes.active_change|floatformat:1 }}% from last week
             {% elif kpi_changes.active_change < 0 %}
-              {{ kpi_changes.active_change|floatformat:1 }}% dari minggu lalu
+              {{ kpi_changes.active_change|floatformat:1 }}% from last week
             {% else %}
-              Tidak ada perubahan dari minggu lalu
+              No change from last week
             {% endif %}
           </div>
         </div>
@@ -86,14 +86,14 @@
         </div>
         <div class="kpi-content">
           <h3 class="kpi-value">{{ total_sold|intcomma }}</h3>
-          <p class="kpi-label">Listing Terjual</p>
+          <p class="kpi-label">Sold Listing</p>
           <div class="kpi-change">
             {% if kpi_changes.sold_change > 0 %}
-              +{{ kpi_changes.sold_change|floatformat:1 }}% dari minggu lalu
+              +{{ kpi_changes.sold_change|floatformat:1 }}% from last week
             {% elif kpi_changes.sold_change < 0 %}
-              {{ kpi_changes.sold_change|floatformat:1 }}% dari minggu lalu
+              {{ kpi_changes.sold_change|floatformat:1 }}% from last week
             {% else %}
-              Tidak ada perubahan dari minggu lalu
+              No change from last week
             {% endif %}
           </div>
         </div>
@@ -110,7 +110,7 @@
         </div>
         <div class="kpi-content">
           <h3 class="kpi-value">{{ total_brand|intcomma }}</h3>
-          <p class="kpi-label">Total Brand</p>
+          <p class="kpi-label">Total Brands</p>
           <div class="kpi-change">{{ kpi_changes.brand_change }}</div>
         </div>
       </div>
@@ -126,7 +126,7 @@
         </div>
         <div class="kpi-content">
           <h3 class="kpi-value">{{ total_today|intcomma }}</h3>
-          <p class="kpi-label">Data Hari Ini</p>
+          <p class="kpi-label">Today's Data</p>
           <div class="kpi-change">{{ kpi_changes.today_change }}</div>
         </div>
       </div>
@@ -139,8 +139,8 @@
       <!-- Top 10 Brands Chart -->
       <div class="chart-card full-width">
         <div class="chart-header">
-          <h3 class="chart-title">Top 10 Brand Mobil</h3>
-          <div class="chart-subtitle">Brand dengan listing terbanyak</div>
+          <h3 class="chart-title">Top 10 Car Brands</h3>
+          <div class="chart-subtitle">Brand with the most listings</div>
         </div>
         <div class="chart-content">
           <canvas id="top10BrandsChart"></canvas>
@@ -150,8 +150,8 @@
       <!-- Brand Active vs Sold -->
       <div class="chart-card">
         <div class="chart-header">
-          <h3 class="chart-title">Aktif vs Terjual</h3>
-          <div class="chart-subtitle">Perbandingan listing per brand</div>
+          <h3 class="chart-title">Active vs Sold</h3>
+          <div class="chart-subtitle">Comparison of listings per brand</div>
         </div>
         <div class="chart-content">
           <canvas id="brandChart"></canvas>
@@ -161,8 +161,8 @@
       <!-- Listing per Year -->
       <div class="chart-card">
         <div class="chart-header">
-          <h3 class="chart-title">Listing per Tahun</h3>
-          <div class="chart-subtitle">Trend listing berdasarkan tahun</div>
+          <h3 class="chart-title">Listings per Year</h3>
+          <div class="chart-subtitle">Listing trends by year</div>
         </div>
         <div class="chart-content">
           <canvas id="yearChart"></canvas>
@@ -172,8 +172,8 @@
       <!-- Average Price -->
       <div class="chart-card">
         <div class="chart-header">
-          <h3 class="chart-title">Harga Rata-rata</h3>
-          <div class="chart-subtitle">Harga rata-rata per brand</div>
+          <h3 class="chart-title">Average Price</h3>
+          <div class="chart-subtitle">Average price per brand</div>
         </div>
         <div class="chart-content">
           <canvas id="priceChart"></canvas>
@@ -190,13 +190,13 @@
       <div class="analysis-card full-width">
         <div class="analysis-header">
           <h3 class="analysis-title">Scatter Plot Analysis</h3>
-          <div class="analysis-subtitle">Hubungan antara harga dan mileage</div>
+          <div class="analysis-subtitle">The relationship between price and mileage</div>
         </div>
         <div class="analysis-filters">
           <div class="filter-group">
             <label for="scatterBrand" class="filter-label">Brand:</label>
             <select id="scatterBrand" class="filter-select">
-              <option value="">Semua Brand</option>
+              <option value="">All Brands</option>
               {% for brand in scatter_brands %}
               <option value="{{ brand }}">{{ brand }}</option>
               {% endfor %}
@@ -205,19 +205,19 @@
           <div class="filter-group">
             <label for="scatterModel" class="filter-label">Model:</label>
             <select id="scatterModel" class="filter-select">
-              <option value="">Semua Model</option>
+              <option value="">All Models</option>
             </select>
           </div>
           <div class="filter-group">
             <label for="scatterVariant" class="filter-label">Variant:</label>
             <select id="scatterVariant" class="filter-select">
-              <option value="">Semua Variant</option>
+              <option value="">All Variants</option>
             </select>
           </div>
           <div class="filter-group">
             <label for="scatterYear" class="filter-label">Year:</label>
             <select id="scatterYear" class="filter-select">
-              <option value="">Semua Tahun</option>
+              <option value="">All Years</option>
             </select>
           </div>
         </div>
@@ -291,7 +291,7 @@
       <div class="analysis-card full-width">
         <div class="analysis-header">
           <h3 class="analysis-title">Average Mileage per Year</h3>
-          <div class="analysis-subtitle">Trend rata-rata mileage berdasarkan tahun</div>
+          <div class="analysis-subtitle">Average mileage trend by year</div>
         </div>
         <div class="analysis-content">
           <canvas id="avgMileageChart"></canvas>
@@ -308,9 +308,9 @@
         <div class="today-data-header">
           <h3 class="today-data-title">
             <i class="fas fa-calendar-day"></i>
-            Data Terbaru Hari Ini
+            Latest Data Today
           </h3>
-          <div class="today-data-subtitle">Daftar data mobil terbaru hari ini</div>
+          <div class="today-data-subtitle">List of the latest car data today</div>
         </div>
         <div class="today-data-content">
           <div class="table-responsive">
@@ -325,7 +325,7 @@
                   <th>Mileage (km)</th>
                   <th>Harga (RM)</th>
                   <th>Status</th>
-                  <th>Waktu Update</th>
+                  <th>Update Time</th>
                 </tr>
               </thead>
               <tbody id="todayDataTableBody">
@@ -334,7 +334,7 @@
                     <div class="spinner-border text-primary" role="status">
                       <span class="visually-hidden">Loading...</span>
                     </div>
-                    <p class="mt-2 mb-0">Memuat data hari ini...</p>
+                    <p class="mt-2 mb-0">Loading today's data...</p>
                   </td>
                 </tr>
               </tbody>
@@ -355,7 +355,7 @@
             <i class="fas fa-clock"></i>
             Top 20 Model/Variant - Latest Price Changes
           </h3>
-          <div class="trends-subtitle">Model dan variant dengan perubahan harga terbaru (status active)</div>
+          <div class="trends-subtitle">Models and variants with the latest price changes (status active)</div>
         </div>
         <div class="trends-content">
           {% if price_trends.latest_trends %}
@@ -384,9 +384,9 @@
                     </div>
                     <div class="trend-meta">
                       <span class="trend-condition">{{ trend.condition|default:"Unknown" }}</span>
-                      <span class="trend-changes">{{ trend.total_changes }} perubahan</span>
+                      <span class="trend-changes">{{ trend.total_changes }} changes</span>
                       {% if trend.latest_change %}
-                      <span class="trend-last-update">{{ trend.latest_change|timesince }} lalu</span>
+                      <span class="trend-last-update">{{ trend.latest_change|timesince }} ago</span>
                       {% endif %}
                     </div>
                   </div>
@@ -409,7 +409,7 @@
           {% else %}
             <div class="trends-empty">
               <i class="fas fa-chart-line"></i>
-              <p>Belum ada data tren harga</p>
+              <p>There is no price trend data yet</p>
             </div>
           {% endif %}
         </div>
@@ -443,7 +443,7 @@ window.dashboardConfig = {
       <div class="modal-header">
         <h5 class="modal-title" id="priceHistoryModalLabel">
           <i class="fas fa-chart-line"></i>
-          Detail Perubahan Harga
+          Price Change Details
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -453,7 +453,7 @@ window.dashboardConfig = {
             <div class="spinner-border text-primary" role="status">
               <span class="visually-hidden">Loading...</span>
             </div>
-            <p class="mt-2">Memuat data perubahan harga...</p>
+            <p class="mt-2">Loading price change data...</p>
           </div>
         </div>
       </div>

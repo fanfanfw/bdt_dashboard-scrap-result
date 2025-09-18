@@ -21,7 +21,7 @@
       <div class="col-md-3 col-sm-6">
         <label class="form-label">Brand <span class="text-danger">*</span></label>
         <select class="form-select" name="brand" id="brandSelect" required>
-          <option value="">Pilih Brand</option>
+          <option value="">Select Brand</option>
           {% for brand in brands %}
             <option value="{{ brand }}">{{ brand }}</option>
           {% endfor %}
@@ -30,19 +30,19 @@
       <div class="col-md-3 col-sm-6">
         <label class="form-label">Model</label>
         <select class="form-select" name="model" id="modelSelect" disabled>
-          <option value="">Pilih Model</option>
+          <option value="">Select Model</option>
         </select>
       </div>
       <div class="col-md-3 col-sm-6">
         <label class="form-label">Variant</label>
         <select class="form-select" name="variant" id="variantSelect" disabled>
-          <option value="">Pilih Variant</option>
+          <option value="">Select Variant</option>
         </select>
       </div>
       <div class="col-md-3 col-sm-6">
         <label class="form-label">Tahun</label>
         <select class="form-select" name="year" id="yearSelect" disabled>
-          <option value="">Pilih Tahun</option>
+          <option value="">Select Tahun</option>
         </select>
       </div>
       <div class="col-12">
@@ -90,9 +90,9 @@
               <th>Mileage (km)</th>
               <th>Starting (RM)</th>
               <th>Latest (RM)</th>
-              <th>Iklan Tayang</th>
+              <th>Advertisement Displayed</th>
               <th>Status</th>
-              <th>Terjual Dalam</th>
+              <th>Sold In</th>
             </tr>
           </thead>
           <tbody></tbody>

@@ -103,11 +103,11 @@ WSGI_APPLICATION = 'car_ads_dashboard.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'db_test',  
-        'USER': 'fanfan',
-        'PASSWORD': 'cenanun',
-        'HOST': 'localhost',  # sesuaikan kalau pakai remote DB
-        'PORT': '5432',
+        'NAME': os.getenv('DB_NAME', 'db_test'),
+        'USER': os.getenv('DB_USER', 'fanfan'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'cenanun'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 LOGIN_REDIRECT_URL = '/dashboard/user/'  # arahkan ke dashboard user setelah login

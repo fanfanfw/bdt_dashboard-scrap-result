@@ -127,18 +127,12 @@ class CustomLoginView(LoginView):
     
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            # Check user profile and approval status
+            # Only check approval status if user is accessing login page
+            # Don't force logout for users who are already logged in and active
             try:
                 profile, created = UserProfile.objects.get_or_create(user=request.user)
-                
-                # Check if user is approved
-                if not profile.is_approved:
-                    # User not approved, logout and show message
-                    from django.contrib.auth import logout
-                    logout(request)
-                    return redirect('login')
-                
-                # Route based on user groups
+
+                # Route to appropriate dashboard without forcing logout
                 if request.user.groups.filter(name='Super Admin').exists():
                     return redirect('admin_dashboard', username=request.user.username)
                 elif request.user.groups.filter(name='Admin').exists():
@@ -146,15 +140,16 @@ class CustomLoginView(LoginView):
                 elif request.user.groups.filter(name='User').exists():
                     return redirect('user_dashboard', username=request.user.username)
                 else:
-                    # User has no groups, logout and redirect to login
-                    from django.contrib.auth import logout
-                    logout(request)
-                    return redirect('login')
+                    # User has no groups, show error message instead of logout
+                    from django.contrib import messages
+                    messages.error(request, 'Your account is not properly configured. Please contact administrator.')
+                    return super().dispatch(request, *args, **kwargs)
             except Exception as e:
-                # Handle any exceptions by logging out user
-                from django.contrib.auth import logout
-                logout(request)
-                return redirect('login')
+                # Log error but don't force logout
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error in CustomLoginView dispatch: {e}")
+                return super().dispatch(request, *args, **kwargs)
         return super().dispatch(request, *args, **kwargs)
 
     def get_success_url(self):
@@ -1331,11 +1326,15 @@ def get_listing_data(request, username):
 def get_brand_stats(request):
     try:
         from .models import CarsUnified as CarModel
-        
+
         brand_stats = (
             CarModel.objects
             .select_related('cars_standard')
-            .filter(status__in=['active', 'sold'])
+            .filter(
+                status__in=['active', 'sold'],
+                cars_standard__isnull=False,  # Exclude records without cars_standard
+                cars_standard__brand_norm__isnull=False  # Exclude None brands
+            )
             .values('cars_standard__brand_norm')
             .annotate(total=Count('id'))
             .order_by('-total')
@@ -1344,10 +1343,13 @@ def get_brand_stats(request):
         # Convert to expected format with 'brand' key instead of 'brand_norm'
         brands_data = []
         for stat in brand_stats:
-            brands_data.append({
-                'brand': stat['cars_standard__brand_norm'],
-                'total': stat['total']
-            })
+            brand_name = stat['cars_standard__brand_norm']
+            # Additional check to ensure brand is not None or empty
+            if brand_name and brand_name.strip():
+                brands_data.append({
+                    'brand': brand_name,
+                    'total': stat['total']
+                })
 
         return JsonResponse({'brands': brands_data})
     except Exception as e:

@@ -1,19 +1,28 @@
-from django.contrib.auth.decorators import user_passes_test
-from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
-from django.template.response import TemplateResponse
 
 def group_required(group_name):
-    def in_group(user):
-        if not user.is_authenticated:
-            return False
-        
-        # Super Admin can access all group-required views
-        if user.groups.filter(name='Super Admin').exists():
-            return True
-            
-        return user.groups.filter(name=group_name).exists()
-    return user_passes_test(in_group)
+    def decorator(view_func):
+        def _wrapped_view(request, *args, **kwargs):
+            user = request.user
+
+            # Check if user is authenticated
+            if not user.is_authenticated:
+                from django.contrib.auth.views import redirect_to_login
+                return redirect_to_login(request.get_full_path())
+
+            # Super Admin can access all group-required views
+            if user.groups.filter(name='Super Admin').exists():
+                return view_func(request, *args, **kwargs)
+
+            # Check if user has required group
+            if user.groups.filter(name=group_name).exists():
+                return view_func(request, *args, **kwargs)
+
+            # User doesn't have required group - show 403 instead of redirecting to login
+            return render(request, '403.html', status=403)
+
+        return _wrapped_view
+    return decorator
 
 def super_admin_required(view_func):
     def _wrapped_view(request, *args, **kwargs):

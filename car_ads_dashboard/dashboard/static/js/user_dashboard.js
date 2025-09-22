@@ -666,12 +666,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // Brand change handler
   $('#scatterBrand').change(function() {
     const brand = $(this).val();
-    
+
     // Clear and load models
     $('#scatterModel').html('<option value="">Semua Model</option>');
     $('#scatterVariant').html('<option value="">Semua Variant</option>');
     $('#scatterYear').html('<option value="">Semua Tahun</option>');
-    
+
     if (brand) {
       fetch(`/dashboard/get-models/?brand=${brand}`)
         .then(response => response.json())
@@ -681,7 +681,7 @@ document.addEventListener('DOMContentLoaded', function() {
           });
         });
     }
-    
+
     fetchScatterData(brand);
     loadAvgMileagePerYear(brand);
   });
@@ -690,12 +690,13 @@ document.addEventListener('DOMContentLoaded', function() {
   $('#scatterModel').change(function() {
     const brand = $('#scatterBrand').val();
     const model = $(this).val();
-    
-    // Clear and load variants
+
+    // Clear dependent dropdowns
     $('#scatterVariant').html('<option value="">Semua Variant</option>');
     $('#scatterYear').html('<option value="">Semua Tahun</option>');
-    
-    if (model) {
+
+    if (brand && model) {
+      // Load variants for the selected brand and model
       fetch(`/dashboard/get-variants/?brand=${brand}&model=${model}`)
         .then(response => response.json())
         .then(data => {
@@ -703,16 +704,8 @@ document.addEventListener('DOMContentLoaded', function() {
             $('#scatterVariant').append(`<option value="${variant}">${variant}</option>`);
           });
         });
-
-      fetch(`/dashboard/get-years/?brand=${brand}&model=${model}`)
-        .then(response => response.json())
-        .then(data => {
-          data.forEach(year => {
-            $('#scatterYear').append(`<option value="${year}">${year}</option>`);
-          });
-        });
     }
-    
+
     fetchScatterData(brand, model);
     loadAvgMileagePerYear(brand, model);
   });
@@ -722,9 +715,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const brand = $('#scatterBrand').val();
     const model = $('#scatterModel').val();
     const variant = $(this).val();
-    const year = $('#scatterYear').val();
-    fetchScatterData(brand, model, variant, year);
-    loadAvgMileagePerYear(brand, model, variant, year);
+
+    // Clear year dropdown
+    $('#scatterYear').html('<option value="">Semua Tahun</option>');
+
+    // Load years based on brand, model, and variant selection
+    if (brand) {
+      fetch(`/dashboard/get-years/?brand=${brand}&model=${model || ''}&variant=${variant || ''}`)
+        .then(response => response.json())
+        .then(data => {
+          data.forEach(year => {
+            $('#scatterYear').append(`<option value="${year}">${year}</option>`);
+          });
+        });
+    }
+
+    fetchScatterData(brand, model, variant);
+    loadAvgMileagePerYear(brand, model, variant);
   });
 
   // Year change handler

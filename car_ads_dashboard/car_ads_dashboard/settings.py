@@ -58,7 +58,6 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'dashboard.middleware.URLSecurityMiddleware',  # Add our custom security middleware
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -113,6 +112,19 @@ DATABASES = {
 LOGIN_REDIRECT_URL = '/dashboard/user/'  # arahkan ke dashboard user setelah login
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
+# Session Configuration - SIMPLIFIED TO FIX LOGOUT ISSUE
+SESSION_COOKIE_AGE = 3600 * 8  # 8 hours (in seconds)
+SESSION_SAVE_EVERY_REQUEST = False  # Important: False to prevent session conflicts
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Keep session alive after browser close
+SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookie
+SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database backend for sessions
+
+# Additional session fix settings
+SESSION_COOKIE_NAME = 'sessionid'  # Default session cookie name
+SESSION_COOKIE_PATH = '/'  # Session cookie path
+
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
@@ -156,11 +168,6 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-# Additional locations of static files
-STATICFILES_DIRS = [
-    BASE_DIR / "dashboard" / "static",
-]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

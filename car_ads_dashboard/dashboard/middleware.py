@@ -26,34 +26,45 @@ class URLSecurityMiddleware:
         if not request.user.is_authenticated:
             response = self.get_response(request)
             return response
-        
+
+        # Skip validation for static files, API endpoints, and non-dashboard URLs
+        if (request.path.startswith('/static/') or
+            request.path.startswith('/api/') or
+            request.path.startswith('/accounts/') or
+            request.path.startswith('/admin/') or
+            not request.path.startswith('/dashboard/')):
+            response = self.get_response(request)
+            return response
+
         # Check if this is a protected URL
         path = request.path
         is_protected = any(path.startswith(pattern) for pattern in self.protected_patterns)
-        
+
         if is_protected:
             # Extract username from URL
             path_parts = path.strip('/').split('/')
             if len(path_parts) >= 3:
                 url_username = path_parts[2]  # /dashboard/admin/username/...
-                
+
                 # Allow Super Admin to access any URL
                 if request.user.groups.filter(name='Super Admin').exists():
                     pass  # Super Admin can access anything
                 # Regular users and admins must use their own username
                 elif url_username != request.user.username:
-                    # Determine correct redirect based on user role
-                    if request.user.groups.filter(name='Admin').exists():
-                        # Redirect admin to their own admin page
-                        corrected_path = path.replace(f'/dashboard/admin/{url_username}/', f'/dashboard/admin/{request.user.username}/')
-                        return redirect(corrected_path)
-                    elif request.user.groups.filter(name='User').exists():
-                        # Redirect user to their own user page
-                        corrected_path = path.replace(f'/dashboard/user/{url_username}/', f'/dashboard/user/{request.user.username}/')
-                        return redirect(corrected_path)
-                    else:
-                        # Unknown user role, deny access
-                        return TemplateResponse(request, '403.html', status=403)
-        
+                    # Only redirect if the username is actually different and valid
+                    if url_username and url_username != request.user.username:
+                        # Determine correct redirect based on user role
+                        if request.user.groups.filter(name='Admin').exists():
+                            # Redirect admin to their own admin page
+                            corrected_path = path.replace(f'/dashboard/admin/{url_username}/', f'/dashboard/admin/{request.user.username}/')
+                            return redirect(corrected_path)
+                        elif request.user.groups.filter(name='User').exists():
+                            # Redirect user to their own user page
+                            corrected_path = path.replace(f'/dashboard/user/{url_username}/', f'/dashboard/user/{request.user.username}/')
+                            return redirect(corrected_path)
+                        else:
+                            # Unknown user role, deny access
+                            return TemplateResponse(request, '403.html', status=403)
+
         response = self.get_response(request)
         return response

@@ -668,9 +668,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const brand = $(this).val();
 
     // Clear and load models
-    $('#scatterModel').html('<option value="">Semua Model</option>');
-    $('#scatterVariant').html('<option value="">Semua Variant</option>');
-    $('#scatterYear').html('<option value="">Semua Tahun</option>');
+    $('#scatterModel').html('<option value="">All Models</option>');
+    $('#scatterVariant').html('<option value="">All Variants</option>');
+    $('#scatterYear').html('<option value="">All Years</option>');
 
     if (brand) {
       fetch(`/dashboard/get-models/?brand=${brand}`)

@@ -692,8 +692,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const model = $(this).val();
 
     // Clear dependent dropdowns
-    $('#scatterVariant').html('<option value="">Semua Variant</option>');
-    $('#scatterYear').html('<option value="">Semua Tahun</option>');
+    $('#scatterVariant').html('<option value="">All Variants</option>');
+    $('#scatterYear').html('<option value="">All Years</option>');
 
     if (brand && model) {
       // Load variants for the selected brand and model
@@ -717,7 +717,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const variant = $(this).val();
 
     // Clear year dropdown
-    $('#scatterYear').html('<option value="">Semua Tahun</option>');
+    $('#scatterYear').html('<option value="">All Years</option>');
 
     // Load years based on brand, model, and variant selection
     if (brand) {

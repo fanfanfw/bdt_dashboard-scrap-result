@@ -190,6 +190,105 @@ class PriceHistoryUnified(models.Model):
     def __str__(self):
         return f"Price change {self.listing_url} at {self.changed_at}"
 
+class Carsome(models.Model):
+    """
+    Unmanaged model for carsome table (Carsome marketplace inventory)
+    """
+    id = models.BigAutoField(primary_key=True)
+    image = models.TextField(blank=True, null=True)
+    brand = models.CharField(max_length=100)
+    model = models.CharField(max_length=100)
+    model_group = models.CharField(max_length=100, blank=True, null=True, default='NO MODEL GROUP')
+    variant = models.CharField(max_length=100, blank=True, null=True)
+    year = models.IntegerField(blank=True, null=True)
+    mileage = models.IntegerField(blank=True, null=True)
+    price = models.IntegerField(blank=True, null=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+    last_updated_at = models.DateTimeField(blank=True, null=True)
+    cars_standard = models.ForeignKey(
+        CarsStandard,
+        on_delete=models.DO_NOTHING,
+        db_column='cars_standard_id',
+        null=True,
+        blank=True
+    )
+    status = models.CharField(max_length=20, default='active')
+    is_deleted = models.BooleanField(default=False)
+    source = models.CharField(max_length=50, default='carsome')
+    reg_no = models.TextField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'carsome'
+
+    def __str__(self):
+        return f"{self.brand} {self.model} {self.variant} ({self.year}) - Carsome"
+
+class NormalizedCarsInventoryManager(models.Manager):
+    """Exposes only listings mapped to cars_standard."""
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .select_related('cars_standard')
+            .filter(cars_standard__isnull=False)
+        )
+
+
+class CarsInventory(models.Model):
+    """
+    Unified read-only view that combines cars_unified and carsome tables
+    """
+    id = models.BigIntegerField(primary_key=True)
+    cars_standard = models.ForeignKey(
+        CarsStandard,
+        on_delete=models.DO_NOTHING,
+        db_column='cars_standard_id',
+        null=True,
+        blank=True,
+        db_constraint=False
+    )
+    source = models.CharField(max_length=20)
+    listing_url = models.TextField()
+    condition = models.CharField(max_length=50, blank=True, null=True)
+    brand = models.CharField(max_length=100)
+    model_group = models.CharField(max_length=100, blank=True, null=True)
+    model = models.CharField(max_length=100)
+    variant = models.CharField(max_length=100, blank=True, null=True)
+    year = models.IntegerField(blank=True, null=True)
+    mileage = models.IntegerField(blank=True, null=True)
+    transmission = models.CharField(max_length=50, blank=True, null=True)
+    seat_capacity = models.CharField(max_length=10, blank=True, null=True)
+    engine_cc = models.CharField(max_length=50, blank=True, null=True)
+    fuel_type = models.CharField(max_length=50, blank=True, null=True)
+    price = models.IntegerField(blank=True, null=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    information_ads = models.TextField(blank=True, null=True)
+    images = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=20)
+    ads_tag = models.CharField(max_length=50, blank=True, null=True)
+    is_deleted = models.BooleanField(default=False)
+    last_scraped_at = models.DateTimeField(blank=True, null=True)
+    version = models.IntegerField(default=1)
+    sold_at = models.DateTimeField(blank=True, null=True)
+    last_status_check = models.DateTimeField(blank=True, null=True)
+    information_ads_date = models.DateField(blank=True, null=True)
+    original_id = models.BigIntegerField()
+    origin_table = models.CharField(max_length=20)
+    reg_no = models.CharField(max_length=100, blank=True, null=True)
+    carsome_created_at = models.DateTimeField(blank=True, null=True)
+
+    objects = NormalizedCarsInventoryManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        managed = False
+        db_table = 'cars_dashboard_combined'
+
+    def __str__(self):
+        return f"{self.brand} {self.model} {self.variant} ({self.year}) - {self.source}"
+
 class LocationStandard(models.Model):
     states = models.CharField(max_length=255)
     district = models.CharField(max_length=255)
@@ -204,4 +303,3 @@ class LocationStandard(models.Model):
 
     def __str__(self):
         return f"{self.town}, {self.district}, {self.states}"
-

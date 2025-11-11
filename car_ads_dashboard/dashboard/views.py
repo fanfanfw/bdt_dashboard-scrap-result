@@ -7,7 +7,8 @@ from django.urls import reverse
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
-from .models import CarsUnified, PriceHistoryUnified, UserProfile, CarsStandard
+from django.db.models.functions import Coalesce
+from .models import CarsInventory, PriceHistoryUnified, UserProfile, CarsStandard
 from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
 from django.db import models
@@ -23,6 +24,19 @@ import traceback
 import psutil
 import platform
 import shutil
+
+CAR_SOURCES = {'carlistmy', 'mudahmy', 'carsome'}
+CarModel = CarsInventory
+
+
+def normalize_source_param(source_value):
+    if not source_value:
+        return 'all'
+    source_value = source_value.lower()
+    if source_value == 'all':
+        return 'all'
+    return source_value if source_value in CAR_SOURCES else 'all'
+
 
 def calculate_percentage_change(current_value, previous_value):
     """Calculate percentage change between current and previous values"""
@@ -232,20 +246,15 @@ def user_dashboard(request, username):
     if request.user.username != username:
         return redirect('user_dashboard', username=request.user.username)
     
-    source = request.GET.get('source', 'mudahmy')
-    if source not in ['mudahmy', 'carlistmy']:
-        source = 'mudahmy'
+    source = normalize_source_param(request.GET.get('source'))
 
     brand = request.GET.get('brand')
     year = request.GET.get('year')
 
-    if source == 'carlistmy':
-        from .models import CarsUnified as CarModel
-    else:
-        from .models import CarsUnified as CarModel
-
-    # Use simpler queries without joins for better performance on initial load
+    # Use combined dataset (cars_unified + carsome)
     base_queryset = CarModel.objects.filter(status__in=['active', 'sold'])
+    if source != 'all':
+        base_queryset = base_queryset.filter(source=source)
     if brand:
         # Only use join when filtering by brand is necessary
         base_queryset = base_queryset.select_related('cars_standard').filter(cars_standard__brand_norm=brand)
@@ -277,9 +286,14 @@ def user_dashboard(request, username):
         price_data = [int(avg_price)]
     else:
         # Calculate dynamic brand count for accurate reporting
-        total_brand = base_queryset.select_related('cars_standard').filter(
-            cars_standard__brand_norm__isnull=False
-        ).values('cars_standard__brand_norm').distinct().count()
+        total_brand = (
+            base_queryset
+            .annotate(brand_normalized=Coalesce('cars_standard__brand_norm', 'brand'))
+            .filter(brand_normalized__isnull=False)
+            .values('brand_normalized')
+            .distinct()
+            .count()
+        )
         
         avg_price = base_queryset.aggregate(avg=Avg('price'))['avg'] or 0
 
@@ -304,9 +318,14 @@ def user_dashboard(request, username):
 
 
     # Get actual brand data from database for scatter plot dropdown
-    scatter_brands_queryset = base_queryset.select_related('cars_standard').filter(
-        cars_standard__brand_norm__isnull=False
-    ).values_list('cars_standard__brand_norm', flat=True).distinct().order_by('cars_standard__brand_norm')
+    scatter_brands_queryset = (
+        base_queryset
+        .annotate(brand_normalized=Coalesce('cars_standard__brand_norm', 'brand'))
+        .filter(brand_normalized__isnull=False)
+        .values_list('brand_normalized', flat=True)
+        .distinct()
+        .order_by('brand_normalized')
+    )
 
     scatter_brands = list(scatter_brands_queryset)
 
@@ -315,10 +334,7 @@ def user_dashboard(request, username):
     years = [2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015]
 
     # Analisis tren harga model dan variant
-    if source == 'carlistmy':
-        from .models import PriceHistoryUnified as PriceHistoryModel
-    else:
-        from .models import PriceHistoryUnified as PriceHistoryModel
+    PriceHistoryModel = PriceHistoryUnified
     
     # Ambil data tren harga untuk model dan variant
     price_trends_data = []
@@ -440,20 +456,14 @@ def user_dashboard_data(request, username):
     if request.user.username != username:
         return JsonResponse({'error': 'Access denied'}, status=403)
     
-    source = request.GET.get('source', 'mudahmy')
+    source = normalize_source_param(request.GET.get('source'))
     brand = request.GET.get('brand')
     year = request.GET.get('year')
 
-    if source not in ['mudahmy', 'carlistmy']:
-        source = 'mudahmy'
-
-    if source == 'carlistmy':
-        from .models import CarsUnified as CarModel
-    else:
-        from .models import CarsUnified as CarModel
-
     # Simplified query for AJAX responses
     queryset = CarModel.objects.filter(status__in=['active', 'sold'])
+    if source != 'all':
+        queryset = queryset.filter(source=source)
     if brand:
         queryset = queryset.select_related('cars_standard').filter(cars_standard__brand_norm=brand)
     if year:
@@ -587,20 +597,15 @@ def get_todays_data(request, username):
         return JsonResponse({'error': 'Access denied'}, status=403)
     
     try:
-        source = request.GET.get('source', 'mudahmy')
-        if source not in ['mudahmy', 'carlistmy']:
-            source = 'mudahmy'
-
-        if source == 'carlistmy':
-            from .models import CarsUnified as CarModel
-        else:
-            from .models import CarsUnified as CarModel
+        source = normalize_source_param(request.GET.get('source'))
 
         # Get today's data using cars_unified with cars_standard join
-        today_base_queryset = CarModel.objects.select_related('cars_standard').filter(
+        today_base_queryset = CarModel.objects.filter(
             information_ads_date=date.today(),
             status__in=['active', 'sold']
         )
+        if source != 'all':
+            today_base_queryset = today_base_queryset.filter(source=source)
         
         # Get actual count for total_count
         total_today_count = today_base_queryset.count()
@@ -623,9 +628,9 @@ def get_todays_data(request, username):
 
             data.append({
                 'id': car.id,
-                'brand': car.cars_standard.brand_norm if car.cars_standard else (car.brand or '-'),
-                'model': car.cars_standard.model_norm if car.cars_standard else (car.model or '-'),
-                'variant': car.cars_standard.variant_norm if car.cars_standard else (car.variant or '-'),
+                'brand': car.cars_standard.brand_norm,
+                'model': car.cars_standard.model_norm,
+                'variant': car.cars_standard.variant_norm,
                 'year': car.year,
                 'mileage': car.mileage,
                 'latest_price': car.price,
@@ -1122,27 +1127,24 @@ def user_dataListing(request, username):
     if request.user.username != username:
         return redirect('user_dataListing', username=request.user.username)
     
-    source = request.GET.get('source', 'mudahmy')
-    if source not in ['mudahmy', 'carlistmy']:
-        source = 'mudahmy'
+    source = normalize_source_param(request.GET.get('source'))
 
-    if source == 'carlistmy':
-        from .models import CarsUnified as CarModel
-    else:
-        from .models import CarsUnified as CarModel
+    active_queryset = CarModel.objects.filter(status='active')
+    if source != 'all':
+        active_queryset = active_queryset.filter(source=source)
 
     # Get unique brands using normalized data
-    brands = CarModel.objects.select_related('cars_standard').filter(
-        status='active'
-    ).values_list('cars_standard__brand_norm', flat=True).distinct().order_by('cars_standard__brand_norm')
+    brands = active_queryset.select_related('cars_standard').values_list(
+        'cars_standard__brand_norm', flat=True
+    ).distinct().order_by('cars_standard__brand_norm')
 
     # Get unique years
-    years = CarModel.objects.filter(
-        status='active'
-    ).values_list('year', flat=True).distinct().order_by('-year')
+    years = active_queryset.values_list('year', flat=True).distinct().order_by('-year')
 
-    # Hanya ambil total data
-    total_data = CarModel.objects.filter(status__in=['active', 'sold']).count()
+    total_queryset = CarModel.objects.filter(status__in=['active', 'sold'])
+    if source != 'all':
+        total_queryset = total_queryset.filter(source=source)
+    total_data = total_queryset.count()
 
     return render(request, 'dashboard/user_dataListing.html', {
         'username': username,
@@ -1155,19 +1157,18 @@ def user_dataListing(request, username):
 @login_required
 def get_models(request):
     try:
-        source = request.GET.get('source', 'mudahmy')
+        source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
-        
-        if source == 'carlistmy':
-            from .models import CarsUnified as CarModel
-        else:
-            from .models import CarsUnified as CarModel
-        
+
         # Use normalized data with proper join
-        models = CarModel.objects.select_related('cars_standard').filter(
+        queryset = CarModel.objects.select_related('cars_standard').filter(
             cars_standard__brand_norm=brand,
             status__in=['active', 'sold']
-        ).values_list('cars_standard__model_norm', flat=True).distinct().order_by('cars_standard__model_norm')
+        )
+        if source != 'all':
+            queryset = queryset.filter(source=source)
+
+        models = queryset.values_list('cars_standard__model_norm', flat=True).distinct().order_by('cars_standard__model_norm')
         
         models_list = list(models)
         print(f"Brand: {brand}, Models found: {models_list}")  # Debug print
@@ -1180,15 +1181,19 @@ def get_models(request):
 @login_required
 def get_variants(request):
     try:
+        source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
         model = request.GET.get('model')
-        from .models import CarsUnified as CarModel
         
-        variants = CarModel.objects.select_related('cars_standard').filter(
+        queryset = CarModel.objects.select_related('cars_standard').filter(
             cars_standard__brand_norm=brand,
             cars_standard__model_norm=model,
             status__in=['active', 'sold']
-        ).values_list('cars_standard__variant_norm', flat=True).distinct().order_by('cars_standard__variant_norm')
+        )
+        if source != 'all':
+            queryset = queryset.filter(source=source)
+
+        variants = queryset.values_list('cars_standard__variant_norm', flat=True).distinct().order_by('cars_standard__variant_norm')
         
         variants_list = list(variants)
         print(f"Brand: {brand}, Model: {model}, Variants found: {variants_list}")  # Debug print
@@ -1201,15 +1206,17 @@ def get_variants(request):
 @login_required
 def get_listing_data(request, username):
     try:
+        source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
         model = request.GET.get('model')
         variant = request.GET.get('variant')
         year = request.GET.get('year')
 
-        from .models import CarsUnified as CarModel
-        from .models import PriceHistoryUnified as PriceHistoryModel
+        PriceHistoryModel = PriceHistoryUnified
 
         queryset = CarModel.objects.select_related('cars_standard').filter(status__in=['active', 'sold'])
+        if source != 'all':
+            queryset = queryset.filter(source=source)
 
         # Apply filters using normalized data for consistency with scatter plot
         if brand:
@@ -1297,9 +1304,9 @@ def get_listing_data(request, username):
             data.append({
                 'img': first_image,
                 'year': car.year or '-',
-                'brand': car.cars_standard.brand_norm if car.cars_standard else (car.brand or '-'),
-                'model': car.cars_standard.model_norm if car.cars_standard else (car.model or '-'),
-                'variant': car.cars_standard.variant_norm if car.cars_standard else (car.variant or '-'),
+                'brand': car.cars_standard.brand_norm,
+                'model': car.cars_standard.model_norm,
+                'variant': car.cars_standard.variant_norm,
                 'mileage': f"{car.mileage:,}" if car.mileage else '-',
                 'starting': starting_price if starting_price is not None else '-',
                 'latest': car.price if car.price is not None else '-',
@@ -1325,8 +1332,7 @@ def get_listing_data(request, username):
 @login_required
 def get_brand_stats(request):
     try:
-        from .models import CarsUnified as CarModel
-
+        source = normalize_source_param(request.GET.get('source'))
         brand_stats = (
             CarModel.objects
             .select_related('cars_standard')
@@ -1335,6 +1341,13 @@ def get_brand_stats(request):
                 cars_standard__isnull=False,  # Exclude records without cars_standard
                 cars_standard__brand_norm__isnull=False  # Exclude None brands
             )
+        )
+
+        if source != 'all':
+            brand_stats = brand_stats.filter(source=source)
+
+        brand_stats = (
+            brand_stats
             .values('cars_standard__brand_norm')
             .annotate(total=Count('id'))
             .order_by('-total')
@@ -1359,13 +1372,19 @@ def get_brand_stats(request):
 @login_required
 def get_model_stats(request):
     try:
+        source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
-        from .models import CarsUnified as CarModel
-
         model_stats = (
             CarModel.objects
             .select_related('cars_standard')
             .filter(status__in=['active', 'sold'], cars_standard__brand_norm=brand)
+        )
+
+        if source != 'all':
+            model_stats = model_stats.filter(source=source)
+
+        model_stats = (
+            model_stats
             .values('cars_standard__model_norm')
             .annotate(total=Count('id'))
             .order_by('-total')
@@ -1387,16 +1406,11 @@ def get_model_stats(request):
 @login_required
 def get_scatter_data(request, username):
     try:
-        source = request.GET.get('source', 'mudahmy')
+        source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
         model = request.GET.get('model')
         variant = request.GET.get('variant')
         year = request.GET.get('year')
-
-        if source == 'carlistmy':
-            from .models import CarsUnified as CarModel
-        else:
-            from .models import CarsUnified as CarModel
 
         if not brand:
             return JsonResponse({'error': 'Brand is required'}, status=400)
@@ -1408,6 +1422,8 @@ def get_scatter_data(request, username):
             price__gt=0,
             mileage__gt=0
         )
+        if source != 'all':
+            queryset = queryset.filter(source=source)
 
         if model:
             queryset = queryset.filter(cars_standard__model_norm=model)
@@ -1436,16 +1452,11 @@ def get_scatter_data(request, username):
 @login_required
 def get_scatter_statistics(request, username):
     try:
-        source = request.GET.get('source', 'mudahmy')
+        source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
         model = request.GET.get('model')
         variant = request.GET.get('variant')
         year = request.GET.get('year')
-
-        if source == 'carlistmy':
-            from .models import CarsUnified as CarModel
-        else:
-            from .models import CarsUnified as CarModel
 
         # Base queryset with proper join
         queryset = CarModel.objects.select_related('cars_standard').filter(
@@ -1453,6 +1464,8 @@ def get_scatter_statistics(request, username):
             price__gt=0,
             mileage__gt=0
         )
+        if source != 'all':
+            queryset = queryset.filter(source=source)
 
         # Apply filters using normalized data
         if brand:
@@ -1497,22 +1510,19 @@ def get_scatter_statistics(request, username):
 @login_required
 def get_avg_mileage_per_year(request, username):
     try:
-        source = request.GET.get('source', 'mudahmy')
+        source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
         model = request.GET.get('model')
         variant = request.GET.get('variant')
         year = request.GET.get('year')
 
-        if source == 'carlistmy':
-            from .models import CarsUnified as CarModel
-        else:
-            from .models import CarsUnified as CarModel
-        
         qs = CarModel.objects.select_related('cars_standard').filter(
             status__in=['active', 'sold'],
             mileage__isnull=False,
             year__isnull=False
         )
+        if source != 'all':
+            qs = qs.filter(source=source)
 
         if brand:
             qs = qs.filter(cars_standard__brand_norm=brand)
@@ -1541,9 +1551,12 @@ def get_avg_mileage_per_year(request, username):
 @login_required
 def get_feature_correlation(request, username):
     try:
-        from .models import CarsUnified as CarModel
+        source = normalize_source_param(request.GET.get('source'))
 
-        qs = CarModel.objects.filter(status__in=['active', 'sold']).values('price', 'mileage', 'year')
+        qs = CarModel.objects.filter(status__in=['active', 'sold'])
+        if source != 'all':
+            qs = qs.filter(source=source)
+        qs = qs.values('price', 'mileage', 'year')
         df = pd.DataFrame(list(qs))
 
         if df.empty:
@@ -1560,12 +1573,14 @@ def get_feature_correlation(request, username):
 @login_required
 def get_years(request):
     try:
+        source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
         model = request.GET.get('model')
         variant = request.GET.get('variant')
-        from .models import CarsUnified as CarModel
 
         qs = CarModel.objects.select_related('cars_standard').filter(status__in=['active', 'sold'])
+        if source != 'all':
+            qs = qs.filter(source=source)
         if brand:
             qs = qs.filter(cars_standard__brand_norm=brand)
         if model:
@@ -1583,23 +1598,19 @@ def get_years(request):
 @login_required
 def get_price_history(request, username):
     try:
-        source = request.GET.get('source', 'mudahmy')
+        source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
         model = request.GET.get('model')
         variant = request.GET.get('variant')
         condition = request.GET.get('condition')
         year = request.GET.get('year')
         mileage = request.GET.get('mileage')
-        
-        if source == 'carlistmy':
-            from .models import PriceHistoryUnified as PriceHistoryModel
-            from .models import CarsUnified as CarModel
-        else:
-            from .models import PriceHistoryUnified as PriceHistoryModel
-            from .models import CarsUnified as CarModel
-        
+
+        PriceHistoryModel = PriceHistoryUnified
         # Build filter for cars using normalized data
         matching_cars = CarModel.objects.select_related('cars_standard').filter(status='active')
+        if source != 'all':
+            matching_cars = matching_cars.filter(source=source)
         if brand:
             matching_cars = matching_cars.filter(cars_standard__brand_norm=brand)
         if model:
@@ -1650,9 +1661,9 @@ def get_price_history(request, username):
 
             car_data = {
                 'listing_url': car.listing_url,
-                'brand': car.cars_standard.brand_norm if car.cars_standard else car.brand,
-                'model': car.cars_standard.model_norm if car.cars_standard else car.model,
-                'variant': car.cars_standard.variant_norm if car.cars_standard else car.variant,
+                'brand': car.cars_standard.brand_norm,
+                'model': car.cars_standard.model_norm,
+                'variant': car.cars_standard.variant_norm,
                 'year': car.year,
                 'mileage': car.mileage,
                 'condition': car.condition,

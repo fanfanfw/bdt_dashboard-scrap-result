@@ -336,6 +336,83 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // Average Price per Year Chart
+  const avgPriceYearCtx = document.getElementById('avgPriceYearChart').getContext('2d');
+  let avgPriceYearChart = new Chart(avgPriceYearCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Average Price (RM)',
+        data: [],
+        borderColor: 'rgba(240, 84, 84, 1)',
+        backgroundColor: 'rgba(240, 84, 84, 0.1)',
+        tension: 0.4,
+        borderWidth: 3,
+        pointBackgroundColor: 'rgba(240, 84, 84, 1)',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(34, 40, 49, 0.9)',
+          titleColor: '#DDDDDD',
+          bodyColor: '#DDDDDD',
+          borderColor: '#30475E',
+          borderWidth: 1,
+          cornerRadius: 8,
+          callbacks: {
+            label: function(context) {
+              return `Average Price: RM ${Math.round(context.parsed.y).toLocaleString()}`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Harga (RM)',
+            color: '#30475E'
+          },
+          grid: {
+            color: 'rgba(48, 71, 94, 0.1)'
+          },
+          ticks: {
+            color: '#30475E',
+            callback: function(value) {
+              return 'RM ' + value.toLocaleString();
+            }
+          }
+        },
+        x: {
+          title: {
+            display: true,
+            text: 'Year',
+            color: '#30475E'
+          },
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: '#30475E'
+          }
+        }
+      }
+    }
+  });
+
   // Average Mileage Chart
   const avgMileageCtx = document.getElementById('avgMileageChart').getContext('2d');
   let avgMileageChart = new Chart(avgMileageCtx, {
@@ -504,8 +581,32 @@ document.addEventListener('DOMContentLoaded', function() {
       .catch(error => console.error('Error:', error));
   }
 
+  // Function to load average price per year
+  function loadAvgPricePerYear(brand = '', model = '', variant = '', year = '') {
+    const params = new URLSearchParams();
+    // Source parameter removed - using unified data
+    if (brand) params.append('brand', brand);
+    if (model) params.append('model', model);
+    if (variant) params.append('variant', variant);
+    if (year) params.append('year', year);
+
+    fetch(`/dashboard/user/${config.username}/avg-price-year/?${params.toString()}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data && data.error) {
+          console.error('Error loading avg price per year:', data.error);
+          return;
+        }
+        avgPriceYearChart.data.labels = data.labels;
+        avgPriceYearChart.data.datasets[0].data = (data.data || []).map(v => Number(v) || 0);
+        avgPriceYearChart.update();
+      })
+      .catch(error => console.error('Error:', error));
+  }
+
   // Load initial scatter data
   fetchScatterData();
+  loadAvgPricePerYear();
   loadAvgMileagePerYear();
   
   // Load today's data
@@ -683,6 +784,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     fetchScatterData(brand);
+    loadAvgPricePerYear(brand);
     loadAvgMileagePerYear(brand);
   });
 
@@ -707,6 +809,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     fetchScatterData(brand, model);
+    loadAvgPricePerYear(brand, model);
     loadAvgMileagePerYear(brand, model);
   });
 
@@ -731,6 +834,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     fetchScatterData(brand, model, variant);
+    loadAvgPricePerYear(brand, model, variant);
     loadAvgMileagePerYear(brand, model, variant);
   });
 
@@ -741,6 +845,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const variant = $('#scatterVariant').val();
     const year = $(this).val();
     fetchScatterData(brand, model, variant, year);
+    loadAvgPricePerYear(brand, model, variant, year);
     loadAvgMileagePerYear(brand, model, variant, year);
   });
 

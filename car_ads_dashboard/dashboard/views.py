@@ -1549,6 +1549,48 @@ def get_avg_mileage_per_year(request, username):
         return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
+def get_avg_price_per_year(request, username):
+    try:
+        source = normalize_source_param(request.GET.get('source'))
+        brand = request.GET.get('brand')
+        model = request.GET.get('model')
+        variant = request.GET.get('variant')
+        year = request.GET.get('year')
+
+        qs = CarModel.objects.select_related('cars_standard').filter(
+            status__in=['active', 'sold'],
+            price__isnull=False,
+            price__gt=0,
+            year__isnull=False,
+        )
+        if source != 'all':
+            qs = qs.filter(source=source)
+
+        if brand:
+            qs = qs.filter(cars_standard__brand_norm=brand)
+        if model:
+            qs = qs.filter(cars_standard__model_norm=model)
+        if variant:
+            qs = qs.filter(cars_standard__variant_norm=variant)
+        if year:
+            try:
+                year_int = int(year)
+                qs = qs.filter(year=year_int)
+            except ValueError:
+                pass
+
+        data = qs.values('year').annotate(avg_price=models.Avg('price')).order_by('year')
+
+        result = {
+            'labels': [str(item['year']) for item in data],
+            'data': [round(float(item['avg_price'])) if item['avg_price'] else 0 for item in data],
+        }
+        return JsonResponse(result)
+    except Exception as e:
+        print(f"Error in get_avg_price_per_year: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
 def get_feature_correlation(request, username):
     try:
         source = normalize_source_param(request.GET.get('source'))

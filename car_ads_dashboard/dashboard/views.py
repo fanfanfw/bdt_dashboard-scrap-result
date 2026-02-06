@@ -619,12 +619,12 @@ def get_todays_data(request, username):
             first_image = ''
             if car.images:
                 try:
-                    import json
-                    images_list = json.loads(car.images)
-                    if isinstance(images_list, list) and images_list:
-                        first_image = images_list[0]
-                except:
-                    first_image = car.images
+                    if isinstance(car.images, (list, tuple)) and car.images:
+                        first_image = car.images[0]
+                    else:
+                        first_image = str(car.images)
+                except Exception:
+                    first_image = ''
 
             data.append({
                 'id': car.id,
@@ -1249,7 +1249,7 @@ def get_listing_data(request, username):
         # Ordering
         order_column = int(request.GET.get('order[0][column]', 1))
         order_dir = request.GET.get('order[0][dir]', 'desc')
-        order_fields = ['images', 'year', 'brand', 'model', 'variant', 'mileage', 'price', 'price', 'information_ads_date', 'status', 'sold_at']
+        order_fields = ['images', 'year', 'brand', 'model', 'variant', 'mileage', 'price', 'price', 'information_ads_date', 'status', 'last_scraped_at']
         
         if 0 <= order_column < len(order_fields):
             order_field = order_fields[order_column]
@@ -1279,9 +1279,9 @@ def get_listing_data(request, username):
             
             # Calculate sold duration
             sold_duration = '-'
-            if car.status == 'sold' and car.sold_at and car.information_ads_date:
+            if car.status == 'sold' and car.last_scraped_at and car.information_ads_date:
                 try:
-                    duration = (car.sold_at.date() - car.information_ads_date).days
+                    duration = (car.last_scraped_at.date() - car.information_ads_date).days
                     if duration < 0:
                         duration = 0
                     sold_duration = f"{duration} hari"
@@ -1292,14 +1292,12 @@ def get_listing_data(request, username):
             first_image = ''
             if car.images:
                 try:
-                    # Try to parse as JSON array
-                    import json
-                    images_list = json.loads(car.images)
-                    if isinstance(images_list, list) and images_list:
-                        first_image = images_list[0]
-                except:
-                    # If not JSON, treat as single image URL
-                    first_image = car.images
+                    if isinstance(car.images, (list, tuple)) and car.images:
+                        first_image = car.images[0]
+                    else:
+                        first_image = str(car.images)
+                except Exception:
+                    first_image = ''
             
             data.append({
                 'img': first_image,
@@ -1686,7 +1684,7 @@ def get_price_history(request, username):
         total_change_amount = 0
         total_change_percent = 0
         
-        for car in matching_cars.order_by('-last_status_check'):
+        for car in matching_cars.order_by('-last_scraped_at'):
             # Get latest price change for this car using listing_url
             latest_price_change = (
                 PriceHistoryModel.objects
@@ -1711,7 +1709,7 @@ def get_price_history(request, username):
                 'condition': car.condition,
                 'current_price': car.price,
                 'location': car.location,
-                'last_status_check': car.last_status_check.isoformat() if car.last_status_check else None,
+                'last_status_check': car.last_scraped_at.isoformat() if car.last_scraped_at else None,
                 'price_change': None
             }
             

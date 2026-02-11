@@ -609,8 +609,9 @@ document.addEventListener('DOMContentLoaded', function() {
   loadAvgPricePerYear();
   loadAvgMileagePerYear();
   
-  function loadScatterYears(brand = '', model = '', variant = '') {
+  function loadScatterYears(brand = '', model = '', variant = '', preserveSelection = true) {
     // Keep year independent from variant (variant is optional).
+    const selectedYear = preserveSelection ? ($('#scatterYear').val() || '') : '';
     $('#scatterYear').html('<option value="">All Years</option>');
 
     if (!brand) return;
@@ -624,9 +625,13 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(response => response.json())
       .then(data => {
         const years = Array.isArray(data) ? data : [];
+        const yearStrings = years.map(String);
         years.forEach(year => {
           $('#scatterYear').append(`<option value="${year}">${year}</option>`);
         });
+        if (selectedYear && yearStrings.includes(String(selectedYear))) {
+          $('#scatterYear').val(String(selectedYear));
+        }
       })
       .catch(error => console.error('Error fetching years:', error));
   }
@@ -793,7 +798,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Clear and load models
     $('#scatterModel').html('<option value="">All Models</option>');
     $('#scatterVariant').html('<option value="">All Variants</option>');
-    loadScatterYears(brand);
+    loadScatterYears(brand, '', '', false);
 
     if (brand) {
       fetch(`/dashboard/get-models/?brand=${brand}`)

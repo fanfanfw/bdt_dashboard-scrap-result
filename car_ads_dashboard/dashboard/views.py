@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
 from django.db.models.functions import Coalesce
-from .models import CarsInventory, PriceHistoryUnified, UserProfile, CarsStandard
+from .models import CarsInventory, PriceHistoryUnified, UserProfile, CarsStandard, CarsUnified, Carsome
 from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
 from django.db import models
@@ -1160,22 +1160,36 @@ def get_models(request):
         source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
 
-        # Use normalized data with proper join
-        queryset = CarModel.objects.select_related('cars_standard').filter(
-            cars_standard__brand_norm=brand,
-            status__in=['active', 'sold']
-        )
-        if source != 'all':
-            queryset = queryset.filter(source=source)
+        if not brand:
+            return JsonResponse([], safe=False)
 
-        models = queryset.values_list('cars_standard__model_norm', flat=True).distinct().order_by('cars_standard__model_norm')
-        
-        models_list = list(models)
-        print(f"Brand: {brand}, Models found: {models_list}")  # Debug print
-        
+        models_set = set()
+
+        if source in ('all', 'carlistmy', 'mudahmy'):
+            cu_qs = CarsUnified.objects.filter(
+                status__in=['active', 'sold'],
+                cars_standard__brand_norm=brand,
+            )
+            if source != 'all':
+                cu_qs = cu_qs.filter(source=source)
+            models_set.update(
+                cu_qs.values_list('cars_standard__model_norm', flat=True).distinct()
+            )
+
+        if source in ('all', 'carsome'):
+            cs_qs = Carsome.objects.filter(
+                status__in=['active', 'sold'],
+                is_deleted=False,
+                cars_standard__brand_norm=brand,
+            )
+            models_set.update(
+                cs_qs.values_list('cars_standard__model_norm', flat=True).distinct()
+            )
+
+        models_list = sorted((m for m in models_set if m), key=str)
         return JsonResponse(models_list, safe=False)
     except Exception as e:
-        print(f"Error in get_models: {str(e)}")  # Debug print
+        print(f"Error in get_models: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
@@ -1184,23 +1198,39 @@ def get_variants(request):
         source = normalize_source_param(request.GET.get('source'))
         brand = request.GET.get('brand')
         model = request.GET.get('model')
-        
-        queryset = CarModel.objects.select_related('cars_standard').filter(
-            cars_standard__brand_norm=brand,
-            cars_standard__model_norm=model,
-            status__in=['active', 'sold']
-        )
-        if source != 'all':
-            queryset = queryset.filter(source=source)
 
-        variants = queryset.values_list('cars_standard__variant_norm', flat=True).distinct().order_by('cars_standard__variant_norm')
-        
-        variants_list = list(variants)
-        print(f"Brand: {brand}, Model: {model}, Variants found: {variants_list}")  # Debug print
-        
+        if not brand or not model:
+            return JsonResponse([], safe=False)
+
+        variants_set = set()
+
+        if source in ('all', 'carlistmy', 'mudahmy'):
+            cu_qs = CarsUnified.objects.filter(
+                status__in=['active', 'sold'],
+                cars_standard__brand_norm=brand,
+                cars_standard__model_norm=model,
+            )
+            if source != 'all':
+                cu_qs = cu_qs.filter(source=source)
+            variants_set.update(
+                cu_qs.values_list('cars_standard__variant_norm', flat=True).distinct()
+            )
+
+        if source in ('all', 'carsome'):
+            cs_qs = Carsome.objects.filter(
+                status__in=['active', 'sold'],
+                is_deleted=False,
+                cars_standard__brand_norm=brand,
+                cars_standard__model_norm=model,
+            )
+            variants_set.update(
+                cs_qs.values_list('cars_standard__variant_norm', flat=True).distinct()
+            )
+
+        variants_list = sorted((v for v in variants_set if v), key=str)
         return JsonResponse(variants_list, safe=False)
     except Exception as e:
-        print(f"Error in get_variants: {str(e)}")  # Debug print
+        print(f"Error in get_variants: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
@@ -1413,20 +1443,21 @@ def get_scatter_data(request, username):
         if not brand:
             return JsonResponse({'error': 'Brand is required'}, status=400)
 
-        # Use proper join with cars_standard for normalized data
-        queryset = CarModel.objects.select_related('cars_standard').filter(
+        std_qs = CarsStandard.objects.filter(brand_norm=brand)
+        if model:
+            std_qs = std_qs.filter(model_norm=model)
+        if variant:
+            std_qs = std_qs.filter(variant_norm=variant)
+
+        # Prefer filtering by cars_standard_id to avoid expensive joins on the combined view.
+        queryset = CarModel.objects.filter(
             status__in=['active', 'sold'],
-            cars_standard__brand_norm=brand,
+            cars_standard_id__in=std_qs.values('id'),
             price__gt=0,
-            mileage__gt=0
+            mileage__gt=0,
         )
         if source != 'all':
             queryset = queryset.filter(source=source)
-
-        if model:
-            queryset = queryset.filter(cars_standard__model_norm=model)
-        if variant:
-            queryset = queryset.filter(cars_standard__variant_norm=variant)
         if year:
             try:
                 year_int = int(year)
@@ -1456,8 +1487,7 @@ def get_scatter_statistics(request, username):
         variant = request.GET.get('variant')
         year = request.GET.get('year')
 
-        # Base queryset with proper join
-        queryset = CarModel.objects.select_related('cars_standard').filter(
+        queryset = CarModel.objects.filter(
             status__in=['active', 'sold'],
             price__gt=0,
             mileage__gt=0
@@ -1465,13 +1495,16 @@ def get_scatter_statistics(request, username):
         if source != 'all':
             queryset = queryset.filter(source=source)
 
-        # Apply filters using normalized data
-        if brand:
-            queryset = queryset.filter(cars_standard__brand_norm=brand)
-        if model:
-            queryset = queryset.filter(cars_standard__model_norm=model)
-        if variant:
-            queryset = queryset.filter(cars_standard__variant_norm=variant)
+        # Apply normalized filters via cars_standard_id (pushdown-friendly for the view).
+        if brand or model or variant:
+            std_qs = CarsStandard.objects.all()
+            if brand:
+                std_qs = std_qs.filter(brand_norm=brand)
+            if model:
+                std_qs = std_qs.filter(model_norm=model)
+            if variant:
+                std_qs = std_qs.filter(variant_norm=variant)
+            queryset = queryset.filter(cars_standard_id__in=std_qs.values('id'))
         if year:
             try:
                 year_int = int(year)
@@ -1514,7 +1547,7 @@ def get_avg_mileage_per_year(request, username):
         variant = request.GET.get('variant')
         year = request.GET.get('year')
 
-        qs = CarModel.objects.select_related('cars_standard').filter(
+        qs = CarModel.objects.filter(
             status__in=['active', 'sold'],
             mileage__isnull=False,
             year__isnull=False
@@ -1522,12 +1555,15 @@ def get_avg_mileage_per_year(request, username):
         if source != 'all':
             qs = qs.filter(source=source)
 
-        if brand:
-            qs = qs.filter(cars_standard__brand_norm=brand)
-        if model:
-            qs = qs.filter(cars_standard__model_norm=model)
-        if variant:
-            qs = qs.filter(cars_standard__variant_norm=variant)
+        if brand or model or variant:
+            std_qs = CarsStandard.objects.all()
+            if brand:
+                std_qs = std_qs.filter(brand_norm=brand)
+            if model:
+                std_qs = std_qs.filter(model_norm=model)
+            if variant:
+                std_qs = std_qs.filter(variant_norm=variant)
+            qs = qs.filter(cars_standard_id__in=std_qs.values('id'))
         if year:
             try:
                 year_int = int(year)
@@ -1555,7 +1591,7 @@ def get_avg_price_per_year(request, username):
         variant = request.GET.get('variant')
         year = request.GET.get('year')
 
-        qs = CarModel.objects.select_related('cars_standard').filter(
+        qs = CarModel.objects.filter(
             status__in=['active', 'sold'],
             price__isnull=False,
             price__gt=0,
@@ -1564,12 +1600,15 @@ def get_avg_price_per_year(request, username):
         if source != 'all':
             qs = qs.filter(source=source)
 
-        if brand:
-            qs = qs.filter(cars_standard__brand_norm=brand)
-        if model:
-            qs = qs.filter(cars_standard__model_norm=model)
-        if variant:
-            qs = qs.filter(cars_standard__variant_norm=variant)
+        if brand or model or variant:
+            std_qs = CarsStandard.objects.all()
+            if brand:
+                std_qs = std_qs.filter(brand_norm=brand)
+            if model:
+                std_qs = std_qs.filter(model_norm=model)
+            if variant:
+                std_qs = std_qs.filter(variant_norm=variant)
+            qs = qs.filter(cars_standard_id__in=std_qs.values('id'))
         if year:
             try:
                 year_int = int(year)
@@ -1618,18 +1657,39 @@ def get_years(request):
         model = request.GET.get('model')
         variant = request.GET.get('variant')
 
-        qs = CarModel.objects.select_related('cars_standard').filter(status__in=['active', 'sold'])
-        if source != 'all':
-            qs = qs.filter(source=source)
+        # Avoid querying through CarsInventory (cars_dashboard_combined view UNION ALL),
+        # so Postgres can use indexes on base tables.
+        std_qs = CarsStandard.objects.all()
         if brand:
-            qs = qs.filter(cars_standard__brand_norm=brand)
+            std_qs = std_qs.filter(brand_norm=brand)
         if model:
-            qs = qs.filter(cars_standard__model_norm=model)
+            std_qs = std_qs.filter(model_norm=model)
         if variant:
-            qs = qs.filter(cars_standard__variant_norm=variant)
+            std_qs = std_qs.filter(variant_norm=variant)
 
-        years = list(qs.values_list('year', flat=True).distinct().order_by('-year'))
-        years = [y for y in years if y is not None]
+        std_ids = std_qs.values('id')
+        years_set = set()
+
+        if source in ('all', 'carlistmy', 'mudahmy'):
+            cu_qs = CarsUnified.objects.filter(
+                status__in=['active', 'sold'],
+                year__isnull=False,
+                cars_standard_id__in=std_ids,
+            )
+            if source != 'all':
+                cu_qs = cu_qs.filter(source=source)
+            years_set.update(cu_qs.values_list('year', flat=True).distinct())
+
+        if source in ('all', 'carsome'):
+            cs_qs = Carsome.objects.filter(
+                status__in=['active', 'sold'],
+                year__isnull=False,
+                is_deleted=False,
+                cars_standard_id__in=std_ids,
+            )
+            years_set.update(cs_qs.values_list('year', flat=True).distinct())
+
+        years = sorted((y for y in years_set if y is not None), reverse=True)
         return JsonResponse(years, safe=False)
     except Exception as e:
         print(f"Error in get_years: {str(e)}")

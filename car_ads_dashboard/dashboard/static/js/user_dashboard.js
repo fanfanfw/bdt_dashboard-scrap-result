@@ -609,6 +609,28 @@ document.addEventListener('DOMContentLoaded', function() {
   loadAvgPricePerYear();
   loadAvgMileagePerYear();
   
+  function loadScatterYears(brand = '', model = '', variant = '') {
+    // Keep year independent from variant (variant is optional).
+    $('#scatterYear').html('<option value="">All Years</option>');
+
+    if (!brand) return;
+
+    const params = new URLSearchParams();
+    params.append('brand', brand);
+    if (model) params.append('model', model);
+    if (variant) params.append('variant', variant);
+
+    fetch(`/dashboard/get-years/?${params.toString()}`)
+      .then(response => response.json())
+      .then(data => {
+        const years = Array.isArray(data) ? data : [];
+        years.forEach(year => {
+          $('#scatterYear').append(`<option value="${year}">${year}</option>`);
+        });
+      })
+      .catch(error => console.error('Error fetching years:', error));
+  }
+
   // Load today's data
   loadTodaysData();
 
@@ -771,7 +793,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Clear and load models
     $('#scatterModel').html('<option value="">All Models</option>');
     $('#scatterVariant').html('<option value="">All Variants</option>');
-    $('#scatterYear').html('<option value="">All Years</option>');
+    loadScatterYears(brand);
 
     if (brand) {
       fetch(`/dashboard/get-models/?brand=${brand}`)
@@ -795,7 +817,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Clear dependent dropdowns
     $('#scatterVariant').html('<option value="">All Variants</option>');
-    $('#scatterYear').html('<option value="">All Years</option>');
+    loadScatterYears(brand, model);
 
     if (brand && model) {
       // Load variants for the selected brand and model
@@ -819,19 +841,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const model = $('#scatterModel').val();
     const variant = $(this).val();
 
-    // Clear year dropdown
-    $('#scatterYear').html('<option value="">All Years</option>');
-
-    // Load years based on brand, model, and variant selection
-    if (brand) {
-      fetch(`/dashboard/get-years/?brand=${brand}&model=${model || ''}&variant=${variant || ''}`)
-        .then(response => response.json())
-        .then(data => {
-          data.forEach(year => {
-            $('#scatterYear').append(`<option value="${year}">${year}</option>`);
-          });
-        });
-    }
+    loadScatterYears(brand, model, variant);
 
     fetchScatterData(brand, model, variant);
     loadAvgPricePerYear(brand, model, variant);

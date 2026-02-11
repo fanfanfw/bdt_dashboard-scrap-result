@@ -4,7 +4,7 @@
 {% block title %}Dashboard - Unified Cars Data{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{% static 'css/user_dashboard.css' %}">
+<link rel="stylesheet" href="{% static 'css/user_dashboard.css' %}?v=20260211">
 <div class="modern-dashboard">
   <!-- Hero Section -->
   <div class="hero-section">
@@ -222,68 +222,76 @@
           </div>
         </div>
         
-        <!-- Scatter Plot Statistics Panel -->
-        <div class="scatter-stats-panel" id="scatterStatsPanel">
-          <div class="stats-grid">
-            <div class="stat-item">
-              <div class="stat-icon">
-                <i class="fas fa-chart-line"></i>
+        <div class="scatter-analysis-body" id="scatterAnalysisBody">
+          <!-- Scatter Plot Statistics Panel -->
+          <div class="scatter-stats-panel" id="scatterStatsPanel">
+            <div class="stats-grid">
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-value" id="avgPrice">-</div>
+                  <div class="stat-label">Average Price</div>
+                </div>
               </div>
-              <div class="stat-content">
-                <div class="stat-value" id="avgPrice">-</div>
-                <div class="stat-label">Average Price</div>
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <i class="fas fa-tachometer-alt"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-value" id="avgMileage">-</div>
+                  <div class="stat-label">Average Mileage</div>
+                </div>
               </div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-icon">
-                <i class="fas fa-tachometer-alt"></i>
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <i class="fas fa-arrow-up"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-value" id="maxPrice">-</div>
+                  <div class="stat-label">Maximum Price</div>
+                </div>
               </div>
-              <div class="stat-content">
-                <div class="stat-value" id="avgMileage">-</div>
-                <div class="stat-label">Average Mileage</div>
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <i class="fas fa-arrow-down"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-value" id="minPrice">-</div>
+                  <div class="stat-label">Minimum Price</div>
+                </div>
               </div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-icon">
-                <i class="fas fa-arrow-up"></i>
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <i class="fas fa-database"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-value" id="totalDataPoints">-</div>
+                  <div class="stat-label">Total Data Points</div>
+                </div>
               </div>
-              <div class="stat-content">
-                <div class="stat-value" id="maxPrice">-</div>
-                <div class="stat-label">Maximum Price</div>
-              </div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-icon">
-                <i class="fas fa-arrow-down"></i>
-              </div>
-              <div class="stat-content">
-                <div class="stat-value" id="minPrice">-</div>
-                <div class="stat-label">Minimum Price</div>
-              </div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-icon">
-                <i class="fas fa-database"></i>
-              </div>
-              <div class="stat-content">
-                <div class="stat-value" id="totalDataPoints">-</div>
-                <div class="stat-label">Total Data Points</div>
-              </div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-icon">
-                <i class="fas fa-road"></i>
-              </div>
-              <div class="stat-content">
-                <div class="stat-value" id="maxMileage">-</div>
-                <div class="stat-label">Maximum Mileage</div>
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <i class="fas fa-road"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-value" id="maxMileage">-</div>
+                  <div class="stat-label">Maximum Mileage</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        
-        <div class="analysis-content">
-          <canvas id="scatterChart"></canvas>
+          
+          <div class="analysis-content scatter-chart-content" id="scatterChartContent">
+            <canvas id="scatterChart"></canvas>
+            <div class="analysis-loading-overlay" id="scatterLoadingOverlay" hidden>
+              <div class="analysis-loading-inner" role="status" aria-live="polite">
+                <div class="analysis-loading-spinner"></div>
+                <div class="analysis-loading-text">Memuat data...</div>
+              </div>
+            </div>
+          </div>
         </div>
 	      </div>
 
@@ -446,7 +454,7 @@ window.dashboardConfig = {
   priceHistoryUrl: '{% url "get_price_history" username=username %}'
 };
 </script>
-<script src="{% static 'js/user_dashboard.js' %}"></script>
+<script src="{% static 'js/user_dashboard.js' %}?v=20260211"></script>
 <!-- Price History Modal -->
 <div class="modal fade" id="priceHistoryModal" tabindex="-1" aria-labelledby="priceHistoryModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">

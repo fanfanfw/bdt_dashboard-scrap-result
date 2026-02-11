@@ -490,8 +490,46 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  let scatterLoadingCount = 0;
+
+  function setScatterLoading(isLoading) {
+    const overlay = document.getElementById('scatterLoadingOverlay');
+    const chartContent = document.getElementById('scatterChartContent');
+    if (!overlay) return;
+
+    if (isLoading) {
+      overlay.removeAttribute('hidden');
+      if (chartContent) chartContent.classList.add('is-loading');
+    } else {
+      overlay.setAttribute('hidden', '');
+      if (chartContent) chartContent.classList.remove('is-loading');
+    }
+  }
+
+  function scatterLoadingStart() {
+    scatterLoadingCount += 1;
+    setScatterLoading(true);
+  }
+
+  function scatterLoadingEnd() {
+    scatterLoadingCount = Math.max(0, scatterLoadingCount - 1);
+    if (scatterLoadingCount === 0) {
+      setScatterLoading(false);
+    }
+  }
+
   // Function to fetch scatter data and statistics
   function fetchScatterData(brand = '', model = '', variant = '', year = '') {
+    if (!brand) {
+      // No brand selected: avoid unnecessary requests and reset visuals.
+      scatterLoadingCount = 0;
+      setScatterLoading(false);
+      scatterChart.data.datasets[0].data = [];
+      scatterChart.update();
+      updateScatterStatistics({});
+      return;
+    }
+
     const params = new URLSearchParams();
     // Source parameter removed - using unified data
     if (brand) params.append('brand', brand);
@@ -500,13 +538,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (year) params.append('year', year);
 
     // Fetch scatter plot data
+    scatterLoadingStart();
     fetch(`/dashboard/user/${config.username}/scatter-data/?${params.toString()}`)
       .then(response => response.json())
       .then(data => {
         scatterChart.data.datasets[0].data = data;
         scatterChart.update();
       })
-      .catch(error => console.error('Error fetching scatter data:', error));
+      .catch(error => console.error('Error fetching scatter data:', error))
+      .finally(() => scatterLoadingEnd());
     
     // Fetch scatter plot statistics
     fetchScatterStatistics(brand, model, variant, year);
@@ -514,6 +554,11 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Function to fetch scatter plot statistics
   function fetchScatterStatistics(brand = '', model = '', variant = '', year = '') {
+    if (!brand) {
+      updateScatterStatistics({});
+      return;
+    }
+
     const params = new URLSearchParams();
     // Source parameter removed - using unified data
     if (brand) params.append('brand', brand);
@@ -521,6 +566,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (variant) params.append('variant', variant);
     if (year) params.append('year', year);
 
+    scatterLoadingStart();
     fetch(`/dashboard/user/${config.username}/scatter-stats/?${params.toString()}`)
       .then(response => response.json())
       .then(stats => {
@@ -530,7 +576,8 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('Error fetching scatter statistics:', error);
         // Reset stats on error
         updateScatterStatistics({});
-      });
+      })
+      .finally(() => scatterLoadingEnd());
   }
   
   // Function to update scatter plot statistics display
@@ -822,7 +869,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Clear dependent dropdowns
     $('#scatterVariant').html('<option value="">All Variants</option>');
-    loadScatterYears(brand, model);
+    // Always reset year when model changes.
+    loadScatterYears(brand, model, '', false);
 
     if (brand && model) {
       // Load variants for the selected brand and model

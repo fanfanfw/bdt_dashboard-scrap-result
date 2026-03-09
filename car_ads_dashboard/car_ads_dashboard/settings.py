@@ -26,6 +26,13 @@ def env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
 
+def env_list(name: str, default: list[str] | None = None) -> list[str]:
+    value = os.getenv(name)
+    if value is None:
+        return default[:] if default else []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -35,14 +42,17 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-key-change-this')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DEBUG", default=True)
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', default=['*'])
 
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8000', 
-    'http://127.0.0.1:8000',  # jika kamu akses tanpa port juga
-    'http://ifcontech.ddns.net:8082',
-    'http://ifcontech.ddns.net'
-]
+CSRF_TRUSTED_ORIGINS = env_list(
+    'CSRF_TRUSTED_ORIGINS',
+    default=[
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+        'http://ifcontech.ddns.net:8082',
+        'http://ifcontech.ddns.net',
+    ],
+)
 
 # Application definition
 

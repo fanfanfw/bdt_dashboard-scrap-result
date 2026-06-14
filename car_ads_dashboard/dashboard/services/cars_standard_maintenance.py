@@ -1,6 +1,7 @@
 import json
 import re
 import secrets
+import time
 
 from django.core.paginator import Paginator
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
@@ -105,10 +106,16 @@ MERGE_PREVIEW_TOKEN_MAX_AGE = 15 * 60
 MERGE_PREVIEW_TOKEN_SALT = 'dashboard.cars_standard.merge_preview'
 INSERT_MISSING_PREVIEW_TOKEN_MAX_AGE = 15 * 60
 INSERT_MISSING_PREVIEW_TOKEN_SALT = 'dashboard.cars_standard.insert_missing_preview'
+FILL_PREVIEW_TOKEN_MAX_AGE = 15 * 60
+FILL_PREVIEW_TOKEN_SALT = 'dashboard.cars_standard.fill_preview'
 MODEL_GROUP_DEFAULT = 'NO MODEL GROUP'
 NULLISH_VALUES = ('', '-', 'N/A', 'NA', 'NULL', 'NONE')
-SOURCE_ALIASES = {
-    'carsome': 'carsomeid',
+FILL_BATCH_SIZE_MIN = 1
+FILL_BATCH_SIZE_MAX = 10000
+SOURCE_ALIASES_BY_TABLE = {
+    'cars_unified_ind': {
+        'carsome': 'carsomeid',
+    },
 }
 SAMPLE_LIMIT = 20
 
@@ -152,11 +159,13 @@ def validate_sources(table_name, sources):
     cleaned_sources = []
     available_sources = discover_sources(table_name)
     available_by_lower = {str(source).lower(): source for source in available_sources}
+    source_aliases = SOURCE_ALIASES_BY_TABLE.get(table_name, {})
     for source in sources or []:
         value = str(source).strip().lower()
         if not value:
             continue
-        value = value if value in available_by_lower else SOURCE_ALIASES.get(value, value)
+        if value not in available_by_lower:
+            value = source_aliases.get(value, value)
         if value not in available_by_lower:
             raise ValueError(f'Unsupported source for {table_name}: {source}')
         cleaned_sources.append(available_by_lower[value])
@@ -444,6 +453,31 @@ def ensure_insert_missing_schema(table_name):
         raise RuntimeError(f'cars_standard is missing required columns: {missing}')
 
 
+def ensure_fill_schema(table_name):
+    config = validate_target_table(table_name)
+    source_columns = get_table_columns(table_name)
+    missing_source_columns = set(config['required_columns']) - source_columns
+    if missing_source_columns:
+        missing = ', '.join(sorted(missing_source_columns))
+        raise RuntimeError(f'{table_name} is missing required columns: {missing}')
+    standard_columns = get_table_columns(CarsStandard._meta.db_table)
+    required_standard_columns = {'id', 'brand_norm', 'model_group_norm', 'model_norm', 'variant_norm'}
+    missing_standard_columns = required_standard_columns - standard_columns
+    if missing_standard_columns:
+        missing = ', '.join(sorted(missing_standard_columns))
+        raise RuntimeError(f'cars_standard is missing required columns: {missing}')
+
+
+def validate_fill_batch_size(batch_size):
+    try:
+        batch_size = int(batch_size)
+    except (TypeError, ValueError):
+        raise ValueError('Batch size must be a number.')
+    if batch_size < FILL_BATCH_SIZE_MIN or batch_size > FILL_BATCH_SIZE_MAX:
+        raise ValueError(f'Batch size must be between {FILL_BATCH_SIZE_MIN} and {FILL_BATCH_SIZE_MAX}.')
+    return batch_size
+
+
 def ensure_cars_standard_id_default():
     table_name = CarsStandard._meta.db_table
     with connection.cursor() as cursor:
@@ -493,7 +527,7 @@ def _insert_missing_cte(table_name):
                 UPPER(TRIM(variant::text)) AS variant_norm
             FROM {quoted_table}
             WHERE {quoted_source_column} = ANY(%s::text[])
-              AND cars_standard_id IS NULL
+              AND {quote_identifier('cars_standard_id')} IS NULL
               AND brand IS NOT NULL
               AND model IS NOT NULL
               AND variant IS NOT NULL
@@ -664,6 +698,406 @@ def execute_insert_missing_cars_standard(table_name, sources, user, preview_toke
             },
         )
         return result
+
+
+STANDARD_MATCH_COLUMN_GROUPS = {
+    'brand': ['brand_norm', 'brand_raw', 'brand_raw2'],
+    'model_group': ['model_group_norm', 'model_group_raw'],
+    'model': ['model_norm', 'model_raw', 'model_raw2'],
+    'variant': ['variant_norm', 'variant_raw', 'variant_raw2', 'variant_raw3', 'variant_raw4'],
+}
+
+FILL_FAILED_RECORD_LIMIT = 1000
+FILL_PREVIEW_ROW_CAP = 1000
+
+
+def normalize_match_value(value):
+    normalized = normalize_for_match(value)
+    if normalized in NULLISH_VALUES:
+        return None
+    return normalized or None
+
+
+def candidate_matches(candidate, key, target):
+    if target is None:
+        return False
+    for column in STANDARD_MATCH_COLUMN_GROUPS.get(key, []):
+        value = candidate.get(column)
+        if normalize_match_value(value) == target:
+            return True
+    return False
+
+
+def _standard_select_columns(standard_columns):
+    columns = ['id'] + [column for columns in STANDARD_MATCH_COLUMN_GROUPS.values() for column in columns]
+    select_columns = []
+    for column in columns:
+        if column in standard_columns:
+            select_columns.append(quote_identifier(column))
+        else:
+            select_columns.append(f'NULL AS {quote_identifier(column)}')
+    return ', '.join(select_columns)
+
+
+def _find_cars_standard_matches(cursor, standard_columns, brand, model_group, model, variant):
+    brand_norm = normalize_match_value(brand)
+    model_group_norm = normalize_match_value(model_group)
+    model_norm = normalize_match_value(model)
+    variant_norm = normalize_match_value(variant)
+    if brand_norm is None or model_norm is None or variant_norm is None:
+        return []
+    brand_lookup_columns = [
+        column for column in STANDARD_MATCH_COLUMN_GROUPS['brand'] if column in standard_columns
+    ]
+    if not brand_lookup_columns:
+        raise RuntimeError('cars_standard has no brand lookup columns.')
+    brand_conditions = ' OR '.join(
+        f'UPPER(TRIM({quote_identifier(column)}::text)) = %s'
+        for column in brand_lookup_columns
+    )
+    cursor.execute(
+        f'''
+        SELECT {_standard_select_columns(standard_columns)}
+        FROM {quote_identifier(CarsStandard._meta.db_table)}
+        WHERE {brand_conditions}
+        ORDER BY id
+        ''',
+        [brand_norm for _ in brand_lookup_columns],
+    )
+    brand_matches = _fetch_dicts(cursor)
+    ignore_model_group = model_group_norm in {None, MODEL_GROUP_DEFAULT}
+    matches = []
+    for candidate in brand_matches:
+        if not candidate_matches(candidate, 'brand', brand_norm):
+            continue
+        if not ignore_model_group and not candidate_matches(candidate, 'model_group', model_group_norm):
+            continue
+        if not candidate_matches(candidate, 'model', model_norm):
+            continue
+        if not candidate_matches(candidate, 'variant', variant_norm):
+            continue
+        matches.append(candidate)
+    return matches
+
+
+def _source_select_sql(table_name):
+    config = validate_target_table(table_name)
+    source_columns = get_table_columns(table_name)
+    listing_url_sql = quote_identifier('listing_url') if 'listing_url' in source_columns else 'NULL AS listing_url'
+    model_group_sql = quote_identifier('model_group') if 'model_group' in source_columns else 'NULL AS model_group'
+    return f'''
+        SELECT
+            {quote_identifier(config['id_column'])} AS id,
+            {quote_identifier(config['source_column'])} AS source,
+            {listing_url_sql},
+            {quote_identifier('brand')} AS brand,
+            {model_group_sql},
+            {quote_identifier('model')} AS model,
+            {quote_identifier('variant')} AS variant
+        FROM {quote_identifier(table_name)}
+        WHERE {quote_identifier(config['source_column'])} = %s
+          AND {quote_identifier('cars_standard_id')} IS NULL
+        ORDER BY {quote_identifier(config['id_column'])}
+    '''
+
+
+def _count_source_null_rows(table_name, source):
+    config = validate_target_table(table_name)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f'''
+            SELECT COUNT(*)
+            FROM {quote_identifier(table_name)}
+            WHERE {quote_identifier(config['source_column'])} = %s
+              AND {quote_identifier('cars_standard_id')} IS NULL
+            ''',
+            [source],
+        )
+        return cursor.fetchone()[0]
+
+
+def _serialize_source_record(record):
+    return {
+        'id': record.get('id'),
+        'source': record.get('source'),
+        'listing_url': record.get('listing_url'),
+        'brand': record.get('brand'),
+        'model_group': record.get('model_group'),
+        'model': record.get('model'),
+        'variant': record.get('variant'),
+    }
+
+
+def get_fill_standard_id_preview(table_name, sources, batch_size=500, preview_cap=FILL_PREVIEW_ROW_CAP):
+    validate_target_table(table_name)
+    sources = validate_sources(table_name, sources)
+    batch_size = validate_fill_batch_size(batch_size)
+    ensure_fill_schema(table_name)
+    preview_cap = int(preview_cap)
+    if preview_cap < 1:
+        raise ValueError('Preview cap must be at least 1.')
+    standard_columns = get_table_columns(CarsStandard._meta.db_table)
+    started = time.monotonic()
+    totals = {
+        'null_rows': 0,
+        'scanned_rows': 0,
+        'matched': 0,
+        'unmatched': 0,
+        'ambiguous': 0,
+    }
+    per_source = []
+    matched_sample = []
+    failed_sample = []
+    ambiguous_sample = []
+    truncated = False
+    with connection.cursor() as cursor:
+        source_sql = _source_select_sql(table_name)
+        for source in sources:
+            source_counts = {
+                'source': source,
+                'null_rows': _count_source_null_rows(table_name, source),
+                'scanned_rows': 0,
+                'matched': 0,
+                'unmatched': 0,
+                'ambiguous': 0,
+                'truncated': False,
+            }
+            totals['null_rows'] += source_counts['null_rows']
+            remaining = preview_cap - totals['scanned_rows']
+            if remaining <= 0:
+                source_counts['truncated'] = source_counts['null_rows'] > 0
+                truncated = truncated or source_counts['truncated']
+                per_source.append(source_counts)
+                continue
+            cursor.execute(f'{source_sql} LIMIT %s', [source, remaining])
+            records = _fetch_dicts(cursor)
+            source_counts['scanned_rows'] = len(records)
+            totals['scanned_rows'] += len(records)
+            source_counts['truncated'] = source_counts['null_rows'] > len(records)
+            truncated = truncated or source_counts['truncated']
+            for record in records:
+                matches = _find_cars_standard_matches(
+                    cursor,
+                    standard_columns,
+                    record.get('brand'),
+                    record.get('model_group'),
+                    record.get('model'),
+                    record.get('variant'),
+                )
+                source_record = _serialize_source_record(record)
+                if len(matches) == 1:
+                    totals['matched'] += 1
+                    source_counts['matched'] += 1
+                    if len(matched_sample) < SAMPLE_LIMIT:
+                        matched_sample.append({
+                            'source_row': source_record,
+                            'cars_standard_id': matches[0]['id'],
+                        })
+                elif len(matches) > 1:
+                    totals['ambiguous'] += 1
+                    source_counts['ambiguous'] += 1
+                    if len(ambiguous_sample) < SAMPLE_LIMIT:
+                        ambiguous_sample.append({
+                            'source_row': source_record,
+                            'candidate_ids': [match['id'] for match in matches],
+                        })
+                else:
+                    totals['unmatched'] += 1
+                    source_counts['unmatched'] += 1
+                    if len(failed_sample) < SAMPLE_LIMIT:
+                        failed_sample.append(source_record)
+            per_source.append(source_counts)
+    duration = round(time.monotonic() - started, 3)
+    message = f"Preview scanned {totals['scanned_rows']} of {totals['null_rows']} NULL rows and found {totals['matched']} matched, {totals['unmatched']} unmatched, and {totals['ambiguous']} ambiguous rows."
+    if truncated:
+        message += f' Preview was truncated at {preview_cap} rows; execution will process all currently eligible rows via Celery.'
+    return {
+        'status': 'preview',
+        'table_name': table_name,
+        'sources': sources,
+        'batch_size': batch_size,
+        'null_rows': totals['null_rows'],
+        'scanned_rows': totals['scanned_rows'],
+        'estimated_matched': totals['matched'],
+        'estimated_unmatched': totals['unmatched'],
+        'estimated_ambiguous': totals['ambiguous'],
+        'preview_cap': preview_cap,
+        'preview_truncated': truncated,
+        'per_source': per_source,
+        'matched_sample': matched_sample,
+        'failed_sample': failed_sample,
+        'ambiguous_sample': ambiguous_sample,
+        'sample_limit': SAMPLE_LIMIT,
+        'duration_seconds': duration,
+        'message': message,
+    }
+
+
+def build_fill_preview_token(table_name, sources, batch_size, user_id):
+    payload = {
+        'table_name': table_name,
+        'sources': validate_sources(table_name, sources),
+        'batch_size': validate_fill_batch_size(batch_size),
+        'nonce': secrets.token_urlsafe(16),
+        'user_id': user_id,
+    }
+    signer = TimestampSigner(salt=FILL_PREVIEW_TOKEN_SALT)
+    return signer.sign(json.dumps(payload, sort_keys=True, separators=(',', ':')))
+
+
+def validate_fill_preview_token(token, table_name, sources, batch_size, user_id):
+    signer = TimestampSigner(salt=FILL_PREVIEW_TOKEN_SALT)
+    try:
+        payload = json.loads(signer.unsign(token, max_age=FILL_PREVIEW_TOKEN_MAX_AGE))
+    except (BadSignature, SignatureExpired, json.JSONDecodeError):
+        raise ValueError('Fill execution requires a valid recent preview token.')
+    expected = {
+        'table_name': table_name,
+        'sources': validate_sources(table_name, sources),
+        'batch_size': validate_fill_batch_size(batch_size),
+        'user_id': user_id,
+    }
+    for key, value in expected.items():
+        if payload.get(key) != value:
+            raise ValueError('Fill preview token does not match the requested execution.')
+    if not payload.get('nonce'):
+        raise ValueError('Fill preview token is missing required nonce.')
+    return payload
+
+
+def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_token=None, dry_run=False):
+    validate_target_table(table_name)
+    sources = validate_sources(table_name, sources)
+    batch_size = validate_fill_batch_size(batch_size)
+    ensure_fill_schema(table_name)
+    if dry_run:
+        result = get_fill_standard_id_preview(table_name, sources, batch_size)
+        result['status'] = 'dry_run'
+        result['message'] = 'Dry-run fill matching completed without updates.'
+        CarsStandardAuditLog.objects.create(
+            user=user,
+            action=CarsStandardAuditLog.ACTION_FILL_STANDARD_ID,
+            old_values={},
+            new_values={
+                'table_name': table_name,
+                'sources': sources,
+                'dry_run': True,
+            },
+            affected_references=result,
+        )
+        return result
+    validate_fill_preview_token(preview_token, table_name, sources, batch_size, user.id if user else None)
+    standard_columns = get_table_columns(CarsStandard._meta.db_table)
+    config = validate_target_table(table_name)
+    source_sql = _source_select_sql(table_name)
+    update_sql = f'''
+        UPDATE {quote_identifier(table_name)}
+        SET {quote_identifier('cars_standard_id')} = %s
+        WHERE {quote_identifier(config['id_column'])} = %s
+          AND {quote_identifier('cars_standard_id')} IS NULL
+    '''
+    started = time.monotonic()
+    total_updated = 0
+    total_failed = 0
+    total_ambiguous = 0
+    total_seen = 0
+    per_source = []
+    matched_sample = []
+    failed_records = []
+    ambiguous_records = []
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT pg_advisory_xact_lock(hashtext(%s))', [f'cars_standard_fill:{table_name}'])
+            for source in sources:
+                source_counts = {
+                    'source': source,
+                    'null_rows': _count_source_null_rows(table_name, source),
+                    'updated': 0,
+                    'failed': 0,
+                    'ambiguous': 0,
+                }
+                cursor.execute(source_sql, [source])
+                records = _fetch_dicts(cursor)
+                update_batch = []
+                for record in records:
+                    total_seen += 1
+                    matches = _find_cars_standard_matches(
+                        cursor,
+                        standard_columns,
+                        record.get('brand'),
+                        record.get('model_group'),
+                        record.get('model'),
+                        record.get('variant'),
+                    )
+                    source_record = _serialize_source_record(record)
+                    if len(matches) == 1:
+                        update_batch.append((matches[0]['id'], record['id']))
+                        source_counts['updated'] += 1
+                        total_updated += 1
+                        if len(matched_sample) < SAMPLE_LIMIT:
+                            matched_sample.append({
+                                'source_row': source_record,
+                                'cars_standard_id': matches[0]['id'],
+                            })
+                    elif len(matches) > 1:
+                        source_counts['ambiguous'] += 1
+                        total_ambiguous += 1
+                        if len(ambiguous_records) < FILL_FAILED_RECORD_LIMIT:
+                            ambiguous_records.append({
+                                'source_row': source_record,
+                                'candidate_ids': [match['id'] for match in matches],
+                            })
+                    else:
+                        source_counts['failed'] += 1
+                        total_failed += 1
+                        if len(failed_records) < FILL_FAILED_RECORD_LIMIT:
+                            failed_records.append(source_record)
+                    if len(update_batch) >= batch_size:
+                        cursor.executemany(update_sql, update_batch)
+                        update_batch = []
+                if update_batch:
+                    cursor.executemany(update_sql, update_batch)
+                per_source.append(source_counts)
+    duration = round(time.monotonic() - started, 3)
+    result = {
+        'status': 'success',
+        'table_name': table_name,
+        'sources': sources,
+        'batch_size': batch_size,
+        'processed': total_seen,
+        'updated': total_updated,
+        'failed': total_failed,
+        'ambiguous': total_ambiguous,
+        'per_source': per_source,
+        'duration_seconds': duration,
+        'matched_sample': matched_sample,
+        'failed_records': failed_records,
+        'failed_records_truncated': total_failed > len(failed_records),
+        'ambiguous_records': ambiguous_records,
+        'ambiguous_records_truncated': total_ambiguous > len(ambiguous_records),
+        'message': f'Updated {total_updated} rows. Failed {total_failed}. Ambiguous {total_ambiguous}.',
+    }
+    CarsStandardAuditLog.objects.create(
+        user=user,
+        action=CarsStandardAuditLog.ACTION_FILL_STANDARD_ID,
+        old_values={},
+        new_values={
+            'table_name': table_name,
+            'sources': sources,
+            'updated': total_updated,
+            'failed': total_failed,
+            'ambiguous': total_ambiguous,
+        },
+        affected_references={
+            'per_source': per_source,
+            'duration_seconds': duration,
+            'failed_records': failed_records,
+            'failed_records_truncated': result['failed_records_truncated'],
+            'ambiguous_records': ambiguous_records,
+            'ambiguous_records_truncated': result['ambiguous_records_truncated'],
+        },
+    )
+    return result
 
 
 def build_merge_preview_token(source_id, target_id, alias_changes, user_id):

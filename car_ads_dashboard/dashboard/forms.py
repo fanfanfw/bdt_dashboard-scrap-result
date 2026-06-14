@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import PasswordChangeForm, AuthenticationForm
 from django.core.exceptions import ValidationError
 from .models import CarsStandardMaintenanceJob, UserProfile
-from .services.cars_standard_maintenance import ALLOWED_TARGET_TABLES, validate_sources
+from .services.cars_standard_maintenance import ALLOWED_TARGET_TABLES, validate_fill_batch_size, validate_sources
 
 
 CARS_STANDARD_EDIT_FIELDS = [
@@ -94,6 +94,47 @@ class CarsStandardInsertMissingExecuteForm(CarsStandardInsertMissingPreviewForm)
     preview_token = forms.CharField(required=True, widget=forms.HiddenInput)
 
 
+class CarsStandardFillPreviewForm(forms.Form):
+    target_table = forms.ChoiceField(widget=forms.Select(attrs={'class': 'form-select'}))
+    sources = forms.CharField(
+        required=True,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Comma-separated sources'}),
+    )
+    batch_size = forms.IntegerField(
+        initial=500,
+        min_value=1,
+        max_value=10000,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '10000'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['target_table'].choices = [(table, table) for table in ALLOWED_TARGET_TABLES]
+
+    def clean_sources(self):
+        value = self.cleaned_data.get('sources') or ''
+        return [source.strip() for source in value.split(',') if source.strip()]
+
+    def clean_batch_size(self):
+        return validate_fill_batch_size(self.cleaned_data.get('batch_size'))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        table_name = cleaned_data.get('target_table')
+        sources = cleaned_data.get('sources')
+        if table_name and sources:
+            try:
+                cleaned_data['sources'] = validate_sources(table_name, sources)
+            except ValueError as exc:
+                raise ValidationError(str(exc))
+        return cleaned_data
+
+
+class CarsStandardFillExecuteForm(CarsStandardFillPreviewForm):
+    confirm = forms.BooleanField(required=True)
+    preview_token = forms.CharField(required=True, widget=forms.HiddenInput)
+
+
 class CarsStandardMaintenanceJobForm(forms.Form):
     job_type = forms.ChoiceField(
         choices=[
@@ -112,6 +153,12 @@ class CarsStandardMaintenanceJobForm(forms.Form):
         initial=True,
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
     )
+    batch_size = forms.IntegerField(
+        initial=500,
+        min_value=1,
+        max_value=10000,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '10000'}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -121,12 +168,15 @@ class CarsStandardMaintenanceJobForm(forms.Form):
         value = self.cleaned_data.get('sources') or ''
         return [source.strip() for source in value.split(',') if source.strip()]
 
+    def clean_batch_size(self):
+        return validate_fill_batch_size(self.cleaned_data.get('batch_size'))
+
     def clean(self):
         cleaned_data = super().clean()
         table_name = cleaned_data.get('target_table')
         sources = cleaned_data.get('sources')
-        if cleaned_data.get('job_type') == CarsStandardMaintenanceJob.JOB_INSERT_MISSING and not sources:
-            raise ValidationError('Sources are required for insert missing jobs.')
+        if not sources:
+            raise ValidationError('Sources are required for cars_standard maintenance jobs.')
         if table_name and sources:
             try:
                 cleaned_data['sources'] = validate_sources(table_name, sources)

@@ -8,11 +8,13 @@ class CarsStandardAuditLog(models.Model):
     ACTION_UPDATE = 'update'
     ACTION_MERGE = 'merge'
     ACTION_INSERT_MISSING = 'insert_missing'
+    ACTION_FILL_STANDARD_ID = 'fill_standard_id'
 
     ACTION_CHOICES = [
         (ACTION_UPDATE, 'Update'),
         (ACTION_MERGE, 'Merge'),
         (ACTION_INSERT_MISSING, 'Insert missing'),
+        (ACTION_FILL_STANDARD_ID, 'Fill standard ID'),
     ]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)

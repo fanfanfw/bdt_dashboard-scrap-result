@@ -3,7 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import CarsStandardMaintenanceJob
-from .services.cars_standard_maintenance import execute_insert_missing_cars_standard
+from .services.cars_standard_maintenance import execute_fill_standard_id, execute_insert_missing_cars_standard
 
 
 def _set_job_running(job):
@@ -76,4 +76,23 @@ def insert_missing_cars_standard(self, job_id):
 
 @shared_task(bind=True)
 def fill_standard_id(self, job_id):
-    return _run_placeholder_job(job_id, CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID)
+    job = CarsStandardMaintenanceJob.objects.select_related('requested_by').get(pk=job_id)
+    try:
+        with transaction.atomic():
+            job = CarsStandardMaintenanceJob.objects.select_for_update().select_related('requested_by').get(pk=job_id)
+            if job.job_type != CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID:
+                raise ValueError('Job type does not match task wrapper')
+            _set_job_running(job)
+        result = execute_fill_standard_id(
+            job.target_table,
+            job.sources,
+            job.requested_by,
+            batch_size=job.parameters.get('batch_size', 500),
+            preview_token=job.parameters.get('preview_token'),
+            dry_run=job.dry_run,
+        )
+        _set_job_success(job, result)
+        return result
+    except Exception as exc:
+        _set_job_failed(job, exc)
+        raise

@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
 from django.db.models.functions import Coalesce
 from .models import CarsInventory, PriceHistoryUnified, UserProfile, CarsStandard, CarsUnified, Carsome
+from .services.cars_standard_maintenance import get_admin_overview, search_cars_standard
 from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
 from django.db import models
@@ -545,6 +546,26 @@ def admin_dashboard(request, username):
 @login_required
 @group_required('Admin')
 @user_is_owner_or_admin
+def admin_cars_standard(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+
+    search_query = request.GET.get('q', '')
+    page_number = request.GET.get('page')
+    overview = get_admin_overview()
+    search_result = search_cars_standard(search_query, page_number)
+
+    context = {
+        'username': request.user.username,
+        'role': 'Admin',
+        'pending_users_count': get_pending_users_count(),
+        'cars_standard_total': overview['cars_standard_total'],
+        'null_count_summary': overview['null_count_summary'],
+        'page_obj': search_result['page_obj'],
+        'columns': search_result['columns'],
+        'search_query': search_result['query'],
+    }
+    return render(request, 'dashboard/admin_cars_standard.html', context)
 
 # Approve user endpoint
 @login_required

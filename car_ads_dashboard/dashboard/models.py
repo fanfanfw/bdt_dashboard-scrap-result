@@ -116,13 +116,18 @@ class CarsStandard(models.Model):
     """
     id = models.BigAutoField(primary_key=True)
     brand_norm = models.CharField(max_length=100)
+    brand_raw = models.CharField(max_length=100, blank=True, null=True)
+    brand_raw2 = models.CharField(max_length=100, blank=True, null=True)
     model_group_norm = models.CharField(max_length=100)
-    model_norm = models.CharField(max_length=100)
-    variant_norm = models.CharField(max_length=100)
     model_group_raw = models.CharField(max_length=100, blank=True, null=True)
+    model_norm = models.CharField(max_length=100)
     model_raw = models.CharField(max_length=100, blank=True, null=True)
+    model_raw2 = models.CharField(max_length=100, blank=True, null=True)
+    variant_norm = models.CharField(max_length=100)
     variant_raw = models.CharField(max_length=100, blank=True, null=True)
     variant_raw2 = models.CharField(max_length=100, blank=True, null=True)
+    variant_raw3 = models.CharField(max_length=100, blank=True, null=True)
+    variant_raw4 = models.CharField(max_length=100, blank=True, null=True)
 
     class Meta:
         managed = False  # No migrations for this model
@@ -137,7 +142,7 @@ class CarsUnified(models.Model):
     Read-only access to cars_unified table in db_test database
     """
     id = models.BigAutoField(primary_key=True)
-    cars_standard = models.ForeignKey(CarsStandard, on_delete=models.CASCADE, null=True, blank=True, db_column='cars_standard_id')
+    cars_standard = models.ForeignKey(CarsStandard, on_delete=models.SET_NULL, null=True, blank=True, db_column='cars_standard_id')
     source = models.CharField(max_length=20, choices=[('carlistmy', 'Carlist.my'), ('mudahmy', 'Mudah.my')])
     listing_id = models.TextField(blank=True, null=True)
     listing_url = models.TextField()
@@ -166,6 +171,41 @@ class CarsUnified(models.Model):
     class Meta:
         managed = False  # No migrations for this model
         db_table = 'cars_unified'
+
+    def __str__(self):
+        return f"{self.brand} {self.model} {self.variant} ({self.year}) - {self.source}"
+
+class CarsUnifiedInd(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    cars_standard = models.ForeignKey(CarsStandard, on_delete=models.SET_NULL, null=True, blank=True, db_column='cars_standard_id')
+    source = models.CharField(max_length=50)
+    listing_id = models.TextField(blank=True, null=True)
+    listing_url = models.TextField(blank=True, null=True)
+    condition = models.CharField(max_length=50, blank=True, null=True)
+    brand = models.CharField(max_length=100)
+    model = models.CharField(max_length=100)
+    variant = models.CharField(max_length=100, blank=True, null=True)
+    series = models.CharField(max_length=100, blank=True, null=True)
+    type = models.CharField(max_length=100, blank=True, null=True)
+    year = models.IntegerField(blank=True, null=True)
+    mileage = models.IntegerField(blank=True, null=True)
+    transmission = models.CharField(max_length=50, blank=True, null=True)
+    seat_capacity = models.CharField(max_length=10, blank=True, null=True)
+    engine_cc = models.CharField(max_length=50, blank=True, null=True)
+    fuel_type = models.CharField(max_length=50, blank=True, null=True)
+    price = models.IntegerField(blank=True, null=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    information_ads = models.TextField(blank=True, null=True)
+    images = ArrayField(models.TextField(), blank=True, null=True)
+    status = models.CharField(max_length=20, default='active')
+    created_at = models.DateTimeField(blank=True, null=True)
+    last_scraped_at = models.DateTimeField(blank=True, null=True)
+    version = models.IntegerField(default=1)
+    information_ads_date = models.DateField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'cars_unified_ind'
 
     def __str__(self):
         return f"{self.brand} {self.model} {self.variant} ({self.year}) - {self.source}"
@@ -207,7 +247,7 @@ class Carsome(models.Model):
     last_updated_at = models.DateTimeField(blank=True, null=True)
     cars_standard = models.ForeignKey(
         CarsStandard,
-        on_delete=models.DO_NOTHING,
+        on_delete=models.SET_NULL,
         db_column='cars_standard_id',
         null=True,
         blank=True

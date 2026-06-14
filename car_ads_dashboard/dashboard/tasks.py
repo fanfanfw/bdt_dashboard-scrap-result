@@ -1,0 +1,60 @@
+from celery import shared_task
+from django.db import transaction
+from django.utils import timezone
+
+from .models import CarsStandardMaintenanceJob
+
+
+def _set_job_running(job):
+    job.status = CarsStandardMaintenanceJob.STATUS_RUNNING
+    job.started_at = timezone.now()
+    job.progress = {'current': 0, 'total': None, 'message': 'Job started'}
+    job.save(update_fields=['status', 'started_at', 'progress', 'updated_at'])
+
+
+def _set_job_success(job, result):
+    job.status = CarsStandardMaintenanceJob.STATUS_SUCCESS
+    job.result = result
+    job.progress = {'current': 1, 'total': 1, 'message': 'Placeholder completed'}
+    job.finished_at = timezone.now()
+    job.save(update_fields=['status', 'result', 'progress', 'finished_at', 'updated_at'])
+
+
+def _set_job_failed(job, exc):
+    job.status = CarsStandardMaintenanceJob.STATUS_FAILED
+    job.error_message = str(exc)
+    job.finished_at = timezone.now()
+    job.save(update_fields=['status', 'error_message', 'finished_at', 'updated_at'])
+
+
+def _run_placeholder_job(job_id, expected_job_type):
+    job = CarsStandardMaintenanceJob.objects.get(pk=job_id)
+    try:
+        with transaction.atomic():
+            job = CarsStandardMaintenanceJob.objects.select_for_update().get(pk=job_id)
+            if job.job_type != expected_job_type:
+                raise ValueError('Job type does not match task wrapper')
+            _set_job_running(job)
+        result = {
+            'message': 'Background job infrastructure is ready. Business logic is not implemented yet.',
+            'job_type': expected_job_type,
+            'dry_run': job.dry_run,
+            'target_table': job.target_table,
+            'sources': job.sources,
+            'parameters': job.parameters,
+        }
+        _set_job_success(job, result)
+        return result
+    except Exception as exc:
+        _set_job_failed(job, exc)
+        raise
+
+
+@shared_task(bind=True)
+def insert_missing_cars_standard(self, job_id):
+    return _run_placeholder_job(job_id, CarsStandardMaintenanceJob.JOB_INSERT_MISSING)
+
+
+@shared_task(bind=True)
+def fill_standard_id(self, job_id):
+    return _run_placeholder_job(job_id, CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID)

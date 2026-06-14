@@ -30,6 +30,63 @@ class CarsStandardAuditLog(models.Model):
         return f"{self.action} by {self.user_id or 'unknown'} at {self.created_at}"
 
 
+class CarsStandardMaintenanceJob(models.Model):
+    JOB_INSERT_MISSING = 'insert_missing'
+    JOB_FILL_STANDARD_ID = 'fill_standard_id'
+    JOB_MERGE = 'merge'
+    JOB_EDIT = 'edit'
+    JOB_DELETE = 'delete'
+
+    JOB_TYPE_CHOICES = [
+        (JOB_INSERT_MISSING, 'Insert missing'),
+        (JOB_FILL_STANDARD_ID, 'Fill standard ID'),
+        (JOB_MERGE, 'Merge'),
+        (JOB_EDIT, 'Edit'),
+        (JOB_DELETE, 'Delete'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_RUNNING = 'running'
+    STATUS_SUCCESS = 'success'
+    STATUS_FAILED = 'failed'
+    STATUS_CANCELLED = 'cancelled'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_RUNNING, 'Running'),
+        (STATUS_SUCCESS, 'Success'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    job_type = models.CharField(max_length=32, choices=JOB_TYPE_CHOICES)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='cars_standard_maintenance_jobs')
+    target_table = models.CharField(max_length=64, blank=True, default='')
+    sources = models.JSONField(default=list, blank=True)
+    dry_run = models.BooleanField(default=True)
+    parameters = models.JSONField(default=dict, blank=True)
+    progress = models.JSONField(default=dict, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True, default='')
+    celery_task_id = models.CharField(max_length=255, blank=True, default='', db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'dashboard_cars_standard_maintenance_job'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['job_type', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.job_type} {self.status} #{self.pk}"
+
+
 class UserProfile(models.Model):
     """
     Extended User model with approval and additional fields

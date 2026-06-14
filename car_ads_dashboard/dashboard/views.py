@@ -8,16 +8,17 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
 from django.db.models.functions import Coalesce
-from .models import CarsInventory, PriceHistoryUnified, UserProfile, CarsStandard, CarsUnified, Carsome
-from .services.cars_standard_maintenance import build_merge_preview_token, execute_merge, get_admin_overview, get_cars_standard_for_edit, get_merge_preview, get_normalized_preview, serialize_alias_changes, serialize_cars_standard, update_cars_standard
+from .models import CarsInventory, PriceHistoryUnified, UserProfile, CarsStandard, CarsStandardMaintenanceJob, CarsUnified, Carsome
+from .services.cars_standard_maintenance import build_merge_preview_token, execute_merge, get_admin_overview, get_cars_standard_for_edit, get_merge_preview, get_normalized_preview, serialize_alias_changes, serialize_cars_standard, serialize_maintenance_job, update_cars_standard
 from .services.cars_standard_maintenance import search_cars_standard
 from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
 from django.db import models
 from django import forms
-from .forms import AdminProfileForm, AdminPasswordChangeForm, CARS_STANDARD_EDIT_FIELDS, CarsStandardMergeExecuteForm, CarsStandardMergePreviewForm, CarsStandardUpdateForm, CustomAuthenticationForm, CustomUserCreationForm, UserProfileForm, UserPasswordChangeForm
+from .forms import AdminProfileForm, AdminPasswordChangeForm, CARS_STANDARD_EDIT_FIELDS, CarsStandardMaintenanceJobForm, CarsStandardMergeExecuteForm, CarsStandardMergePreviewForm, CarsStandardUpdateForm, CustomAuthenticationForm, CustomUserCreationForm, UserProfileForm, UserPasswordChangeForm
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
+from django.utils import timezone
 from .security_utils import validate_username_access, check_admin_access, check_super_admin_access
 import pandas as pd
 from datetime import date, datetime, timedelta
@@ -572,6 +573,8 @@ def admin_cars_standard(request, username):
         'pending_users_count': get_pending_users_count(),
         'cars_standard_total': overview['cars_standard_total'],
         'null_count_summary': overview['null_count_summary'],
+        'maintenance_jobs': overview['maintenance_jobs'],
+        'maintenance_job_form': CarsStandardMaintenanceJobForm(),
         'page_obj': search_result['page_obj'],
         'columns': search_result['columns'],
         'search_query': search_result['query'],
@@ -642,6 +645,8 @@ def admin_cars_standard_merge_preview(request, username):
         'pending_users_count': get_pending_users_count(),
         'cars_standard_total': overview['cars_standard_total'],
         'null_count_summary': overview['null_count_summary'],
+        'maintenance_jobs': overview['maintenance_jobs'],
+        'maintenance_job_form': CarsStandardMaintenanceJobForm(),
         'page_obj': search_result['page_obj'],
         'columns': search_result['columns'],
         'search_query': search_result['query'],
@@ -684,6 +689,60 @@ def admin_cars_standard_merge_execute(request, username):
     except Exception as exc:
         messages.error(request, f'Merge execution failed: {exc}')
     return redirect('admin_cars_standard', username=request.user.username)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_POST
+def admin_cars_standard_job_start(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+    form = CarsStandardMaintenanceJobForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Background job request failed. Check the selected table and sources.')
+        return redirect('admin_cars_standard', username=request.user.username)
+    job = CarsStandardMaintenanceJob.objects.create(
+        job_type=form.cleaned_data['job_type'],
+        requested_by=request.user,
+        target_table=form.cleaned_data['target_table'],
+        sources=form.cleaned_data['sources'],
+        dry_run=form.cleaned_data['dry_run'],
+        parameters={
+            'target_table': form.cleaned_data['target_table'],
+            'sources': form.cleaned_data['sources'],
+            'dry_run': form.cleaned_data['dry_run'],
+        },
+    )
+    try:
+        if job.job_type == CarsStandardMaintenanceJob.JOB_INSERT_MISSING:
+            from .tasks import insert_missing_cars_standard
+            async_result = insert_missing_cars_standard.apply_async(args=[job.id])
+        else:
+            from .tasks import fill_standard_id
+            async_result = fill_standard_id.apply_async(args=[job.id])
+        job.celery_task_id = async_result.id or ''
+        job.save(update_fields=['celery_task_id', 'updated_at'])
+        messages.success(request, f'Queued {job.get_job_type_display()} job #{job.id}.')
+    except Exception as exc:
+        job.status = CarsStandardMaintenanceJob.STATUS_FAILED
+        job.error_message = str(exc)
+        job.finished_at = timezone.now()
+        job.save(update_fields=['status', 'error_message', 'finished_at', 'updated_at'])
+        messages.error(request, f'Failed to queue background job #{job.id}: {exc}')
+    return redirect('admin_cars_standard', username=request.user.username)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_GET
+def admin_cars_standard_jobs_status(request, username):
+    if request.user.username != username:
+        return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
+    jobs = CarsStandardMaintenanceJob.objects.select_related('requested_by').order_by('-created_at')[:10]
+    return JsonResponse({'success': True, 'jobs': [serialize_maintenance_job(job) for job in jobs]})
+
 
 # Approve user endpoint
 @login_required

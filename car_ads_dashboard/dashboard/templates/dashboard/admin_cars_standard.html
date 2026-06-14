@@ -90,6 +90,76 @@
 <div class="admin-card">
   <div class="card-header">
     <h3 class="card-title">
+      <i class="fas fa-gears me-2"></i>
+      Background Jobs
+    </h3>
+  </div>
+  <form method="post" action="{% url 'admin_cars_standard_job_start' username=username %}" class="row g-3 mb-4">
+    {% csrf_token %}
+    <div class="col-md-3">
+      <label class="form-label" for="{{ maintenance_job_form.job_type.id_for_label }}">Job type</label>
+      {{ maintenance_job_form.job_type }}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="{{ maintenance_job_form.target_table.id_for_label }}">Target table</label>
+      {{ maintenance_job_form.target_table }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="{{ maintenance_job_form.sources.id_for_label }}">Sources</label>
+      {{ maintenance_job_form.sources }}
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <div class="form-check me-3 mb-2">
+        {{ maintenance_job_form.dry_run }}
+        <label class="form-check-label" for="{{ maintenance_job_form.dry_run.id_for_label }}">Dry run</label>
+      </div>
+      <button type="submit" class="btn-admin btn-primary mb-1">Queue</button>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-hover" id="maintenance-jobs-table" data-status-url="{% url 'admin_cars_standard_jobs_status' username=username %}">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Progress</th>
+          <th>Requested by</th>
+          <th>Table</th>
+          <th>Sources</th>
+          <th>Dry run</th>
+          <th>Started</th>
+          <th>Finished</th>
+          <th>Result/Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in maintenance_jobs %}
+          <tr>
+            <td>#{{ job.id }}</td>
+            <td>{{ job.get_job_type_display }}</td>
+            <td>{{ job.get_status_display }}</td>
+            <td>{{ job.progress.message|default:'-' }}</td>
+            <td>{{ job.requested_by.username|default:'-' }}</td>
+            <td>{{ job.target_table }}</td>
+            <td>{{ job.sources|join:', '|default:'All' }}</td>
+            <td>{{ job.dry_run|yesno:'Yes,No' }}</td>
+            <td>{{ job.started_at|date:'Y-m-d H:i:s'|default:'-' }}</td>
+            <td>{{ job.finished_at|date:'Y-m-d H:i:s'|default:'-' }}</td>
+            <td>{% if job.error_message %}<span class="text-danger">{{ job.error_message }}</span>{% else %}{{ job.result.message|default:'-' }}{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="11" class="text-center text-muted">No background jobs yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="admin-card">
+  <div class="card-header">
+    <h3 class="card-title">
       <i class="fas fa-search me-2"></i>
       Search cars_standard
     </h3>
@@ -338,4 +408,58 @@
     </nav>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const table = document.getElementById('maintenance-jobs-table');
+  if (!table) return;
+  const statusUrl = table.dataset.statusUrl;
+  const tbody = table.querySelector('tbody');
+  const formatDate = (value) => value ? new Date(value).toLocaleString() : '-';
+  const renderJobs = (jobs) => {
+    if (!jobs.length) {
+      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No background jobs yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = jobs.map((job) => {
+      const sources = Array.isArray(job.sources) && job.sources.length ? job.sources.join(', ') : 'All';
+      const progress = job.progress && job.progress.message ? job.progress.message : '-';
+      const result = job.error_message || ((job.result && job.result.message) || '-');
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>#${job.id}</td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td>${job.dry_run ? 'Yes' : 'No'}</td>
+        <td>${formatDate(job.started_at)}</td>
+        <td>${formatDate(job.finished_at)}</td>
+        <td></td>
+      `;
+      row.children[1].textContent = job.job_type_display;
+      row.children[2].textContent = job.status_display;
+      row.children[3].textContent = progress;
+      row.children[4].textContent = job.requested_by || '-';
+      row.children[5].textContent = job.target_table || '-';
+      row.children[6].textContent = sources;
+      row.children[10].textContent = result;
+      if (job.error_message) row.children[10].classList.add('text-danger');
+      return row.outerHTML;
+    }).join('');
+  };
+  const refreshJobs = () => {
+    fetch(statusUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (data && data.success) renderJobs(data.jobs); })
+      .catch(() => {});
+  };
+  refreshJobs();
+  setInterval(refreshJobs, 5000);
+})();
+</script>
 {% endblock %}

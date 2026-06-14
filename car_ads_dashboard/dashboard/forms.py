@@ -2,7 +2,8 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import PasswordChangeForm, AuthenticationForm
 from django.core.exceptions import ValidationError
-from .models import UserProfile
+from .models import CarsStandardMaintenanceJob, UserProfile
+from .services.cars_standard_maintenance import ALLOWED_TARGET_TABLES
 
 
 CARS_STANDARD_EDIT_FIELDS = [
@@ -59,6 +60,34 @@ class CarsStandardMergeExecuteForm(CarsStandardMergePreviewForm):
     confirm = forms.BooleanField(required=True)
     alias_changes = forms.CharField(required=False, widget=forms.HiddenInput)
     preview_token = forms.CharField(required=True, widget=forms.HiddenInput)
+
+
+class CarsStandardMaintenanceJobForm(forms.Form):
+    job_type = forms.ChoiceField(
+        choices=[
+            (CarsStandardMaintenanceJob.JOB_INSERT_MISSING, 'Insert missing cars_standard rows'),
+            (CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID, 'Fill cars_standard_id'),
+        ],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    target_table = forms.ChoiceField(widget=forms.Select(attrs={'class': 'form-select'}))
+    sources = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Comma-separated sources, blank for all'}),
+    )
+    dry_run = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['target_table'].choices = [(table, table) for table in ALLOWED_TARGET_TABLES]
+
+    def clean_sources(self):
+        value = self.cleaned_data.get('sources') or ''
+        return [source.strip() for source in value.split(',') if source.strip()]
 
 
 class AdminProfileForm(forms.ModelForm):

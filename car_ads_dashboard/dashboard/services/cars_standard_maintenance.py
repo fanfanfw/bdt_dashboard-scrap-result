@@ -7,7 +7,7 @@ from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.db import DatabaseError, connection, transaction
 from django.db.models import Count, Q
 
-from ..models import CarsStandard, CarsStandardAuditLog, CarsUnified, CarsUnifiedInd, Carsome
+from ..models import CarsStandard, CarsStandardAuditLog, CarsStandardMaintenanceJob, CarsUnified, CarsUnifiedInd, Carsome
 
 
 ALLOWED_TARGET_TABLES = {
@@ -213,10 +213,37 @@ def search_cars_standard(query='', page=1, per_page=25):
     }
 
 
+def get_recent_maintenance_jobs(limit=10):
+    return CarsStandardMaintenanceJob.objects.select_related('requested_by').order_by('-created_at')[:limit]
+
+
+def serialize_maintenance_job(job):
+    return {
+        'id': job.id,
+        'job_type': job.job_type,
+        'job_type_display': job.get_job_type_display(),
+        'status': job.status,
+        'status_display': job.get_status_display(),
+        'requested_by': job.requested_by.username if job.requested_by else '',
+        'target_table': job.target_table,
+        'sources': job.sources,
+        'dry_run': job.dry_run,
+        'parameters': job.parameters,
+        'progress': job.progress,
+        'result': job.result,
+        'error_message': job.error_message,
+        'celery_task_id': job.celery_task_id,
+        'created_at': job.created_at.isoformat() if job.created_at else None,
+        'started_at': job.started_at.isoformat() if job.started_at else None,
+        'finished_at': job.finished_at.isoformat() if job.finished_at else None,
+    }
+
+
 def get_admin_overview():
     return {
         'cars_standard_total': get_cars_standard_total_count(),
         'null_count_summary': get_null_count_summary(),
+        'maintenance_jobs': get_recent_maintenance_jobs(),
     }
 
 

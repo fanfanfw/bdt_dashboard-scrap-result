@@ -3,6 +3,33 @@ from django.contrib.postgres.fields import ArrayField
 from django.contrib.auth.models import User
 from django.conf import settings
 
+
+class CarsStandardAuditLog(models.Model):
+    ACTION_UPDATE = 'update'
+    ACTION_MERGE = 'merge'
+
+    ACTION_CHOICES = [
+        (ACTION_UPDATE, 'Update'),
+        (ACTION_MERGE, 'Merge'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    source_id = models.BigIntegerField(null=True, blank=True)
+    target_id = models.BigIntegerField(null=True, blank=True)
+    old_values = models.JSONField(default=dict, blank=True)
+    new_values = models.JSONField(default=dict, blank=True)
+    affected_references = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'dashboard_cars_standard_audit_log'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.action} by {self.user_id or 'unknown'} at {self.created_at}"
+
+
 class UserProfile(models.Model):
     """
     Extended User model with approval and additional fields

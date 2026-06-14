@@ -5,6 +5,62 @@ from django.core.exceptions import ValidationError
 from .models import UserProfile
 
 
+CARS_STANDARD_EDIT_FIELDS = [
+    'brand_norm',
+    'brand_raw',
+    'brand_raw2',
+    'model_group_norm',
+    'model_group_raw',
+    'model_norm',
+    'model_raw',
+    'model_raw2',
+    'variant_norm',
+    'variant_raw',
+    'variant_raw2',
+    'variant_raw3',
+    'variant_raw4',
+]
+
+
+class CarsStandardUpdateForm(forms.Form):
+    cars_standard_id = forms.IntegerField(min_value=1, widget=forms.HiddenInput)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        required_fields = {'brand_norm', 'model_group_norm', 'model_norm', 'variant_norm'}
+        for field_name in CARS_STANDARD_EDIT_FIELDS:
+            self.fields[field_name] = forms.CharField(
+                required=field_name in required_fields,
+                max_length=100,
+                widget=forms.TextInput(attrs={'class': 'form-control form-control-sm'}),
+            )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        for field_name in CARS_STANDARD_EDIT_FIELDS:
+            value = cleaned_data.get(field_name)
+            if isinstance(value, str):
+                cleaned_data[field_name] = value.strip() or None
+        return cleaned_data
+
+
+class CarsStandardMergePreviewForm(forms.Form):
+    source_id = forms.IntegerField(min_value=1)
+    target_id = forms.IntegerField(min_value=1)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('source_id') == cleaned_data.get('target_id'):
+            raise ValidationError('Source and target rows must be different.')
+        return cleaned_data
+
+
+class CarsStandardMergeExecuteForm(CarsStandardMergePreviewForm):
+    confirm = forms.BooleanField(required=True)
+    alias_changes = forms.CharField(required=False, widget=forms.HiddenInput)
+    preview_token = forms.CharField(required=True, widget=forms.HiddenInput)
+
+
 class AdminProfileForm(forms.ModelForm):
     """Form untuk mengubah profile admin"""
     

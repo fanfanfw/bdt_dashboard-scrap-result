@@ -10,9 +10,15 @@
       <i class="fas fa-car-side me-2"></i>
       Cars Standard Maintenance
     </h1>
-    <p class="page-subtitle">Read-only overview of standardization coverage and cars_standard rows</p>
+    <p class="page-subtitle">Maintain normalized car rows, aliases, and duplicate merges</p>
   </div>
 </div>
+
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+  {% endfor %}
+{% endif %}
 
 <div class="admin-grid grid-4">
   <div class="admin-card">
@@ -109,6 +115,176 @@
 <div class="admin-card">
   <div class="card-header">
     <h3 class="card-title">
+      <i class="fas fa-pen-to-square me-2"></i>
+      Edit / Alias Row
+    </h3>
+  </div>
+  {% if edit_form and edit_row %}
+    <div class="alert alert-warning">
+      Editing normalized fields affects future matching. Use raw/alias fields for typo or alternate values when possible.
+    </div>
+    <form method="post" action="{% url 'admin_cars_standard_update' username=username %}">
+      {% csrf_token %}
+      {{ edit_form.cars_standard_id }}
+      <div class="row g-3">
+        {% for field in edit_form.visible_fields %}
+          <div class="col-md-3">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="text-danger small">{{ field.errors|join:', ' }}</div>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <button type="submit" class="btn-admin btn-primary mt-3">
+        <i class="fas fa-save"></i>
+        Save Changes
+      </button>
+    </form>
+    {% if edit_normalized_preview %}
+      <h5 class="mt-4">Current normalized comparison preview</h5>
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <tbody>
+            {% for field, value in edit_normalized_preview.items %}
+              <tr><th>{{ field }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  {% else %}
+    <p class="text-muted mb-0">Choose Edit from a row below to update normalized or alias fields.</p>
+  {% endif %}
+</div>
+
+<div class="admin-card">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-code-merge me-2"></i>
+      Merge Duplicate Rows
+    </h3>
+  </div>
+  <form method="post" action="{% url 'admin_cars_standard_merge_preview' username=username %}" class="row g-3">
+    {% csrf_token %}
+    <div class="col-md-5">
+      <label for="id_source_id" class="form-label">Source row ID to delete</label>
+      <input type="number" min="1" name="source_id" id="id_source_id" class="form-control" required value="{{ merge_preview.source_id|default:'' }}">
+    </div>
+    <div class="col-md-5">
+      <label for="id_target_id" class="form-label">Target row ID to keep</label>
+      <input type="number" min="1" name="target_id" id="id_target_id" class="form-control" required value="{{ merge_preview.target_id|default:'' }}">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button type="submit" class="btn-admin btn-primary w-100">
+        <i class="fas fa-eye"></i>
+        Preview
+      </button>
+    </div>
+  </form>
+
+  {% if merge_preview %}
+    <hr>
+    <h4>Merge Preview</h4>
+    <div class="row">
+      <div class="col-md-6">
+        <h5 class="text-danger">Source #{{ merge_preview.source_id }} will be deleted</h5>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <tbody>
+              {% for field, value in merge_preview.source.items %}
+                <tr><th>{{ field }}</th><td>{{ value|default_if_none:"" }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <h5 class="text-success">Target #{{ merge_preview.target_id }} will be kept</h5>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <tbody>
+              {% for field, value in merge_preview.target.items %}
+                <tr><th>{{ field }}</th><td>{{ value|default_if_none:"" }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <h5>Suggested alias transfers</h5>
+        {% if merge_preview.suggestions %}
+          <table class="table table-sm table-hover">
+            <thead><tr><th>Source field</th><th>Target alias</th><th>Value</th><th>Normalized</th></tr></thead>
+            <tbody>
+              {% for item in merge_preview.suggestions %}
+                <tr>
+                  <td>{{ item.source_field }}</td>
+                  <td>{{ item.target_field }}</td>
+                  <td>{{ item.value }}</td>
+                  <td>{{ item.normalized_value }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-muted">No empty alias fields available or no transfer needed.</p>
+        {% endif %}
+      </div>
+      <div class="col-md-6">
+        <h5>Affected references</h5>
+        <table class="table table-sm">
+          <thead><tr><th>Table</th><th class="text-end">Rows</th><th>Delete rule</th></tr></thead>
+          <tbody>
+            {% for row in merge_preview.reference_rows %}
+              <tr>
+                <td>{{ row.table }}</td>
+                <td class="text-end">{{ row.count|intcomma }}</td>
+                <td>{{ row.delete_rule }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if merge_preview.manual_null_fallback_tables %}
+          <div class="alert alert-warning">Some FK rules are not SET NULL; execution will manually null those references before deleting source.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'admin_cars_standard_merge_execute' username=username %}" class="mt-3">
+      {% csrf_token %}
+      <input type="hidden" name="source_id" value="{{ merge_preview.source_id }}">
+      <input type="hidden" name="target_id" value="{{ merge_preview.target_id }}">
+      <input type="hidden" name="alias_changes" value="{{ merge_preview.alias_changes_json }}">
+      <input type="hidden" name="preview_token" value="{{ merge_preview.preview_token }}">
+      <h5>Confirm alias changes</h5>
+      <div class="row g-3 mb-3">
+        {% for change in merge_preview.alias_change_rows %}
+          <div class="col-md-3">
+            <label class="form-label">{{ change.field }}</label>
+            <input type="text" maxlength="100" class="form-control form-control-sm" name="alias__{{ change.field }}" value="{{ change.value }}" readonly>
+          </div>
+        {% empty %}
+          <div class="col-12 text-muted">No alias changes will be applied.</div>
+        {% endfor %}
+      </div>
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="confirm" value="on" id="mergeConfirm" required>
+        <label class="form-check-label" for="mergeConfirm">I confirm this merge will update target aliases, delete source, and null affected references.</label>
+      </div>
+      <button type="submit" class="btn-admin btn-danger">
+        <i class="fas fa-triangle-exclamation"></i>
+        Execute Merge
+      </button>
+    </form>
+  {% endif %}
+</div>
+
+<div class="admin-card">
+  <div class="card-header">
+    <h3 class="card-title">
       <i class="fas fa-table me-2"></i>
       cars_standard Rows ({{ page_obj.paginator.count|intcomma }} total)
     </h3>
@@ -120,6 +296,7 @@
           {% for column in columns %}
             <th>{{ column }}</th>
           {% endfor %}
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -128,10 +305,13 @@
             {% for value in row.values %}
               <td>{{ value|default_if_none:"" }}</td>
             {% endfor %}
+            <td>
+              <a class="btn btn-sm btn-outline-primary" href="?edit_id={{ row.id }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">Edit</a>
+            </td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="{{ columns|length }}" class="text-center text-muted">No rows found.</td>
+            <td colspan="20" class="text-center text-muted">No rows found.</td>
           </tr>
         {% endfor %}
       </tbody>

@@ -9,12 +9,13 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
 from django.db.models.functions import Coalesce
 from .models import CarsInventory, PriceHistoryUnified, UserProfile, CarsStandard, CarsUnified, Carsome
-from .services.cars_standard_maintenance import get_admin_overview, search_cars_standard
+from .services.cars_standard_maintenance import build_merge_preview_token, execute_merge, get_admin_overview, get_cars_standard_for_edit, get_merge_preview, get_normalized_preview, serialize_alias_changes, serialize_cars_standard, update_cars_standard
+from .services.cars_standard_maintenance import search_cars_standard
 from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
 from django.db import models
 from django import forms
-from .forms import AdminProfileForm, AdminPasswordChangeForm, CustomAuthenticationForm, CustomUserCreationForm, UserProfileForm, UserPasswordChangeForm
+from .forms import AdminProfileForm, AdminPasswordChangeForm, CARS_STANDARD_EDIT_FIELDS, CarsStandardMergeExecuteForm, CarsStandardMergePreviewForm, CarsStandardUpdateForm, CustomAuthenticationForm, CustomUserCreationForm, UserProfileForm, UserPasswordChangeForm
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from .security_utils import validate_username_access, check_admin_access, check_super_admin_access
@@ -554,6 +555,16 @@ def admin_cars_standard(request, username):
     page_number = request.GET.get('page')
     overview = get_admin_overview()
     search_result = search_cars_standard(search_query, page_number)
+    edit_form = None
+    edit_row = None
+    edit_id = request.GET.get('edit_id')
+
+    if edit_id:
+        try:
+            edit_row = get_cars_standard_for_edit(edit_id)
+            edit_form = CarsStandardUpdateForm(initial={'cars_standard_id': edit_row.id, **{field: getattr(edit_row, field, '') for field in CARS_STANDARD_EDIT_FIELDS}})
+        except (CarsStandard.DoesNotExist, ValueError):
+            messages.error(request, 'Selected cars_standard row was not found.')
 
     context = {
         'username': request.user.username,
@@ -564,8 +575,115 @@ def admin_cars_standard(request, username):
         'page_obj': search_result['page_obj'],
         'columns': search_result['columns'],
         'search_query': search_result['query'],
+        'edit_form': edit_form,
+        'edit_row': edit_row,
+        'edit_normalized_preview': get_normalized_preview(serialize_cars_standard(edit_row)) if edit_row else None,
+        'merge_preview_form': CarsStandardMergePreviewForm(),
     }
     return render(request, 'dashboard/admin_cars_standard.html', context)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_POST
+def admin_cars_standard_update(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+    form = CarsStandardUpdateForm(request.POST)
+    if form.is_valid():
+        try:
+            row_id = form.cleaned_data['cars_standard_id']
+            result = update_cars_standard(row_id, form.cleaned_data, request.user)
+            messages.success(request, f"Updated cars_standard #{row_id}. Fields changed: {len(result['updated_fields'])}.")
+            return redirect(f"{reverse('admin_cars_standard', kwargs={'username': request.user.username})}?edit_id={row_id}")
+        except CarsStandard.DoesNotExist:
+            messages.error(request, 'Selected cars_standard row was not found.')
+        except Exception as exc:
+            messages.error(request, f'Update failed: {exc}')
+    else:
+        messages.error(request, 'Update failed. Check the form values.')
+    return redirect('admin_cars_standard', username=request.user.username)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_POST
+def admin_cars_standard_merge_preview(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+    form = CarsStandardMergePreviewForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Merge preview failed. Source and target must be different valid IDs.')
+        return redirect('admin_cars_standard', username=request.user.username)
+    try:
+        preview = get_merge_preview(form.cleaned_data['source_id'], form.cleaned_data['target_id'])
+        preview['alias_changes_json'] = serialize_alias_changes(preview['alias_changes'])
+        preview['preview_token'] = build_merge_preview_token(
+            preview['source_id'],
+            preview['target_id'],
+            preview['alias_changes'],
+            request.user.id,
+        )
+    except CarsStandard.DoesNotExist:
+        messages.error(request, 'Source or target row was not found.')
+        return redirect('admin_cars_standard', username=request.user.username)
+    except Exception as exc:
+        messages.error(request, f'Merge preview failed: {exc}')
+        return redirect('admin_cars_standard', username=request.user.username)
+
+    search_query = request.GET.get('q', '')
+    overview = get_admin_overview()
+    search_result = search_cars_standard(search_query, request.GET.get('page'))
+    context = {
+        'username': request.user.username,
+        'role': 'Admin',
+        'pending_users_count': get_pending_users_count(),
+        'cars_standard_total': overview['cars_standard_total'],
+        'null_count_summary': overview['null_count_summary'],
+        'page_obj': search_result['page_obj'],
+        'columns': search_result['columns'],
+        'search_query': search_result['query'],
+        'merge_preview_form': form,
+        'merge_preview': preview,
+        'merge_execute_form': CarsStandardMergeExecuteForm(initial={
+            'source_id': preview['source_id'],
+            'target_id': preview['target_id'],
+            'alias_changes': preview['alias_changes_json'],
+            'preview_token': preview['preview_token'],
+        }),
+    }
+    return render(request, 'dashboard/admin_cars_standard.html', context)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_POST
+def admin_cars_standard_merge_execute(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+    form = CarsStandardMergeExecuteForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Merge execution requires confirmation and valid row IDs.')
+        return redirect('admin_cars_standard', username=request.user.username)
+    try:
+        alias_changes = form.cleaned_data.get('alias_changes')
+        result = execute_merge(
+            form.cleaned_data['source_id'],
+            form.cleaned_data['target_id'],
+            alias_changes,
+            request.user,
+            form.cleaned_data['preview_token'],
+        )
+        messages.success(request, f"Merged source #{result['source_id']} into target #{result['target_id']}. Run fill for affected sources next.")
+        return redirect(f"{reverse('admin_cars_standard', kwargs={'username': request.user.username})}?edit_id={result['target_id']}")
+    except CarsStandard.DoesNotExist:
+        messages.error(request, 'Source or target row was not found.')
+    except Exception as exc:
+        messages.error(request, f'Merge execution failed: {exc}')
+    return redirect('admin_cars_standard', username=request.user.username)
 
 # Approve user endpoint
 @login_required

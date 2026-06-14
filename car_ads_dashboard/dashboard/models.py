@@ -7,10 +7,12 @@ from django.conf import settings
 class CarsStandardAuditLog(models.Model):
     ACTION_UPDATE = 'update'
     ACTION_MERGE = 'merge'
+    ACTION_INSERT_MISSING = 'insert_missing'
 
     ACTION_CHOICES = [
         (ACTION_UPDATE, 'Update'),
         (ACTION_MERGE, 'Merge'),
+        (ACTION_INSERT_MISSING, 'Insert missing'),
     ]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)

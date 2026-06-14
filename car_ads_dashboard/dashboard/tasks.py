@@ -3,6 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import CarsStandardMaintenanceJob
+from .services.cars_standard_maintenance import execute_insert_missing_cars_standard
 
 
 def _set_job_running(job):
@@ -15,7 +16,7 @@ def _set_job_running(job):
 def _set_job_success(job, result):
     job.status = CarsStandardMaintenanceJob.STATUS_SUCCESS
     job.result = result
-    job.progress = {'current': 1, 'total': 1, 'message': 'Placeholder completed'}
+    job.progress = {'current': 1, 'total': 1, 'message': result.get('message', 'Job completed')}
     job.finished_at = timezone.now()
     job.save(update_fields=['status', 'result', 'progress', 'finished_at', 'updated_at'])
 
@@ -52,7 +53,25 @@ def _run_placeholder_job(job_id, expected_job_type):
 
 @shared_task(bind=True)
 def insert_missing_cars_standard(self, job_id):
-    return _run_placeholder_job(job_id, CarsStandardMaintenanceJob.JOB_INSERT_MISSING)
+    job = CarsStandardMaintenanceJob.objects.select_related('requested_by').get(pk=job_id)
+    try:
+        with transaction.atomic():
+            job = CarsStandardMaintenanceJob.objects.select_for_update().select_related('requested_by').get(pk=job_id)
+            if job.job_type != CarsStandardMaintenanceJob.JOB_INSERT_MISSING:
+                raise ValueError('Job type does not match task wrapper')
+            _set_job_running(job)
+        result = execute_insert_missing_cars_standard(
+            job.target_table,
+            job.sources,
+            job.requested_by,
+            preview_token=job.parameters.get('preview_token'),
+            dry_run=job.dry_run,
+        )
+        _set_job_success(job, result)
+        return result
+    except Exception as exc:
+        _set_job_failed(job, exc)
+        raise
 
 
 @shared_task(bind=True)

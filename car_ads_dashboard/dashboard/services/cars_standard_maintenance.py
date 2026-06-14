@@ -103,6 +103,14 @@ ALIAS_FIELD_GROUPS = {
 
 MERGE_PREVIEW_TOKEN_MAX_AGE = 15 * 60
 MERGE_PREVIEW_TOKEN_SALT = 'dashboard.cars_standard.merge_preview'
+INSERT_MISSING_PREVIEW_TOKEN_MAX_AGE = 15 * 60
+INSERT_MISSING_PREVIEW_TOKEN_SALT = 'dashboard.cars_standard.insert_missing_preview'
+MODEL_GROUP_DEFAULT = 'NO MODEL GROUP'
+NULLISH_VALUES = ('', '-', 'N/A', 'NA', 'NULL', 'NONE')
+SOURCE_ALIASES = {
+    'carsome': 'carsomeid',
+}
+SAMPLE_LIMIT = 20
 
 
 def validate_target_table(table_name):
@@ -137,6 +145,25 @@ def discover_sources(table_name):
         .distinct()
         .order_by(source_column)
     )
+
+
+def validate_sources(table_name, sources):
+    validate_target_table(table_name)
+    cleaned_sources = []
+    available_sources = discover_sources(table_name)
+    available_by_lower = {str(source).lower(): source for source in available_sources}
+    for source in sources or []:
+        value = str(source).strip().lower()
+        if not value:
+            continue
+        value = value if value in available_by_lower else SOURCE_ALIASES.get(value, value)
+        if value not in available_by_lower:
+            raise ValueError(f'Unsupported source for {table_name}: {source}')
+        cleaned_sources.append(available_by_lower[value])
+    cleaned_sources = sorted(set(cleaned_sources))
+    if not cleaned_sources:
+        raise ValueError('At least one source is required.')
+    return cleaned_sources
 
 
 def get_null_count_summary():
@@ -396,6 +423,247 @@ def parse_alias_changes(raw_value):
 
 def serialize_alias_changes(alias_changes):
     return json.dumps(parse_alias_changes(alias_changes), sort_keys=True, separators=(',', ':'))
+
+
+def quote_identifier(identifier):
+    return connection.ops.quote_name(identifier)
+
+
+def ensure_insert_missing_schema(table_name):
+    config = validate_target_table(table_name)
+    source_columns = get_table_columns(table_name)
+    missing_source_columns = set(config['required_columns']) - source_columns
+    if missing_source_columns:
+        missing = ', '.join(sorted(missing_source_columns))
+        raise RuntimeError(f'{table_name} is missing required columns: {missing}')
+    standard_columns = get_table_columns(CarsStandard._meta.db_table)
+    required_standard_columns = {'id', 'brand_norm', 'model_group_norm', 'model_norm', 'variant_norm'}
+    missing_standard_columns = required_standard_columns - standard_columns
+    if missing_standard_columns:
+        missing = ', '.join(sorted(missing_standard_columns))
+        raise RuntimeError(f'cars_standard is missing required columns: {missing}')
+
+
+def ensure_cars_standard_id_default():
+    table_name = CarsStandard._meta.db_table
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''
+            SELECT pg_get_expr(pg_attrdef.adbin, pg_attrdef.adrelid) AS column_default,
+                   pg_attribute.attidentity
+            FROM pg_attribute
+            JOIN pg_class ON pg_class.oid = pg_attribute.attrelid
+            LEFT JOIN pg_attrdef
+              ON pg_attrdef.adrelid = pg_attribute.attrelid
+             AND pg_attrdef.adnum = pg_attribute.attnum
+            WHERE pg_class.oid = to_regclass(%s)
+              AND pg_attribute.attname = 'id'
+              AND NOT pg_attribute.attisdropped
+            ''',
+            [table_name],
+        )
+        row = cursor.fetchone()
+    if not row:
+        raise RuntimeError('cars_standard.id metadata could not be verified.')
+    column_default, identity = row
+    has_sequence_default = column_default and 'nextval(' in column_default.lower()
+    if identity not in ('a', 'd') and not has_sequence_default:
+        raise RuntimeError('cars_standard.id has no database default or identity sequence; aborting insert missing execution.')
+
+
+def _insert_missing_params(sources):
+    params = [MODEL_GROUP_DEFAULT, sources]
+    params.extend(NULLISH_VALUES)
+    params.extend(NULLISH_VALUES)
+    params.extend(NULLISH_VALUES)
+    return params
+
+
+def _insert_missing_cte(table_name):
+    config = validate_target_table(table_name)
+    nullish_placeholders = ', '.join(['%s'] * len(NULLISH_VALUES))
+    quoted_table = quote_identifier(table_name)
+    quoted_source_column = quote_identifier(config['source_column'])
+    return f'''
+        WITH source_rows AS (
+            SELECT DISTINCT
+                UPPER(TRIM(brand::text)) AS brand_norm,
+                %s::varchar AS model_group_norm,
+                UPPER(TRIM(model::text)) AS model_norm,
+                UPPER(TRIM(variant::text)) AS variant_norm
+            FROM {quoted_table}
+            WHERE {quoted_source_column} = ANY(%s::text[])
+              AND cars_standard_id IS NULL
+              AND brand IS NOT NULL
+              AND model IS NOT NULL
+              AND variant IS NOT NULL
+              AND UPPER(TRIM(brand::text)) NOT IN ({nullish_placeholders})
+              AND UPPER(TRIM(model::text)) NOT IN ({nullish_placeholders})
+              AND UPPER(TRIM(variant::text)) NOT IN ({nullish_placeholders})
+        ), existing_matches AS (
+            SELECT source_rows.*
+            FROM source_rows
+            WHERE EXISTS (
+                SELECT 1
+                FROM cars_standard cs
+                WHERE UPPER(TRIM(cs.brand_norm::text)) = source_rows.brand_norm
+                  AND UPPER(TRIM(cs.model_group_norm::text)) = source_rows.model_group_norm
+                  AND UPPER(TRIM(cs.model_norm::text)) = source_rows.model_norm
+                  AND UPPER(TRIM(cs.variant_norm::text)) = source_rows.variant_norm
+            )
+        ), new_rows AS (
+            SELECT source_rows.*
+            FROM source_rows
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM cars_standard cs
+                WHERE UPPER(TRIM(cs.brand_norm::text)) = source_rows.brand_norm
+                  AND UPPER(TRIM(cs.model_group_norm::text)) = source_rows.model_group_norm
+                  AND UPPER(TRIM(cs.model_norm::text)) = source_rows.model_norm
+                  AND UPPER(TRIM(cs.variant_norm::text)) = source_rows.variant_norm
+            )
+        )
+    '''
+
+
+def _fetch_dicts(cursor):
+    columns = [column[0] for column in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def get_insert_missing_preview(table_name, sources):
+    validate_target_table(table_name)
+    sources = validate_sources(table_name, sources)
+    ensure_insert_missing_schema(table_name)
+    cte = _insert_missing_cte(table_name)
+    params = _insert_missing_params(sources)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            cte + '''
+            SELECT
+                (SELECT COUNT(*) FROM source_rows) AS distinct_candidates,
+                (SELECT COUNT(*) FROM existing_matches) AS already_exists,
+                (SELECT COUNT(*) FROM new_rows) AS rows_to_insert
+            ''',
+            params,
+        )
+        counts = dict(zip([column[0] for column in cursor.description], cursor.fetchone()))
+        cursor.execute(cte + ' SELECT * FROM source_rows ORDER BY brand_norm, model_norm, variant_norm LIMIT %s', [*params, SAMPLE_LIMIT])
+        candidate_sample = _fetch_dicts(cursor)
+        cursor.execute(cte + ' SELECT * FROM existing_matches ORDER BY brand_norm, model_norm, variant_norm LIMIT %s', [*params, SAMPLE_LIMIT])
+        existing_sample = _fetch_dicts(cursor)
+        cursor.execute(cte + ' SELECT * FROM new_rows ORDER BY brand_norm, model_norm, variant_norm LIMIT %s', [*params, SAMPLE_LIMIT])
+        insert_sample = _fetch_dicts(cursor)
+    return {
+        'status': 'preview',
+        'table_name': table_name,
+        'sources': sources,
+        'distinct_candidates': counts['distinct_candidates'],
+        'already_exists': counts['already_exists'],
+        'rows_to_insert': counts['rows_to_insert'],
+        'inserted': 0,
+        'candidate_sample': candidate_sample,
+        'existing_sample': existing_sample,
+        'insert_sample': insert_sample,
+        'sample_limit': SAMPLE_LIMIT,
+        'message': f"Preview found {counts['rows_to_insert']} cars_standard rows to insert.",
+    }
+
+
+def build_insert_missing_preview_token(table_name, sources, user_id):
+    payload = {
+        'table_name': table_name,
+        'sources': validate_sources(table_name, sources),
+        'nonce': secrets.token_urlsafe(16),
+        'user_id': user_id,
+    }
+    signer = TimestampSigner(salt=INSERT_MISSING_PREVIEW_TOKEN_SALT)
+    return signer.sign(json.dumps(payload, sort_keys=True, separators=(',', ':')))
+
+
+def validate_insert_missing_preview_token(token, table_name, sources, user_id):
+    signer = TimestampSigner(salt=INSERT_MISSING_PREVIEW_TOKEN_SALT)
+    try:
+        payload = json.loads(signer.unsign(token, max_age=INSERT_MISSING_PREVIEW_TOKEN_MAX_AGE))
+    except (BadSignature, SignatureExpired, json.JSONDecodeError):
+        raise ValueError('Insert execution requires a valid recent preview token.')
+    expected = {
+        'table_name': table_name,
+        'sources': validate_sources(table_name, sources),
+        'user_id': user_id,
+    }
+    for key, value in expected.items():
+        if payload.get(key) != value:
+            raise ValueError('Insert preview token does not match the requested execution.')
+    if not payload.get('nonce'):
+        raise ValueError('Insert preview token is missing required nonce.')
+    return payload
+
+
+def execute_insert_missing_cars_standard(table_name, sources, user, preview_token=None, dry_run=False):
+    validate_target_table(table_name)
+    sources = validate_sources(table_name, sources)
+    ensure_insert_missing_schema(table_name)
+    if not dry_run:
+        validate_insert_missing_preview_token(preview_token, table_name, sources, user.id if user else None)
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT pg_advisory_xact_lock(hashtext(%s))', ['cars_standard_insert_missing'])
+        preview = get_insert_missing_preview(table_name, sources)
+        if dry_run or preview['rows_to_insert'] == 0:
+            result = {
+                **preview,
+                'status': 'dry_run' if dry_run else 'success',
+                'message': 'Dry-run preview completed.' if dry_run else 'No new cars_standard rows to insert.',
+            }
+        else:
+            ensure_cars_standard_id_default()
+            cte = _insert_missing_cte(table_name)
+            params = _insert_missing_params(sources)
+            insert_sql = cte + '''
+                INSERT INTO cars_standard (
+                    brand_norm,
+                    model_group_norm,
+                    model_norm,
+                    variant_norm
+                )
+                SELECT
+                    brand_norm,
+                    model_group_norm,
+                    model_norm,
+                    variant_norm
+                FROM new_rows
+                ORDER BY brand_norm, model_norm, variant_norm
+                RETURNING id, brand_norm, model_group_norm, model_norm, variant_norm
+            '''
+            with connection.cursor() as cursor:
+                cursor.execute(insert_sql, params)
+                inserted_rows = _fetch_dicts(cursor)
+            result = {
+                **preview,
+                'status': 'success',
+                'inserted': len(inserted_rows),
+                'first_inserted_ids': [row['id'] for row in inserted_rows[:SAMPLE_LIMIT]],
+                'inserted_sample': inserted_rows[:SAMPLE_LIMIT],
+                'message': f"Inserted {len(inserted_rows)} cars_standard rows.",
+            }
+        CarsStandardAuditLog.objects.create(
+            user=user,
+            action=CarsStandardAuditLog.ACTION_INSERT_MISSING,
+            old_values={},
+            new_values={
+                'table_name': table_name,
+                'sources': sources,
+                'inserted': result['inserted'],
+                'insert_sample': result.get('inserted_sample') or result.get('insert_sample', []),
+            },
+            affected_references={
+                'distinct_candidates': result['distinct_candidates'],
+                'already_exists': result['already_exists'],
+                'rows_to_insert': result['rows_to_insert'],
+            },
+        )
+        return result
 
 
 def build_merge_preview_token(source_id, target_id, alias_changes, user_id):

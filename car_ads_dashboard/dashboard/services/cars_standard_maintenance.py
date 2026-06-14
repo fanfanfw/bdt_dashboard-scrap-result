@@ -719,6 +719,7 @@ def normalize_match_value(value):
 
 
 def candidate_matches(candidate, key, target):
+    target = normalize_match_value(target)
     if target is None:
         return False
     for column in STANDARD_MATCH_COLUMN_GROUPS.get(key, []):

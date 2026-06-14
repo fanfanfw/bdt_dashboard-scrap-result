@@ -80,6 +80,56 @@ SELECT
 FROM carsome cs;
 """
 
+TEST_VIEW_SQL = f"""
+CREATE OR REPLACE VIEW {VIEW_NAME} AS
+SELECT
+    NULL::bigint AS id,
+    NULL::bigint AS cars_standard_id,
+    NULL::varchar(50) AS source,
+    NULL::text AS listing_id,
+    NULL::text AS listing_url,
+    NULL::varchar(50) AS condition,
+    NULL::varchar(100) AS brand,
+    NULL::varchar(100) AS model,
+    NULL::varchar(100) AS variant,
+    NULL::varchar(100) AS series,
+    NULL::varchar(100) AS type,
+    NULL::integer AS year,
+    NULL::integer AS mileage,
+    NULL::varchar(50) AS transmission,
+    NULL::varchar(10) AS seat_capacity,
+    NULL::varchar(50) AS engine_cc,
+    NULL::varchar(50) AS fuel_type,
+    NULL::integer AS price,
+    NULL::varchar(255) AS location,
+    NULL::text AS information_ads,
+    NULL::text[] AS images,
+    NULL::varchar(20) AS status,
+    NULL::integer AS version,
+    NULL::timestamptz AS created_at,
+    NULL::timestamptz AS last_scraped_at,
+    NULL::date AS information_ads_date,
+    NULL::bigint AS original_id,
+    NULL::text AS origin_table,
+    NULL::text AS reg_no,
+    NULL::timestamptz AS carsome_created_at
+WHERE FALSE;
+"""
+
+
+def is_test_database(schema_editor):
+    name = str(schema_editor.connection.settings_dict.get('NAME') or '')
+    return name.startswith('test_')
+
+
+def create_view(apps, schema_editor):
+    schema_editor.execute(f"DROP VIEW IF EXISTS {VIEW_NAME};")
+    schema_editor.execute(TEST_VIEW_SQL if is_test_database(schema_editor) else VIEW_SQL)
+
+
+def drop_view(apps, schema_editor):
+    schema_editor.execute(f"DROP VIEW IF EXISTS {VIEW_NAME};")
+
 
 class Migration(migrations.Migration):
     dependencies = [
@@ -87,9 +137,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            sql=VIEW_SQL,
-            reverse_sql=f"DROP VIEW IF EXISTS {VIEW_NAME};",
-        ),
+        migrations.RunPython(create_view, drop_view),
     ]
 

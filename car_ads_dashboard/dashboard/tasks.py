@@ -56,7 +56,7 @@ def insert_missing_cars_standard(self, job_id):
     job = CarsStandardMaintenanceJob.objects.select_related('requested_by').get(pk=job_id)
     try:
         with transaction.atomic():
-            job = CarsStandardMaintenanceJob.objects.select_for_update().select_related('requested_by').get(pk=job_id)
+            job = CarsStandardMaintenanceJob.objects.select_for_update().get(pk=job_id)
             if job.job_type != CarsStandardMaintenanceJob.JOB_INSERT_MISSING:
                 raise ValueError('Job type does not match task wrapper')
             _set_job_running(job)
@@ -79,7 +79,7 @@ def fill_standard_id(self, job_id):
     job = CarsStandardMaintenanceJob.objects.select_related('requested_by').get(pk=job_id)
     try:
         with transaction.atomic():
-            job = CarsStandardMaintenanceJob.objects.select_for_update().select_related('requested_by').get(pk=job_id)
+            job = CarsStandardMaintenanceJob.objects.select_for_update().get(pk=job_id)
             if job.job_type != CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID:
                 raise ValueError('Job type does not match task wrapper')
             _set_job_running(job)

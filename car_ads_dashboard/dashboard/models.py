@@ -5,13 +5,17 @@ from django.conf import settings
 
 
 class CarsStandardAuditLog(models.Model):
+    ACTION_CREATE = 'create'
     ACTION_UPDATE = 'update'
+    ACTION_DELETE = 'delete'
     ACTION_MERGE = 'merge'
     ACTION_INSERT_MISSING = 'insert_missing'
     ACTION_FILL_STANDARD_ID = 'fill_standard_id'
 
     ACTION_CHOICES = [
+        (ACTION_CREATE, 'Create'),
         (ACTION_UPDATE, 'Update'),
+        (ACTION_DELETE, 'Delete'),
         (ACTION_MERGE, 'Merge'),
         (ACTION_INSERT_MISSING, 'Insert missing'),
         (ACTION_FILL_STANDARD_ID, 'Fill standard ID'),
@@ -297,6 +301,43 @@ class CarsUnifiedInd(models.Model):
 
     def __str__(self):
         return f"{self.brand} {self.model} {self.variant} ({self.year}) - {self.source}"
+
+
+class CarsUnifiedJp(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    cars_standard = models.ForeignKey(CarsStandard, on_delete=models.SET_NULL, null=True, blank=True, db_column='cars_standard_id')
+    source = models.CharField(max_length=50)
+    listing_id = models.TextField(blank=True, null=True)
+    listing_url = models.TextField(blank=True, null=True)
+    condition = models.CharField(max_length=50, blank=True, null=True)
+    brand = models.CharField(max_length=100)
+    model = models.CharField(max_length=100)
+    variant = models.CharField(max_length=100, blank=True, null=True)
+    series = models.CharField(max_length=100, blank=True, null=True)
+    type = models.CharField(max_length=100, blank=True, null=True)
+    year = models.IntegerField(blank=True, null=True)
+    mileage = models.IntegerField(blank=True, null=True)
+    transmission = models.CharField(max_length=50, blank=True, null=True)
+    seat_capacity = models.CharField(max_length=10, blank=True, null=True)
+    engine_cc = models.CharField(max_length=50, blank=True, null=True)
+    fuel_type = models.CharField(max_length=50, blank=True, null=True)
+    price = models.IntegerField(blank=True, null=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    information_ads = models.TextField(blank=True, null=True)
+    images = ArrayField(models.TextField(), blank=True, null=True)
+    status = models.CharField(max_length=20, default='active')
+    created_at = models.DateTimeField(blank=True, null=True)
+    last_scraped_at = models.DateTimeField(blank=True, null=True)
+    version = models.IntegerField(default=1)
+    information_ads_date = models.DateField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'cars_unified_jp'
+
+    def __str__(self):
+        return f"{self.brand} {self.model} {self.variant} ({self.year}) - {self.source}"
+
 
 class PriceHistoryUnified(models.Model):
     """

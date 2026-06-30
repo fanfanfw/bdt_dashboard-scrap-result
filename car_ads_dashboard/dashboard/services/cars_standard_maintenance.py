@@ -8,7 +8,7 @@ from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.db import DatabaseError, connection, transaction
 from django.db.models import Count, Q
 
-from ..models import CarsStandard, CarsStandardAuditLog, CarsStandardMaintenanceJob, CarsUnified, CarsUnifiedInd, Carsome
+from ..models import CarsStandard, CarsStandardAuditLog, CarsStandardMaintenanceJob, CarsUnified, CarsUnifiedInd, CarsUnifiedJp, Carsome
 
 
 ALLOWED_TARGET_TABLES = {
@@ -26,6 +26,12 @@ ALLOWED_TARGET_TABLES = {
     },
     'cars_unified_ind': {
         'model': CarsUnifiedInd,
+        'source_column': 'source',
+        'id_column': 'id',
+        'required_columns': ['id', 'source', 'cars_standard_id', 'brand', 'model', 'variant'],
+    },
+    'cars_unified_jp': {
+        'model': CarsUnifiedJp,
         'source_column': 'source',
         'id_column': 'id',
         'required_columns': ['id', 'source', 'cars_standard_id', 'brand', 'model', 'variant'],
@@ -110,6 +116,7 @@ FILL_PREVIEW_TOKEN_MAX_AGE = 15 * 60
 FILL_PREVIEW_TOKEN_SALT = 'dashboard.cars_standard.fill_preview'
 MODEL_GROUP_DEFAULT = 'NO MODEL GROUP'
 NULLISH_VALUES = ('', '-', 'N/A', 'NA', 'NULL', 'NONE')
+MATCH_NULLISH_VALUES = {'', '-', 'N/A', 'NULL'}
 FILL_BATCH_SIZE_MIN = 1
 FILL_BATCH_SIZE_MAX = 10000
 SOURCE_ALIASES_BY_TABLE = {
@@ -249,26 +256,95 @@ def search_cars_standard(query='', page=1, per_page=25):
     }
 
 
+def get_operation_label(job):
+    labels = {
+        'analyze': 'Analyze',
+        'null_inspector': 'Analyze',
+        CarsStandardMaintenanceJob.JOB_INSERT_MISSING: 'Bulk Add Standards',
+        CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID: 'Fill IDs',
+        CarsStandardMaintenanceJob.JOB_MERGE: 'Merge',
+        CarsStandardMaintenanceJob.JOB_EDIT: 'Edit Standard',
+        CarsStandardMaintenanceJob.JOB_DELETE: 'Delete Standard',
+    }
+    return labels.get(job.job_type, job.get_job_type_display())
+
+
+def readable_error_message(message):
+    if not message:
+        return ''
+    message = str(message).strip()
+    try:
+        data = json.loads(message)
+    except (TypeError, ValueError):
+        return message
+    if isinstance(data, dict):
+        return data.get('error') or data.get('message') or '; '.join(f'{key}: {value}' for key, value in data.items())
+    if isinstance(data, list):
+        return '; '.join(str(item) for item in data)
+    return str(data)
+
+
+def summarize_maintenance_job_result(job):
+    result = job.result or {}
+    if job.error_message:
+        return readable_error_message(job.error_message)
+    if job.job_type == CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID and result:
+        scanned = result.get('scanned', result.get('processed', result.get('scanned_rows', 0)))
+        updated = result.get('updated', result.get('estimated_matched', 0))
+        unmatched = result.get('unmatched', result.get('failed', result.get('estimated_unmatched', 0)))
+        ambiguous = result.get('ambiguous', result.get('estimated_ambiguous', 0))
+        source_parts = []
+        for row in result.get('per_source', []):
+            source_parts.append(f"{row.get('source')}: scanned {row.get('scanned_rows', row.get('null_rows', 0))}, updated {row.get('updated', row.get('matched', 0))}, unmatched {row.get('failed', row.get('unmatched', 0))}, ambiguous {row.get('ambiguous', 0)}")
+        suffix = f" | {'; '.join(source_parts)}" if source_parts else ''
+        return f"Scanned {scanned}, updated {updated}, unmatched {unmatched}, ambiguous {ambiguous}{suffix}"
+    if job.job_type in ('analyze', 'null_inspector') and result:
+        return f"Scanned {result.get('scanned_rows', 0)} of {result.get('total_null_rows', 0)} NULL rows: matched {result.get('estimated_matched', 0)}, unmatched {result.get('estimated_unmatched', 0)}, ambiguous {result.get('estimated_ambiguous', 0)}"
+    if job.job_type == CarsStandardMaintenanceJob.JOB_INSERT_MISSING and result:
+        return result.get('message') or f"Inserted {result.get('inserted', 0)} cars_standard rows."
+    if job.job_type == CarsStandardMaintenanceJob.JOB_DELETE and result:
+        references = sum((result.get('affected_references') or {}).values())
+        return f"Deleted cars_standard #{result.get('cars_standard_id', '-')}. References cleared: {references}."
+    if job.job_type == CarsStandardMaintenanceJob.JOB_EDIT and result:
+        return f"Updated cars_standard #{result.get('cars_standard_id', '-')}. Fields changed: {len(result.get('updated_fields') or {})}."
+    if result:
+        return result.get('message') or 'Completed.'
+    return '-'
+
+
+def decorate_maintenance_job(job):
+    job.operation_label = get_operation_label(job)
+    job.result_summary = summarize_maintenance_job_result(job)
+    result = job.result or {}
+    job.failed_sample = result.get('failed_sample') or result.get('failed_records') or []
+    job.ambiguous_sample = result.get('ambiguous_sample') or result.get('ambiguous_records') or []
+    job.can_run_fill_again = job.job_type == CarsStandardMaintenanceJob.JOB_INSERT_MISSING and job.status == CarsStandardMaintenanceJob.STATUS_SUCCESS and not job.dry_run and result.get('inserted', 0) > 0 and bool(job.target_table and job.sources)
+    return job
+
+
 def get_recent_maintenance_jobs(limit=10):
-    return CarsStandardMaintenanceJob.objects.select_related('requested_by').order_by('-created_at')[:limit]
+    return [decorate_maintenance_job(job) for job in CarsStandardMaintenanceJob.objects.select_related('requested_by').order_by('-created_at')[:limit]]
 
 
 def serialize_maintenance_job(job):
+    decorate_maintenance_job(job)
     return {
         'id': job.id,
         'job_type': job.job_type,
-        'job_type_display': job.get_job_type_display(),
+        'job_type_display': job.operation_label,
         'status': job.status,
         'status_display': job.get_status_display(),
         'requested_by': job.requested_by.username if job.requested_by else '',
         'target_table': job.target_table,
         'sources': job.sources,
+        'batch_size': (job.parameters or {}).get('batch_size', 500),
         'dry_run': job.dry_run,
-        'parameters': job.parameters,
         'progress': job.progress,
-        'result': job.result,
-        'error_message': job.error_message,
-        'celery_task_id': job.celery_task_id,
+        'result_summary': job.result_summary,
+        'failed_sample': job.failed_sample,
+        'ambiguous_sample': job.ambiguous_sample,
+        'can_run_fill_again': job.can_run_fill_again,
+        'error_summary': readable_error_message(job.error_message),
         'created_at': job.created_at.isoformat() if job.created_at else None,
         'started_at': job.started_at.isoformat() if job.started_at else None,
         'finished_at': job.finished_at.isoformat() if job.finished_at else None,
@@ -305,18 +381,52 @@ def get_normalized_preview(values):
     }
 
 
+def clean_cars_standard_values(cleaned_data, default_model_group=False):
+    values = {}
+    for field in STANDARD_EDIT_COLUMNS:
+        if field not in cleaned_data:
+            continue
+        value = cleaned_data[field]
+        if isinstance(value, str):
+            value = value.strip()
+            if field in NORMALIZED_FIELDS:
+                value = value.upper()
+        if value == '':
+            value = None
+        if field == 'model_group_norm' and not value and default_model_group:
+            value = MODEL_GROUP_DEFAULT
+        if field in NORMALIZED_FIELDS and not value:
+            raise ValueError(f'{field} is required.')
+        values[field] = value
+    if default_model_group and not values.get('model_group_norm'):
+        values['model_group_norm'] = MODEL_GROUP_DEFAULT
+    return values
+
+
+def create_cars_standard(cleaned_data, user):
+    values = clean_cars_standard_values(cleaned_data, default_model_group=True)
+    row = CarsStandard.objects.create(**values)
+    CarsStandardAuditLog.objects.create(
+        user=user,
+        action=CarsStandardAuditLog.ACTION_CREATE,
+        target_id=row.id,
+        new_values=serialize_cars_standard(row),
+    )
+    return row
+
+
 def update_cars_standard(row_id, cleaned_data, user):
+    values = clean_cars_standard_values(cleaned_data)
+    for field in NORMALIZED_FIELDS:
+        if field not in values:
+            raise ValueError(f'{field} is required.')
     with transaction.atomic():
         row = CarsStandard.objects.select_for_update().get(pk=row_id)
         old_values = serialize_cars_standard(row)
         updates = {}
-        for field in STANDARD_EDIT_COLUMNS:
-            if field in cleaned_data and hasattr(row, field):
-                value = cleaned_data[field]
-                if value == '':
-                    value = None
-                if getattr(row, field) != value:
-                    updates[field] = value
+        for field, value in values.items():
+            if hasattr(row, field) and getattr(row, field) != value:
+                updates[field] = value
         for field, value in updates.items():
             setattr(row, field, value)
         if updates:
@@ -368,6 +478,57 @@ def get_fk_delete_rules():
     except DatabaseError:
         return rules
     return rules
+
+
+def get_delete_preview(cars_standard_id):
+    row = CarsStandard.objects.get(pk=cars_standard_id)
+    reference_counts = get_reference_counts(cars_standard_id)
+    fk_delete_rules = get_fk_delete_rules()
+    return {
+        'row': serialize_cars_standard(row),
+        'cars_standard_id': row.id,
+        'affected_references': reference_counts,
+        'reference_rows': [
+            {'table': table, 'count': count, 'delete_rule': fk_delete_rules.get(table, 'UNKNOWN')}
+            for table, count in reference_counts.items()
+        ],
+        'fk_delete_rules': fk_delete_rules,
+        'all_set_null': all(rule == 'SET NULL' for rule in fk_delete_rules.values()),
+    }
+
+
+def delete_cars_standard(cars_standard_id, user):
+    with transaction.atomic():
+        row = CarsStandard.objects.select_for_update().get(pk=cars_standard_id)
+        old_values = serialize_cars_standard(row)
+        before_counts = get_reference_counts(cars_standard_id)
+        fk_delete_rules = get_fk_delete_rules()
+        if any(rule != 'SET NULL' for rule in fk_delete_rules.values()):
+            raise ValueError('Delete blocked because not all cars_standard foreign keys are ON DELETE SET NULL.')
+        with connection.cursor() as cursor:
+            cursor.execute(f'DELETE FROM {quote_identifier(CarsStandard._meta.db_table)} WHERE id = %s', [cars_standard_id])
+        after_counts = get_reference_counts(cars_standard_id)
+        post_null_counts = get_null_reference_counts()
+        CarsStandardAuditLog.objects.create(
+            user=user,
+            action=CarsStandardAuditLog.ACTION_DELETE,
+            source_id=cars_standard_id,
+            old_values=old_values,
+            affected_references={
+                'before_delete': before_counts,
+                'after_delete': after_counts,
+                'post_null_counts': post_null_counts,
+                'fk_delete_rules': fk_delete_rules,
+            },
+        )
+    return {
+        'cars_standard_id': cars_standard_id,
+        'affected_references': before_counts,
+        'affected_references_after': after_counts,
+        'post_null_counts': post_null_counts,
+        'fk_delete_rules': fk_delete_rules,
+        'message': f"Deleted cars_standard #{cars_standard_id}. References cleared: {sum(before_counts.values())}.",
+    }
 
 
 def suggest_alias_transfers(source, target):
@@ -505,8 +666,11 @@ def ensure_cars_standard_id_default():
         raise RuntimeError('cars_standard.id has no database default or identity sequence; aborting insert missing execution.')
 
 
-def _insert_missing_params(sources):
-    params = [MODEL_GROUP_DEFAULT, sources]
+def _insert_missing_params(sources, has_model_group=False):
+    params = []
+    if has_model_group:
+        params.extend(NULLISH_VALUES)
+    params.extend([MODEL_GROUP_DEFAULT, sources])
     params.extend(NULLISH_VALUES)
     params.extend(NULLISH_VALUES)
     params.extend(NULLISH_VALUES)
@@ -515,14 +679,19 @@ def _insert_missing_params(sources):
 
 def _insert_missing_cte(table_name):
     config = validate_target_table(table_name)
+    source_columns = get_table_columns(table_name)
     nullish_placeholders = ', '.join(['%s'] * len(NULLISH_VALUES))
+    model_group_sql = '%s::varchar'
+    if 'model_group' in source_columns:
+        quoted_model_group = quote_identifier('model_group')
+        model_group_sql = f"CASE WHEN UPPER(TRIM({quoted_model_group}::text)) NOT IN ({nullish_placeholders}) THEN UPPER(TRIM({quoted_model_group}::text)) ELSE %s::varchar END"
     quoted_table = quote_identifier(table_name)
     quoted_source_column = quote_identifier(config['source_column'])
     return f'''
         WITH source_rows AS (
             SELECT DISTINCT
                 UPPER(TRIM(brand::text)) AS brand_norm,
-                %s::varchar AS model_group_norm,
+                {model_group_sql} AS model_group_norm,
                 UPPER(TRIM(model::text)) AS model_norm,
                 UPPER(TRIM(variant::text)) AS variant_norm
             FROM {quoted_table}
@@ -570,7 +739,7 @@ def get_insert_missing_preview(table_name, sources):
     sources = validate_sources(table_name, sources)
     ensure_insert_missing_schema(table_name)
     cte = _insert_missing_cte(table_name)
-    params = _insert_missing_params(sources)
+    params = _insert_missing_params(sources, 'model_group' in get_table_columns(table_name))
     with connection.cursor() as cursor:
         cursor.execute(
             cte + '''
@@ -653,7 +822,7 @@ def execute_insert_missing_cars_standard(table_name, sources, user, preview_toke
         else:
             ensure_cars_standard_id_default()
             cte = _insert_missing_cte(table_name)
-            params = _insert_missing_params(sources)
+            params = _insert_missing_params(sources, 'model_group' in get_table_columns(table_name))
             insert_sql = cte + '''
                 INSERT INTO cars_standard (
                     brand_norm,
@@ -709,13 +878,17 @@ STANDARD_MATCH_COLUMN_GROUPS = {
 
 FILL_FAILED_RECORD_LIMIT = 1000
 FILL_PREVIEW_ROW_CAP = 1000
+NULL_INSPECTOR_PREVIEW_LIMIT = 500
+NULL_INSPECTOR_MAX_PREVIEW_LIMIT = 10000
 
 
 def normalize_match_value(value):
-    normalized = normalize_for_match(value)
-    if normalized in NULLISH_VALUES:
+    if value is None:
         return None
-    return normalized or None
+    normalized = str(value).strip().upper()
+    if normalized in MATCH_NULLISH_VALUES:
+        return None
+    return normalized
 
 
 def candidate_matches(candidate, key, target):
@@ -781,6 +954,22 @@ def _find_cars_standard_matches(cursor, standard_columns, brand, model_group, mo
     return matches
 
 
+def _classify_fill_record(cursor, standard_columns, record):
+    matches = _find_cars_standard_matches(
+        cursor,
+        standard_columns,
+        record.get('brand'),
+        record.get('model_group'),
+        record.get('model'),
+        record.get('variant'),
+    )
+    if len(matches) == 1:
+        return 'matched', matches
+    if len(matches) > 1:
+        return 'ambiguous', matches
+    return 'unmatched', matches
+
+
 def _source_select_sql(table_name):
     config = validate_target_table(table_name)
     source_columns = get_table_columns(table_name)
@@ -826,6 +1015,86 @@ def _serialize_source_record(record):
         'model_group': record.get('model_group'),
         'model': record.get('model'),
         'variant': record.get('variant'),
+    }
+
+
+def validate_null_inspector_limit(preview_limit):
+    if preview_limit in (None, ''):
+        return NULL_INSPECTOR_PREVIEW_LIMIT
+    try:
+        preview_limit = int(preview_limit)
+    except (TypeError, ValueError):
+        raise ValueError('Preview limit must be a number.')
+    if preview_limit < 1 or preview_limit > NULL_INSPECTOR_MAX_PREVIEW_LIMIT:
+        raise ValueError(f'Preview limit must be between 1 and {NULL_INSPECTOR_MAX_PREVIEW_LIMIT}.')
+    return preview_limit
+
+
+def _normalized_source_candidate(record):
+    brand = normalize_match_value(record.get('brand'))
+    model = normalize_match_value(record.get('model'))
+    variant = normalize_match_value(record.get('variant'))
+    if brand is None or model is None or variant is None:
+        return None
+    return {
+        'brand_norm': brand,
+        'model_group_norm': normalize_match_value(record.get('model_group')) or MODEL_GROUP_DEFAULT,
+        'model_norm': model,
+        'variant_norm': variant,
+    }
+
+
+def analyze_null_rows(table_name, source, preview_limit=None):
+    validate_target_table(table_name)
+    sources = validate_sources(table_name, [source])
+    source = sources[0]
+    preview_limit = validate_null_inspector_limit(preview_limit)
+    ensure_fill_schema(table_name)
+    standard_columns = get_table_columns(CarsStandard._meta.db_table)
+    total_null_rows = _count_source_null_rows(table_name, source)
+    counts = {'matched': 0, 'unmatched': 0, 'ambiguous': 0}
+    unmatched_sample = []
+    ambiguous_sample = []
+    unmatched_candidates = {}
+    with connection.cursor() as cursor:
+        cursor.execute(f'{_source_select_sql(table_name)} LIMIT %s', [source, preview_limit])
+        records = _fetch_dicts(cursor)
+        for record in records:
+            match_status, matches = _classify_fill_record(cursor, standard_columns, record)
+            counts[match_status] += 1
+            source_record = _serialize_source_record(record)
+            if match_status == 'unmatched':
+                candidate = _normalized_source_candidate(record)
+                if candidate:
+                    key = tuple(candidate.values())
+                    unmatched_candidates.setdefault(key, candidate)
+                if len(unmatched_sample) < SAMPLE_LIMIT:
+                    unmatched_sample.append(source_record)
+            elif match_status == 'ambiguous' and len(ambiguous_sample) < SAMPLE_LIMIT:
+                ambiguous_sample.append({
+                    'source_row': source_record,
+                    'candidate_ids': [match['id'] for match in matches],
+                })
+    scanned_rows = len(records)
+    scale = total_null_rows / scanned_rows if scanned_rows and scanned_rows < total_null_rows else 1
+    distinct_unmatched_candidates = list(unmatched_candidates.values())
+    return {
+        'status': 'preview',
+        'table_name': table_name,
+        'source': source,
+        'total_null_rows': total_null_rows,
+        'scanned_rows': scanned_rows,
+        'preview_limit': preview_limit,
+        'preview_truncated': scanned_rows < total_null_rows,
+        'estimated_matched': round(counts['matched'] * scale),
+        'estimated_unmatched': round(counts['unmatched'] * scale),
+        'estimated_ambiguous': round(counts['ambiguous'] * scale),
+        'distinct_unmatched_standards_count': len(distinct_unmatched_candidates),
+        'sample_unmatched_records': unmatched_sample,
+        'sample_ambiguous_records': ambiguous_sample,
+        'distinct_normalized_candidates': distinct_unmatched_candidates[:SAMPLE_LIMIT],
+        'sample_limit': SAMPLE_LIMIT,
+        'message': f"Analyzed {scanned_rows} of {total_null_rows} NULL rows for {table_name}/{source}.",
     }
 
 
@@ -877,16 +1146,9 @@ def get_fill_standard_id_preview(table_name, sources, batch_size=500, preview_ca
             source_counts['truncated'] = source_counts['null_rows'] > len(records)
             truncated = truncated or source_counts['truncated']
             for record in records:
-                matches = _find_cars_standard_matches(
-                    cursor,
-                    standard_columns,
-                    record.get('brand'),
-                    record.get('model_group'),
-                    record.get('model'),
-                    record.get('variant'),
-                )
+                match_status, matches = _classify_fill_record(cursor, standard_columns, record)
                 source_record = _serialize_source_record(record)
-                if len(matches) == 1:
+                if match_status == 'matched':
                     totals['matched'] += 1
                     source_counts['matched'] += 1
                     if len(matched_sample) < SAMPLE_LIMIT:
@@ -894,7 +1156,7 @@ def get_fill_standard_id_preview(table_name, sources, batch_size=500, preview_ca
                             'source_row': source_record,
                             'cars_standard_id': matches[0]['id'],
                         })
-                elif len(matches) > 1:
+                elif match_status == 'ambiguous':
                     totals['ambiguous'] += 1
                     source_counts['ambiguous'] += 1
                     if len(ambiguous_sample) < SAMPLE_LIMIT:
@@ -1013,8 +1275,10 @@ def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_
                 source_counts = {
                     'source': source,
                     'null_rows': _count_source_null_rows(table_name, source),
+                    'scanned_rows': 0,
                     'updated': 0,
                     'failed': 0,
+                    'unmatched': 0,
                     'ambiguous': 0,
                 }
                 cursor.execute(source_sql, [source])
@@ -1022,16 +1286,10 @@ def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_
                 update_batch = []
                 for record in records:
                     total_seen += 1
-                    matches = _find_cars_standard_matches(
-                        cursor,
-                        standard_columns,
-                        record.get('brand'),
-                        record.get('model_group'),
-                        record.get('model'),
-                        record.get('variant'),
-                    )
+                    source_counts['scanned_rows'] += 1
+                    match_status, matches = _classify_fill_record(cursor, standard_columns, record)
                     source_record = _serialize_source_record(record)
-                    if len(matches) == 1:
+                    if match_status == 'matched':
                         update_batch.append((matches[0]['id'], record['id']))
                         source_counts['updated'] += 1
                         total_updated += 1
@@ -1040,7 +1298,7 @@ def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_
                                 'source_row': source_record,
                                 'cars_standard_id': matches[0]['id'],
                             })
-                    elif len(matches) > 1:
+                    elif match_status == 'ambiguous':
                         source_counts['ambiguous'] += 1
                         total_ambiguous += 1
                         if len(ambiguous_records) < FILL_FAILED_RECORD_LIMIT:
@@ -1050,6 +1308,7 @@ def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_
                             })
                     else:
                         source_counts['failed'] += 1
+                        source_counts['unmatched'] += 1
                         total_failed += 1
                         if len(failed_records) < FILL_FAILED_RECORD_LIMIT:
                             failed_records.append(source_record)
@@ -1066,17 +1325,21 @@ def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_
         'sources': sources,
         'batch_size': batch_size,
         'processed': total_seen,
+        'scanned': total_seen,
         'updated': total_updated,
         'failed': total_failed,
+        'unmatched': total_failed,
         'ambiguous': total_ambiguous,
         'per_source': per_source,
         'duration_seconds': duration,
         'matched_sample': matched_sample,
+        'failed_sample': failed_records,
         'failed_records': failed_records,
         'failed_records_truncated': total_failed > len(failed_records),
+        'ambiguous_sample': ambiguous_records,
         'ambiguous_records': ambiguous_records,
         'ambiguous_records_truncated': total_ambiguous > len(ambiguous_records),
-        'message': f'Updated {total_updated} rows. Failed {total_failed}. Ambiguous {total_ambiguous}.',
+        'message': f'Scanned {total_seen}, updated {total_updated}, unmatched {total_failed}, ambiguous {total_ambiguous}.',
     }
     CarsStandardAuditLog.objects.create(
         user=user,

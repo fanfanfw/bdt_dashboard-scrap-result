@@ -9,13 +9,13 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
 from django.db.models.functions import Coalesce
 from .models import CarsInventory, PriceHistoryUnified, UserProfile, CarsStandard, CarsStandardMaintenanceJob, CarsUnified, Carsome
-from .services.cars_standard_maintenance import build_fill_preview_token, build_insert_missing_preview_token, build_merge_preview_token, execute_merge, get_admin_overview, get_cars_standard_for_edit, get_fill_standard_id_preview, get_insert_missing_preview, get_merge_preview, get_normalized_preview, serialize_alias_changes, serialize_cars_standard, serialize_maintenance_job, update_cars_standard, validate_fill_preview_token, validate_insert_missing_preview_token
+from .services.cars_standard_maintenance import analyze_null_rows, build_fill_preview_token, build_insert_missing_preview_token, build_merge_preview_token, create_cars_standard, delete_cars_standard, execute_merge, get_admin_overview, get_cars_standard_for_edit, get_delete_preview, get_fill_standard_id_preview, get_insert_missing_preview, get_merge_preview, get_normalized_preview, serialize_alias_changes, serialize_cars_standard, serialize_maintenance_job, update_cars_standard, validate_fill_preview_token, validate_insert_missing_preview_token
 from .services.cars_standard_maintenance import search_cars_standard
 from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
 from django.db import models
 from django import forms
-from .forms import AdminProfileForm, AdminPasswordChangeForm, CARS_STANDARD_EDIT_FIELDS, CarsStandardFillExecuteForm, CarsStandardFillPreviewForm, CarsStandardInsertMissingExecuteForm, CarsStandardInsertMissingPreviewForm, CarsStandardMaintenanceJobForm, CarsStandardMergeExecuteForm, CarsStandardMergePreviewForm, CarsStandardUpdateForm, CustomAuthenticationForm, CustomUserCreationForm, UserProfileForm, UserPasswordChangeForm
+from .forms import AdminProfileForm, AdminPasswordChangeForm, CARS_STANDARD_EDIT_FIELDS, CarsStandardCreateForm, CarsStandardDeleteForm, CarsStandardFillExecuteForm, CarsStandardFillPreviewForm, CarsStandardInsertMissingExecuteForm, CarsStandardInsertMissingPreviewForm, CarsStandardMaintenanceJobForm, CarsStandardMergeExecuteForm, CarsStandardMergePreviewForm, CarsStandardNullInspectorForm, CarsStandardUpdateForm, CustomAuthenticationForm, CustomUserCreationForm, UserProfileForm, UserPasswordChangeForm
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.utils import timezone
@@ -558,12 +558,20 @@ def admin_cars_standard(request, username):
     search_result = search_cars_standard(search_query, page_number)
     edit_form = None
     edit_row = None
+    delete_preview = None
     edit_id = request.GET.get('edit_id')
+    delete_id = request.GET.get('delete_id')
 
     if edit_id:
         try:
             edit_row = get_cars_standard_for_edit(edit_id)
             edit_form = CarsStandardUpdateForm(initial={'cars_standard_id': edit_row.id, **{field: getattr(edit_row, field, '') for field in CARS_STANDARD_EDIT_FIELDS}})
+        except (CarsStandard.DoesNotExist, ValueError):
+            messages.error(request, 'Selected cars_standard row was not found.')
+
+    if delete_id:
+        try:
+            delete_preview = get_delete_preview(delete_id)
         except (CarsStandard.DoesNotExist, ValueError):
             messages.error(request, 'Selected cars_standard row was not found.')
 
@@ -575,8 +583,12 @@ def admin_cars_standard(request, username):
         'null_count_summary': overview['null_count_summary'],
         'maintenance_jobs': overview['maintenance_jobs'],
         'maintenance_job_form': CarsStandardMaintenanceJobForm(),
+        'null_inspector_form': CarsStandardNullInspectorForm(),
         'insert_missing_preview_form': CarsStandardInsertMissingPreviewForm(),
         'fill_preview_form': CarsStandardFillPreviewForm(),
+        'create_form': CarsStandardCreateForm(),
+        'delete_preview': delete_preview,
+        'delete_form': CarsStandardDeleteForm(initial={'cars_standard_id': delete_preview['cars_standard_id']}) if delete_preview else None,
         'page_obj': search_result['page_obj'],
         'columns': search_result['columns'],
         'search_query': search_result['query'],
@@ -586,6 +598,48 @@ def admin_cars_standard(request, username):
         'merge_preview_form': CarsStandardMergePreviewForm(),
     }
     return render(request, 'dashboard/admin_cars_standard.html', context)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_POST
+def admin_cars_standard_create(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+    form = CarsStandardCreateForm(request.POST)
+    if form.is_valid():
+        try:
+            row = create_cars_standard(form.cleaned_data, request.user)
+            messages.success(request, f'Created cars_standard #{row.id}.')
+            return redirect(f"{reverse('admin_cars_standard', kwargs={'username': request.user.username})}?edit_id={row.id}")
+        except Exception as exc:
+            messages.error(request, f'Create failed: {exc}')
+    else:
+        messages.error(request, 'Create failed. Check the form values.')
+    return redirect('admin_cars_standard', username=request.user.username)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_POST
+def admin_cars_standard_delete(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+    form = CarsStandardDeleteForm(request.POST)
+    if form.is_valid():
+        row_id = form.cleaned_data['cars_standard_id']
+        try:
+            result = delete_cars_standard(row_id, request.user)
+            messages.success(request, f"Deleted cars_standard #{row_id}. References after delete: {sum(result['affected_references_after'].values())}.")
+        except CarsStandard.DoesNotExist:
+            messages.error(request, 'Selected cars_standard row was not found.')
+        except Exception as exc:
+            messages.error(request, f'Delete failed: {exc}')
+    else:
+        messages.error(request, 'Delete requires confirmation that references become NULL via ON DELETE SET NULL.')
+    return redirect('admin_cars_standard', username=request.user.username)
 
 
 @login_required
@@ -649,6 +703,7 @@ def admin_cars_standard_merge_preview(request, username):
         'null_count_summary': overview['null_count_summary'],
         'maintenance_jobs': overview['maintenance_jobs'],
         'maintenance_job_form': CarsStandardMaintenanceJobForm(),
+        'null_inspector_form': CarsStandardNullInspectorForm(),
         'insert_missing_preview_form': CarsStandardInsertMissingPreviewForm(),
         'fill_preview_form': CarsStandardFillPreviewForm(),
         'page_obj': search_result['page_obj'],
@@ -699,6 +754,50 @@ def admin_cars_standard_merge_execute(request, username):
 @group_required('Admin')
 @user_is_owner_or_admin
 @require_POST
+def admin_cars_standard_null_inspector(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+    form = CarsStandardNullInspectorForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'NULL Inspector failed. Check table, source, and preview limit.')
+        return redirect('admin_cars_standard', username=request.user.username)
+    try:
+        preview = analyze_null_rows(
+            form.cleaned_data['target_table'],
+            form.cleaned_data['source'],
+            form.cleaned_data['preview_limit'],
+        )
+    except Exception as exc:
+        messages.error(request, f'NULL Inspector failed: {exc}')
+        return redirect('admin_cars_standard', username=request.user.username)
+
+    search_query = request.GET.get('q', '')
+    overview = get_admin_overview()
+    search_result = search_cars_standard(search_query, request.GET.get('page'))
+    context = {
+        'username': request.user.username,
+        'role': 'Admin',
+        'pending_users_count': get_pending_users_count(),
+        'cars_standard_total': overview['cars_standard_total'],
+        'null_count_summary': overview['null_count_summary'],
+        'maintenance_jobs': overview['maintenance_jobs'],
+        'maintenance_job_form': CarsStandardMaintenanceJobForm(),
+        'null_inspector_form': form,
+        'null_inspector_preview': preview,
+        'insert_missing_preview_form': CarsStandardInsertMissingPreviewForm(initial={'target_table': preview['table_name'], 'sources': preview['source']}),
+        'fill_preview_form': CarsStandardFillPreviewForm(),
+        'page_obj': search_result['page_obj'],
+        'columns': search_result['columns'],
+        'search_query': search_result['query'],
+        'merge_preview_form': CarsStandardMergePreviewForm(),
+    }
+    return render(request, 'dashboard/admin_cars_standard.html', context)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_POST
 def admin_cars_standard_insert_missing_preview(request, username):
     if request.user.username != username:
         return redirect('admin_cars_standard', username=request.user.username)
@@ -728,6 +827,7 @@ def admin_cars_standard_insert_missing_preview(request, username):
         'null_count_summary': overview['null_count_summary'],
         'maintenance_jobs': overview['maintenance_jobs'],
         'maintenance_job_form': CarsStandardMaintenanceJobForm(),
+        'null_inspector_form': CarsStandardNullInspectorForm(),
         'insert_missing_preview_form': form,
         'fill_preview_form': CarsStandardFillPreviewForm(),
         'insert_missing_preview': preview,
@@ -810,6 +910,7 @@ def admin_cars_standard_fill_preview(request, username):
             form.cleaned_data['sources'],
             form.cleaned_data['batch_size'],
         )
+        preview['dry_run'] = form.cleaned_data['dry_run']
         preview['preview_token'] = build_fill_preview_token(
             preview['table_name'],
             preview['sources'],
@@ -831,6 +932,7 @@ def admin_cars_standard_fill_preview(request, username):
         'null_count_summary': overview['null_count_summary'],
         'maintenance_jobs': overview['maintenance_jobs'],
         'maintenance_job_form': CarsStandardMaintenanceJobForm(),
+        'null_inspector_form': CarsStandardNullInspectorForm(),
         'insert_missing_preview_form': CarsStandardInsertMissingPreviewForm(),
         'fill_preview_form': form,
         'fill_preview': preview,
@@ -838,6 +940,7 @@ def admin_cars_standard_fill_preview(request, username):
             'target_table': preview['table_name'],
             'sources': ','.join(preview['sources']),
             'batch_size': preview['batch_size'],
+            'dry_run': preview['dry_run'],
             'preview_token': preview['preview_token'],
         }),
         'page_obj': search_result['page_obj'],
@@ -857,30 +960,31 @@ def admin_cars_standard_fill_execute(request, username):
         return redirect('admin_cars_standard', username=request.user.username)
     form = CarsStandardFillExecuteForm(request.POST)
     if not form.is_valid():
-        messages.error(request, 'Fill execution requires confirmation and a valid recent preview.')
+        messages.error(request, 'Fill execution requires valid inputs. Non-dry-run needs confirmation and a recent preview.')
         return redirect('admin_cars_standard', username=request.user.username)
-    try:
-        validate_fill_preview_token(
-            form.cleaned_data['preview_token'],
-            form.cleaned_data['target_table'],
-            form.cleaned_data['sources'],
-            form.cleaned_data['batch_size'],
-            request.user.id,
-        )
-    except ValueError as exc:
-        messages.error(request, str(exc))
-        return redirect('admin_cars_standard', username=request.user.username)
+    if not form.cleaned_data['dry_run']:
+        try:
+            validate_fill_preview_token(
+                form.cleaned_data['preview_token'],
+                form.cleaned_data['target_table'],
+                form.cleaned_data['sources'],
+                form.cleaned_data['batch_size'],
+                request.user.id,
+            )
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect('admin_cars_standard', username=request.user.username)
     job = CarsStandardMaintenanceJob.objects.create(
         job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID,
         requested_by=request.user,
         target_table=form.cleaned_data['target_table'],
         sources=form.cleaned_data['sources'],
-        dry_run=False,
+        dry_run=form.cleaned_data['dry_run'],
         parameters={
             'target_table': form.cleaned_data['target_table'],
             'sources': form.cleaned_data['sources'],
             'batch_size': form.cleaned_data['batch_size'],
-            'dry_run': False,
+            'dry_run': form.cleaned_data['dry_run'],
             'preview_token': form.cleaned_data['preview_token'],
         },
     )
@@ -889,7 +993,54 @@ def admin_cars_standard_fill_execute(request, username):
         async_result = fill_standard_id.apply_async(args=[job.id])
         job.celery_task_id = async_result.id or ''
         job.save(update_fields=['celery_task_id', 'updated_at'])
-        messages.success(request, f'Queued fill cars_standard_id execution job #{job.id}.')
+        messages.success(request, f'Queued Fill IDs operation #{job.id}.')
+    except Exception as exc:
+        job.status = CarsStandardMaintenanceJob.STATUS_FAILED
+        job.error_message = str(exc)
+        job.finished_at = timezone.now()
+        job.save(update_fields=['status', 'error_message', 'finished_at', 'updated_at'])
+        messages.error(request, f'Failed to queue fill job #{job.id}: {exc}')
+    return redirect('admin_cars_standard', username=request.user.username)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_POST
+def admin_cars_standard_fill_again(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+    form = CarsStandardFillExecuteForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Run Fill Again requires valid inputs. Real update needs confirmation.')
+        return redirect('admin_cars_standard', username=request.user.username)
+    dry_run = form.cleaned_data['dry_run']
+    preview_token = '' if dry_run else build_fill_preview_token(
+        form.cleaned_data['target_table'],
+        form.cleaned_data['sources'],
+        form.cleaned_data['batch_size'],
+        request.user.id,
+    )
+    job = CarsStandardMaintenanceJob.objects.create(
+        job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID,
+        requested_by=request.user,
+        target_table=form.cleaned_data['target_table'],
+        sources=form.cleaned_data['sources'],
+        dry_run=dry_run,
+        parameters={
+            'target_table': form.cleaned_data['target_table'],
+            'sources': form.cleaned_data['sources'],
+            'batch_size': form.cleaned_data['batch_size'],
+            'dry_run': dry_run,
+            'preview_token': preview_token,
+        },
+    )
+    try:
+        from .tasks import fill_standard_id
+        async_result = fill_standard_id.apply_async(args=[job.id])
+        job.celery_task_id = async_result.id or ''
+        job.save(update_fields=['celery_task_id', 'updated_at'])
+        messages.success(request, f'Queued Fill Again operation #{job.id}.')
     except Exception as exc:
         job.status = CarsStandardMaintenanceJob.STATUS_FAILED
         job.error_message = str(exc)

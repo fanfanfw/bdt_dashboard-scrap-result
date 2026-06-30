@@ -1,3 +1,4 @@
+import json
 from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -11,11 +12,12 @@ from .models import CarsStandardMaintenanceJob
 from .services import cars_standard_maintenance as service
 
 
-class CarsStandardServiceValidationTests(SimpleTestCase):
+class CarsStandardServiceValidationTests(TestCase):
     def test_validate_target_table_allows_only_known_tables(self):
         self.assertIs(service.validate_target_table('cars_unified'), service.ALLOWED_TARGET_TABLES['cars_unified'])
         self.assertIs(service.validate_target_table('carsome'), service.ALLOWED_TARGET_TABLES['carsome'])
         self.assertIs(service.validate_target_table('cars_unified_ind'), service.ALLOWED_TARGET_TABLES['cars_unified_ind'])
+        self.assertIs(service.validate_target_table('cars_unified_jp'), service.ALLOWED_TARGET_TABLES['cars_unified_jp'])
 
         blocked_names = [
             'cars_standard',
@@ -36,6 +38,7 @@ class CarsStandardServiceValidationTests(SimpleTestCase):
 
         self.assertEqual(service.validate_sources('cars_unified', [' CarListMY ', 'mudahmy']), ['carlistmy', 'mudahmy'])
         self.assertEqual(service.validate_sources('cars_unified_ind', ['carsome']), ['carsomeid'])
+        self.assertEqual(service.validate_sources('cars_unified_jp', ['carsomeid']), ['carsomeid'])
 
         with self.assertRaises(ValueError):
             service.validate_sources('cars_unified', ['unknown'])
@@ -81,6 +84,89 @@ class CarsStandardServiceValidationTests(SimpleTestCase):
         self.assertTrue(service.candidate_matches(candidate, 'variant', 'sdrive 20i'))
         self.assertFalse(service.candidate_matches(candidate, 'variant', 'N/A'))
         self.assertIsNone(service.normalize_match_value(' - '))
+        self.assertEqual(service.normalize_match_value(' x   1 '), 'X   1')
+
+    def test_find_matches_uses_raw_aliases_and_ignores_missing_model_group(self):
+        cursor = Mock()
+        cursor.description = [('id',), ('brand_norm',), ('brand_raw',), ('brand_raw2',), ('model_group_norm',), ('model_group_raw',), ('model_norm',), ('model_raw',), ('model_raw2',), ('variant_norm',), ('variant_raw',), ('variant_raw2',), ('variant_raw3',), ('variant_raw4',)]
+        cursor.fetchall.return_value = [(
+            7,
+            None,
+            None,
+            ' Toyota ',
+            'SUV',
+            None,
+            None,
+            None,
+            'Corolla Cross',
+            None,
+            None,
+            None,
+            None,
+            'Hybrid',
+        )]
+
+        matches = service._find_cars_standard_matches(
+            cursor,
+            set(service.STANDARD_DISPLAY_COLUMNS),
+            'toyota',
+            'NO MODEL GROUP',
+            ' corolla cross ',
+            ' hybrid ',
+        )
+
+        self.assertEqual([match['id'] for match in matches], [7])
+
+    def test_ambiguous_matches_are_classified_without_single_update_target(self):
+        cursor = Mock()
+        cursor.description = [('id',), ('brand_norm',), ('brand_raw',), ('brand_raw2',), ('model_group_norm',), ('model_group_raw',), ('model_norm',), ('model_raw',), ('model_raw2',), ('variant_norm',), ('variant_raw',), ('variant_raw2',), ('variant_raw3',), ('variant_raw4',)]
+        cursor.fetchall.return_value = [
+            (7, 'TOYOTA', None, None, 'NO MODEL GROUP', None, 'COROLLA', None, None, 'HYBRID', None, None, None, None),
+            (8, 'TOYOTA', None, None, 'NO MODEL GROUP', None, 'COROLLA', None, None, 'HYBRID', None, None, None, None),
+        ]
+
+        status, matches = service._classify_fill_record(
+            cursor,
+            set(service.STANDARD_DISPLAY_COLUMNS),
+            {'brand': 'toyota', 'model_group': None, 'model': 'corolla', 'variant': 'hybrid'},
+        )
+
+        self.assertEqual(status, 'ambiguous')
+        self.assertEqual([match['id'] for match in matches], [7, 8])
+
+    @patch('dashboard.services.cars_standard_maintenance._classify_fill_record')
+    @patch('dashboard.services.cars_standard_maintenance._fetch_dicts')
+    @patch('dashboard.services.cars_standard_maintenance.connection.cursor')
+    @patch('dashboard.services.cars_standard_maintenance._count_source_null_rows')
+    @patch('dashboard.services.cars_standard_maintenance.get_table_columns')
+    @patch('dashboard.services.cars_standard_maintenance.ensure_fill_schema')
+    @patch('dashboard.services.cars_standard_maintenance.validate_sources')
+    def test_analyze_null_rows_reuses_classification_and_reports_candidates(self, validate_sources, ensure_schema, get_columns, count_rows, cursor, fetch_dicts, classify):
+        validate_sources.return_value = ['carlistmy']
+        get_columns.return_value = set(service.STANDARD_DISPLAY_COLUMNS)
+        count_rows.return_value = 3
+        cursor.return_value.__enter__.return_value.execute = Mock()
+        fetch_dicts.return_value = [
+            {'id': 1, 'source': 'carlistmy', 'brand': 'Toyota', 'model_group': None, 'model': 'Corolla', 'variant': 'Hybrid'},
+            {'id': 2, 'source': 'carlistmy', 'brand': 'Honda', 'model_group': None, 'model': 'City', 'variant': 'V'},
+            {'id': 3, 'source': 'carlistmy', 'brand': 'BMW', 'model_group': None, 'model': 'X1', 'variant': 'sDrive'},
+        ]
+        classify.side_effect = [
+            ('matched', [{'id': 10}]),
+            ('unmatched', []),
+            ('ambiguous', [{'id': 20}, {'id': 21}]),
+        ]
+
+        result = service.analyze_null_rows('cars_unified', 'carlistmy', 50)
+
+        ensure_schema.assert_called_once_with('cars_unified')
+        self.assertEqual(result['total_null_rows'], 3)
+        self.assertEqual(result['estimated_matched'], 1)
+        self.assertEqual(result['estimated_unmatched'], 1)
+        self.assertEqual(result['estimated_ambiguous'], 1)
+        self.assertEqual(result['distinct_unmatched_standards_count'], 1)
+        self.assertEqual(result['distinct_normalized_candidates'][0]['brand_norm'], 'HONDA')
+        self.assertEqual(result['sample_ambiguous_records'][0]['candidate_ids'], [20, 21])
 
 
 class CarsStandardMergeServiceTests(SimpleTestCase):
@@ -110,8 +196,8 @@ class CarsStandardMergeServiceTests(SimpleTestCase):
         source = self.make_standard(2, variant_norm='SDRIVE 20I')
         target = self.make_standard(1, variant_norm='S DRIVE 20I')
         objects_get.side_effect = [source, target]
-        reference_counts.return_value = {'cars_unified': 3, 'carsome': 1, 'cars_unified_ind': 0}
-        fk_rules.return_value = {'cars_unified': 'SET NULL', 'carsome': 'NO ACTION', 'cars_unified_ind': 'UNKNOWN'}
+        reference_counts.return_value = {'cars_unified': 3, 'carsome': 1, 'cars_unified_ind': 0, 'cars_unified_jp': 0}
+        fk_rules.return_value = {'cars_unified': 'SET NULL', 'carsome': 'NO ACTION', 'cars_unified_ind': 'UNKNOWN', 'cars_unified_jp': 'SET NULL'}
 
         preview = service.get_merge_preview(2, 1)
 
@@ -138,13 +224,13 @@ class CarsStandardMergeServiceTests(SimpleTestCase):
         queryset.return_value = [target, source]
         atomic.return_value = nullcontext()
         reference_counts.side_effect = [
-            {'cars_unified': 2, 'carsome': 1, 'cars_unified_ind': 0},
-            {'cars_unified': 0, 'carsome': 0, 'cars_unified_ind': 0},
-            {'cars_unified': 5, 'carsome': 1, 'cars_unified_ind': 0},
+            {'cars_unified': 2, 'carsome': 1, 'cars_unified_ind': 0, 'cars_unified_jp': 0},
+            {'cars_unified': 0, 'carsome': 0, 'cars_unified_ind': 0, 'cars_unified_jp': 0},
+            {'cars_unified': 5, 'carsome': 1, 'cars_unified_ind': 0, 'cars_unified_jp': 0},
         ]
-        fk_rules.return_value = {'cars_unified': 'SET NULL', 'carsome': 'NO ACTION', 'cars_unified_ind': 'SET NULL'}
+        fk_rules.return_value = {'cars_unified': 'SET NULL', 'carsome': 'NO ACTION', 'cars_unified_ind': 'SET NULL', 'cars_unified_jp': 'SET NULL'}
         manual_null.return_value = {'carsome': 1}
-        null_counts.return_value = {'cars_unified': 10, 'carsome': 4, 'cars_unified_ind': 0}
+        null_counts.return_value = {'cars_unified': 10, 'carsome': 4, 'cars_unified_ind': 0, 'cars_unified_jp': 0}
 
         result = service.execute_merge(2, 1, {'variant_raw': 'SDRIVE 20I'}, SimpleNamespace(id=99), 'token')
 
@@ -159,6 +245,315 @@ class CarsStandardMergeServiceTests(SimpleTestCase):
     def test_execute_merge_rejects_same_source_and_target(self):
         with self.assertRaises(ValueError):
             service.execute_merge(1, 1, {}, SimpleNamespace(id=99), 'token')
+
+
+class CarsStandardBulkAddServiceTests(TestCase):
+    def setUp(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute('DROP TABLE IF EXISTS cars_unified, carsome, cars_unified_ind, cars_unified_jp, cars_standard CASCADE')
+            cursor.execute('''
+                CREATE TABLE cars_standard (
+                    id BIGSERIAL PRIMARY KEY,
+                    brand_norm varchar(100) NOT NULL,
+                    brand_raw varchar(100),
+                    brand_raw2 varchar(100),
+                    model_group_norm varchar(100) NOT NULL,
+                    model_group_raw varchar(100),
+                    model_norm varchar(100) NOT NULL,
+                    model_raw varchar(100),
+                    model_raw2 varchar(100),
+                    variant_norm varchar(100) NOT NULL,
+                    variant_raw varchar(100),
+                    variant_raw2 varchar(100),
+                    variant_raw3 varchar(100),
+                    variant_raw4 varchar(100)
+                )
+            ''')
+            for table_name in ('cars_unified', 'carsome', 'cars_unified_ind', 'cars_unified_jp'):
+                cursor.execute(f'''
+                    CREATE TABLE {table_name} (
+                        id BIGSERIAL PRIMARY KEY,
+                        source varchar(50) NOT NULL,
+                        cars_standard_id bigint,
+                        brand varchar(100),
+                        model_group varchar(100),
+                        model varchar(100),
+                        variant varchar(100)
+                    )
+                ''')
+        self.user = User.objects.create_user(username='bulkadmin')
+
+    def test_cars_unified_jp_is_discoverable_and_counted(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_unified_jp (source, cars_standard_id, brand, model, variant) VALUES ('auctionjp', NULL, 'Toyota', 'Aqua', 'G')")
+
+        summary = {row['table']: row for row in service.get_null_count_summary()}
+
+        self.assertEqual(service.discover_sources('cars_unified_jp'), ['auctionjp'])
+        self.assertEqual(summary['cars_unified_jp']['null_count'], 1)
+        self.assertEqual(summary['cars_unified_jp']['sources'], [{'source': 'auctionjp', 'null_count': 1}])
+
+    def test_bulk_add_inserts_unique_missing_and_skips_existing_duplicate_sources(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_standard (brand_norm, model_group_norm, model_norm, variant_norm) VALUES ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID')")
+            cursor.execute("INSERT INTO cars_unified (source, cars_standard_id, brand, model_group, model, variant) VALUES ('carlistmy', NULL, 'Honda', NULL, 'City', 'V'), ('carlistmy', NULL, ' honda ', '-', ' city ', ' v '), ('carlistmy', NULL, 'Toyota', NULL, 'Corolla', 'Hybrid')")
+
+        preview = service.get_insert_missing_preview('cars_unified', ['carlistmy'])
+        token = service.build_insert_missing_preview_token('cars_unified', ['carlistmy'], self.user.id)
+        result = service.execute_insert_missing_cars_standard('cars_unified', ['carlistmy'], self.user, preview_token=token)
+
+        self.assertEqual(preview['distinct_candidates'], 2)
+        self.assertEqual(preview['already_exists'], 1)
+        self.assertEqual(preview['rows_to_insert'], 1)
+        self.assertEqual(result['inserted'], 1)
+        self.assertEqual(service.CarsStandard.objects.filter(brand_norm='HONDA', model_group_norm='NO MODEL GROUP', model_norm='CITY', variant_norm='V').count(), 1)
+
+    def test_bulk_add_uses_useful_source_model_group(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_unified (source, cars_standard_id, brand, model_group, model, variant) VALUES ('carlistmy', NULL, 'Nissan', 'SUV', 'X Trail', 'VL')")
+
+        token = service.build_insert_missing_preview_token('cars_unified', ['carlistmy'], self.user.id)
+        result = service.execute_insert_missing_cars_standard('cars_unified', ['carlistmy'], self.user, preview_token=token)
+
+        self.assertEqual(result['inserted'], 1)
+        self.assertTrue(service.CarsStandard.objects.filter(brand_norm='NISSAN', model_group_norm='SUV', model_norm='X TRAIL', variant_norm='VL').exists())
+
+    def test_bulk_add_dry_run_does_not_insert(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_unified (source, cars_standard_id, brand, model_group, model, variant) VALUES ('carlistmy', NULL, 'Mazda', NULL, '3', 'High')")
+
+        result = service.execute_insert_missing_cars_standard('cars_unified', ['carlistmy'], self.user, dry_run=True)
+
+        self.assertEqual(result['status'], 'dry_run')
+        self.assertEqual(result['inserted'], 0)
+        self.assertFalse(service.CarsStandard.objects.filter(brand_norm='MAZDA').exists())
+
+    def test_bulk_add_works_when_source_table_has_no_model_group(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute('ALTER TABLE cars_unified DROP COLUMN model_group')
+            cursor.execute("INSERT INTO cars_unified (source, cars_standard_id, brand, model, variant) VALUES ('carlistmy', NULL, 'Mazda', '3', 'High')")
+
+        preview = service.get_insert_missing_preview('cars_unified', ['carlistmy'])
+        token = service.build_insert_missing_preview_token('cars_unified', ['carlistmy'], self.user.id)
+        result = service.execute_insert_missing_cars_standard('cars_unified', ['carlistmy'], self.user, preview_token=token)
+
+        self.assertEqual(preview['rows_to_insert'], 1)
+        self.assertEqual(result['inserted'], 1)
+        self.assertTrue(service.CarsStandard.objects.filter(brand_norm='MAZDA', model_group_norm='NO MODEL GROUP', model_norm='3', variant_norm='HIGH').exists())
+
+    def test_fill_after_bulk_add_matches_newly_inserted_standard(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_unified (source, cars_standard_id, brand, model_group, model, variant) VALUES ('carlistmy', NULL, 'Honda', NULL, 'City', 'V')")
+
+        insert_token = service.build_insert_missing_preview_token('cars_unified', ['carlistmy'], self.user.id)
+        insert_result = service.execute_insert_missing_cars_standard('cars_unified', ['carlistmy'], self.user, preview_token=insert_token)
+        fill_token = service.build_fill_preview_token('cars_unified', ['carlistmy'], 500, self.user.id)
+        fill_result = service.execute_fill_standard_id('cars_unified', ['carlistmy'], self.user, batch_size=500, preview_token=fill_token)
+
+        self.assertEqual(insert_result['inserted'], 1)
+        self.assertEqual(fill_result['updated'], 1)
+        with service.connection.cursor() as cursor:
+            cursor.execute('SELECT cars_standard_id FROM cars_unified')
+            self.assertIsNotNone(cursor.fetchone()[0])
+
+    def test_execute_fill_leaves_ambiguous_source_null(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_standard (brand_norm, model_group_norm, model_norm, variant_norm) VALUES ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID'), ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID')")
+            cursor.execute("INSERT INTO cars_unified (source, cars_standard_id, brand, model_group, model, variant) VALUES ('carlistmy', NULL, 'Toyota', NULL, 'Corolla', 'Hybrid')")
+
+        token = service.build_fill_preview_token('cars_unified', ['carlistmy'], 500, self.user.id)
+        result = service.execute_fill_standard_id('cars_unified', ['carlistmy'], self.user, batch_size=500, preview_token=token)
+
+        self.assertEqual(result['updated'], 0)
+        self.assertEqual(result['ambiguous'], 1)
+        with service.connection.cursor() as cursor:
+            cursor.execute('SELECT cars_standard_id FROM cars_unified')
+            self.assertIsNone(cursor.fetchone()[0])
+
+
+class CarsStandardCrudServiceTests(TestCase):
+    def setUp(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute('DROP TABLE IF EXISTS cars_unified, carsome, cars_unified_ind, cars_unified_jp, cars_standard CASCADE')
+            cursor.execute('''
+                CREATE TABLE cars_standard (
+                    id BIGSERIAL PRIMARY KEY,
+                    brand_norm varchar(100) NOT NULL,
+                    brand_raw varchar(100),
+                    brand_raw2 varchar(100),
+                    model_group_norm varchar(100) NOT NULL,
+                    model_group_raw varchar(100),
+                    model_norm varchar(100) NOT NULL,
+                    model_raw varchar(100),
+                    model_raw2 varchar(100),
+                    variant_norm varchar(100) NOT NULL,
+                    variant_raw varchar(100),
+                    variant_raw2 varchar(100),
+                    variant_raw3 varchar(100),
+                    variant_raw4 varchar(100)
+                )
+            ''')
+            for table_name in ('cars_unified', 'carsome', 'cars_unified_ind', 'cars_unified_jp'):
+                cursor.execute(f'''
+                    CREATE TABLE {table_name} (
+                        id BIGSERIAL PRIMARY KEY,
+                        source varchar(50) NOT NULL DEFAULT 'test',
+                        cars_standard_id bigint REFERENCES cars_standard(id) ON DELETE SET NULL,
+                        brand varchar(100),
+                        model_group varchar(100),
+                        model varchar(100),
+                        variant varchar(100)
+                    )
+                ''')
+        self.user = User.objects.create_user(username='crudadmin')
+
+    def test_create_and_update_normalize_required_fields(self):
+        row = service.create_cars_standard(
+            {
+                'brand_norm': ' honda ',
+                'model_group_norm': '',
+                'model_norm': ' city ',
+                'variant_norm': ' v ',
+                'brand_raw': 'Honda',
+            },
+            self.user,
+        )
+
+        self.assertEqual(row.brand_norm, 'HONDA')
+        self.assertEqual(row.model_group_norm, 'NO MODEL GROUP')
+        self.assertEqual(row.model_norm, 'CITY')
+        self.assertEqual(row.variant_norm, 'V')
+
+        result = service.update_cars_standard(row.id, {**service.serialize_cars_standard(row), 'model_norm': ' civic '}, self.user)
+
+        self.assertEqual(result['updated_fields']['model_norm'], 'CIVIC')
+        self.assertEqual(service.CarsStandard.objects.get(pk=row.id).model_norm, 'CIVIC')
+        with self.assertRaises(ValueError):
+            service.update_cars_standard(row.id, {**service.serialize_cars_standard(row), 'brand_norm': ' '}, self.user)
+
+    def test_delete_hard_deletes_and_database_sets_references_null(self):
+        row = service.create_cars_standard(
+            {'brand_norm': 'TOYOTA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'COROLLA', 'variant_norm': 'G'},
+            self.user,
+        )
+        with service.connection.cursor() as cursor:
+            for table_name in ('cars_unified', 'carsome', 'cars_unified_ind', 'cars_unified_jp'):
+                cursor.execute(f"INSERT INTO {table_name} (cars_standard_id, brand, model, variant) VALUES (%s, 'Toyota', 'Corolla', 'G')", [row.id])
+
+        preview = service.get_delete_preview(row.id)
+        result = service.delete_cars_standard(row.id, self.user)
+
+        self.assertTrue(preview['all_set_null'])
+        self.assertEqual(service.get_fk_delete_rules(), {'cars_unified': 'SET NULL', 'carsome': 'SET NULL', 'cars_unified_ind': 'SET NULL', 'cars_unified_jp': 'SET NULL'})
+        self.assertEqual(preview['affected_references'], {'cars_unified': 1, 'carsome': 1, 'cars_unified_ind': 1, 'cars_unified_jp': 1})
+        self.assertFalse(service.CarsStandard.objects.filter(pk=row.id).exists())
+        self.assertEqual(result['affected_references_after'], {'cars_unified': 0, 'carsome': 0, 'cars_unified_ind': 0, 'cars_unified_jp': 0})
+        with service.connection.cursor() as cursor:
+            for table_name in ('cars_unified', 'carsome', 'cars_unified_ind', 'cars_unified_jp'):
+                cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE cars_standard_id IS NULL')
+                self.assertEqual(cursor.fetchone()[0], 1)
+
+
+class CarsStandardAdminCrudEndpointTests(TestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name='Admin')
+        self.admin_user = User.objects.create_user(username='endpointadmin', password='pass')
+        self.admin_user.groups.add(self.admin_group)
+        with service.connection.cursor() as cursor:
+            cursor.execute('DROP TABLE IF EXISTS cars_unified, carsome, cars_unified_ind, cars_unified_jp, cars_standard CASCADE')
+            cursor.execute('''
+                CREATE TABLE cars_standard (
+                    id BIGSERIAL PRIMARY KEY,
+                    brand_norm varchar(100) NOT NULL,
+                    brand_raw varchar(100),
+                    brand_raw2 varchar(100),
+                    model_group_norm varchar(100) NOT NULL,
+                    model_group_raw varchar(100),
+                    model_norm varchar(100) NOT NULL,
+                    model_raw varchar(100),
+                    model_raw2 varchar(100),
+                    variant_norm varchar(100) NOT NULL,
+                    variant_raw varchar(100),
+                    variant_raw2 varchar(100),
+                    variant_raw3 varchar(100),
+                    variant_raw4 varchar(100)
+                )
+            ''')
+            for table_name in ('cars_unified', 'carsome', 'cars_unified_ind', 'cars_unified_jp'):
+                cursor.execute(f'''
+                    CREATE TABLE {table_name} (
+                        id BIGSERIAL PRIMARY KEY,
+                        source varchar(50) NOT NULL DEFAULT 'test',
+                        cars_standard_id bigint REFERENCES cars_standard(id) ON DELETE SET NULL,
+                        brand varchar(100),
+                        model_group varchar(100),
+                        model varchar(100),
+                        variant varchar(100)
+                    )
+                ''')
+        self.client.force_login(self.admin_user)
+
+    def test_admin_create_endpoint_normalizes_required_fields(self):
+        response = self.client.post(
+            reverse('admin_cars_standard_create', kwargs={'username': self.admin_user.username}),
+            {'brand_norm': ' honda ', 'model_norm': ' city ', 'variant_norm': ' v ', 'brand_raw': 'Honda'},
+        )
+
+        row = service.CarsStandard.objects.get()
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f'edit_id={row.id}', response.url)
+        self.assertEqual(row.brand_norm, 'HONDA')
+        self.assertEqual(row.model_group_norm, 'NO MODEL GROUP')
+        self.assertEqual(row.model_norm, 'CITY')
+        self.assertEqual(row.variant_norm, 'V')
+
+    def test_admin_update_endpoint_normalizes_and_persists_edits(self):
+        row = service.create_cars_standard(
+            {'brand_norm': 'TOYOTA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'COROLLA', 'variant_norm': 'G'},
+            self.admin_user,
+        )
+
+        response = self.client.post(
+            reverse('admin_cars_standard_update', kwargs={'username': self.admin_user.username}),
+            {
+                'cars_standard_id': row.id,
+                'brand_norm': ' toyota ',
+                'model_group_norm': ' sedan ',
+                'model_norm': ' corolla altis ',
+                'variant_norm': ' hybrid ',
+                'model_raw': 'Altis',
+            },
+        )
+
+        row.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f'edit_id={row.id}', response.url)
+        self.assertEqual(row.model_group_norm, 'SEDAN')
+        self.assertEqual(row.model_norm, 'COROLLA ALTIS')
+        self.assertEqual(row.variant_norm, 'HYBRID')
+        self.assertEqual(row.model_raw, 'Altis')
+
+    def test_admin_delete_preview_and_confirmed_delete_nulls_references(self):
+        row = service.create_cars_standard(
+            {'brand_norm': 'MAZDA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': '3', 'variant_norm': 'HIGH'},
+            self.admin_user,
+        )
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_unified (cars_standard_id, brand, model, variant) VALUES (%s, 'Mazda', '3', 'High')", [row.id])
+
+        preview = self.client.get(reverse('admin_cars_standard', kwargs={'username': self.admin_user.username}), {'delete_id': row.id})
+        blocked = self.client.post(reverse('admin_cars_standard_delete', kwargs={'username': self.admin_user.username}), {'cars_standard_id': row.id})
+        deleted = self.client.post(reverse('admin_cars_standard_delete', kwargs={'username': self.admin_user.username}), {'cars_standard_id': row.id, 'confirm_set_null': 'on'})
+
+        self.assertEqual(preview.status_code, 200)
+        self.assertContains(preview, 'cars_unified')
+        self.assertContains(preview, 'SET NULL')
+        self.assertEqual(blocked.status_code, 302)
+        self.assertEqual(deleted.status_code, 302)
+        self.assertFalse(service.CarsStandard.objects.filter(pk=row.id).exists())
+        with service.connection.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM cars_unified WHERE cars_standard_id IS NULL')
+            self.assertEqual(cursor.fetchone()[0], 1)
 
 
 class CarsStandardDryRunServiceTests(TestCase):
@@ -246,13 +641,17 @@ class CarsStandardAccessControlTests(TestCase):
         self.client.force_login(self.regular_user)
         endpoints = [
             ('get', reverse('admin_cars_standard', kwargs={'username': self.regular_user.username}), {}),
+            ('post', reverse('admin_cars_standard_create', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_update', kwargs={'username': self.regular_user.username}), {}),
+            ('post', reverse('admin_cars_standard_delete', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_merge_preview', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_merge_execute', kwargs={'username': self.regular_user.username}), {}),
+            ('post', reverse('admin_cars_standard_null_inspector', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_insert_missing_preview', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_insert_missing_execute', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_fill_preview', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_fill_execute', kwargs={'username': self.regular_user.username}), {}),
+            ('post', reverse('admin_cars_standard_fill_again', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_job_start', kwargs={'username': self.regular_user.username}), {}),
             ('get', reverse('admin_cars_standard_jobs_status', kwargs={'username': self.regular_user.username}), {}),
         ]
@@ -275,6 +674,45 @@ class CarsStandardAccessControlTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Cars Standard Maintenance')
+        self.assertNotContains(response, 'Merge Duplicate Rows')
+        self.assertNotContains(response, 'admin_cars_standard_merge_preview')
+
+    @patch('dashboard.forms.validate_sources')
+    @patch('dashboard.views.search_cars_standard')
+    @patch('dashboard.views.get_admin_overview')
+    @patch('dashboard.views.get_pending_users_count')
+    @patch('dashboard.views.analyze_null_rows')
+    def test_null_inspector_endpoint_renders_analysis(self, analyze, pending_count, overview, search, validate_sources):
+        validate_sources.return_value = ['carlistmy']
+        pending_count.return_value = 0
+        overview.return_value = self.overview_context()
+        search.return_value = self.search_context()
+        analyze.return_value = {
+            'message': 'Analyzed 1 of 1 NULL rows for cars_unified/carlistmy.',
+            'table_name': 'cars_unified',
+            'source': 'carlistmy',
+            'total_null_rows': 1,
+            'scanned_rows': 1,
+            'preview_truncated': False,
+            'estimated_matched': 0,
+            'estimated_unmatched': 1,
+            'estimated_ambiguous': 0,
+            'distinct_unmatched_standards_count': 1,
+            'sample_unmatched_records': [],
+            'sample_ambiguous_records': [],
+            'distinct_normalized_candidates': [{'brand_norm': 'HONDA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'CITY', 'variant_norm': 'V'}],
+        }
+        self.client.force_login(self.admin_user)
+
+        response = self.client.post(
+            reverse('admin_cars_standard_null_inspector', kwargs={'username': self.admin_user.username}),
+            {'target_table': 'cars_unified', 'source': 'carlistmy', 'preview_limit': 50},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        analyze.assert_called_once_with('cars_unified', 'carlistmy', 50)
+        self.assertContains(response, 'NULL Inspector')
+        self.assertContains(response, 'HONDA')
 
     @patch('dashboard.views.execute_merge')
     def test_merge_execute_requires_confirmation(self, execute_merge):
@@ -315,6 +753,65 @@ class CarsStandardAccessControlTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         create_job.assert_not_called()
+
+    def test_jobs_status_serializes_summary_samples_and_fill_again_action(self):
+        self.client.force_login(self.admin_user)
+        CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_INSERT_MISSING,
+            status=CarsStandardMaintenanceJob.STATUS_SUCCESS,
+            requested_by=self.admin_user,
+            target_table='cars_unified',
+            sources=['carlistmy'],
+            dry_run=False,
+            result={'inserted': 1, 'message': 'Inserted 1 rows.'},
+        )
+        CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID,
+            status=CarsStandardMaintenanceJob.STATUS_FAILED,
+            requested_by=self.admin_user,
+            error_message='{"error":"Queue unavailable"}',
+        )
+
+        response = self.client.get(reverse('admin_cars_standard_jobs_status', kwargs={'username': self.admin_user.username}))
+        jobs = json.loads(response.content)['jobs']
+        job = next(job for job in jobs if job['job_type'] == CarsStandardMaintenanceJob.JOB_INSERT_MISSING)
+        failed_job = next(job for job in jobs if job['job_type'] == CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID)
+
+        self.assertEqual(job['job_type_display'], 'Bulk Add Standards')
+        self.assertEqual(job['result_summary'], 'Inserted 1 rows.')
+        self.assertNotIn('celery_task_id', job)
+        self.assertNotIn('error_message', failed_job)
+        self.assertEqual(failed_job['error_summary'], 'Queue unavailable')
+        self.assertTrue(job['can_run_fill_again'])
+        self.assertFalse(job['dry_run'])
+
+    @patch('dashboard.views.search_cars_standard')
+    @patch('dashboard.views.get_admin_overview')
+    @patch('dashboard.views.get_pending_users_count')
+    def test_recent_operations_hides_task_id_and_shows_readable_error(self, pending_count, overview, search):
+        pending_count.return_value = 0
+        job = CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID,
+            status=CarsStandardMaintenanceJob.STATUS_FAILED,
+            requested_by=self.admin_user,
+            target_table='cars_unified',
+            sources=['carlistmy'],
+            dry_run=True,
+            celery_task_id='task-secret',
+            error_message='{"error":"Queue unavailable"}',
+        )
+        overview.return_value = {**self.overview_context(), 'maintenance_jobs': [service.decorate_maintenance_job(job)]}
+        search.return_value = self.search_context()
+        self.client.force_login(self.admin_user)
+
+        response = self.client.get(reverse('admin_cars_standard', kwargs={'username': self.admin_user.username}))
+
+        self.assertContains(response, 'Recent Operations')
+        self.assertContains(response, 'Fill IDs')
+        self.assertContains(response, 'Failed')
+        self.assertContains(response, 'Queue unavailable')
+        self.assertNotContains(response, 'task-secret')
+        self.assertNotContains(response, '{"error"')
 
     @patch('dashboard.tasks.execute_fill_standard_id')
     @patch('dashboard.tasks.execute_insert_missing_cars_standard')
@@ -379,6 +876,36 @@ class CarsStandardAccessControlTests(TestCase):
     @patch('dashboard.tasks.fill_standard_id.apply_async')
     @patch('dashboard.views.validate_fill_preview_token')
     @patch('dashboard.forms.validate_sources')
+    def test_fill_execute_dry_run_queues_without_confirmation_or_token(self, validate_sources, validate_token, apply_async, execute_insert, execute_fill):
+        validate_sources.return_value = ['carsome']
+        apply_async.return_value = SimpleNamespace(id='task-dry')
+        self.client.force_login(self.admin_user)
+
+        response = self.client.post(
+            reverse('admin_cars_standard_fill_execute', kwargs={'username': self.admin_user.username}),
+            {
+                'target_table': 'carsome',
+                'sources': 'carsome',
+                'batch_size': 500,
+                'dry_run': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        validate_token.assert_not_called()
+        apply_async.assert_called_once()
+        execute_insert.assert_not_called()
+        execute_fill.assert_not_called()
+        job = CarsStandardMaintenanceJob.objects.get(job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID)
+        self.assertTrue(job.dry_run)
+        self.assertEqual(job.parameters['preview_token'], '')
+        self.assertEqual(job.celery_task_id, 'task-dry')
+
+    @patch('dashboard.tasks.execute_fill_standard_id')
+    @patch('dashboard.tasks.execute_insert_missing_cars_standard')
+    @patch('dashboard.tasks.fill_standard_id.apply_async')
+    @patch('dashboard.views.validate_fill_preview_token')
+    @patch('dashboard.forms.validate_sources')
     def test_fill_execute_with_confirmed_token_queues_celery_without_running_service(self, validate_sources, validate_token, apply_async, execute_insert, execute_fill):
         validate_sources.return_value = ['carsome']
         apply_async.return_value = SimpleNamespace(id='task-3')
@@ -404,6 +931,60 @@ class CarsStandardAccessControlTests(TestCase):
         self.assertFalse(job.dry_run)
         self.assertEqual(job.parameters['preview_token'], 'token')
         self.assertEqual(job.celery_task_id, 'task-3')
+
+    @patch('dashboard.tasks.execute_fill_standard_id')
+    @patch('dashboard.tasks.fill_standard_id.apply_async')
+    @patch('dashboard.forms.validate_sources')
+    def test_fill_again_defaults_to_dry_run(self, validate_sources, apply_async, execute_fill):
+        validate_sources.return_value = ['carlistmy']
+        apply_async.return_value = SimpleNamespace(id='task-again')
+        self.client.force_login(self.admin_user)
+
+        response = self.client.post(
+            reverse('admin_cars_standard_fill_again', kwargs={'username': self.admin_user.username}),
+            {'target_table': 'cars_unified', 'sources': 'carlistmy', 'batch_size': 500, 'dry_run': 'on'},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        apply_async.assert_called_once()
+        execute_fill.assert_not_called()
+        job = CarsStandardMaintenanceJob.objects.get(job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID)
+        self.assertTrue(job.dry_run)
+        self.assertEqual(job.target_table, 'cars_unified')
+        self.assertEqual(job.sources, ['carlistmy'])
+        self.assertEqual(job.parameters['preview_token'], '')
+
+    @patch('dashboard.views.build_fill_preview_token')
+    @patch('dashboard.tasks.execute_fill_standard_id')
+    @patch('dashboard.tasks.fill_standard_id.apply_async')
+    @patch('dashboard.forms.validate_sources')
+    def test_fill_again_real_update_requires_confirmation(self, validate_sources, apply_async, execute_fill, build_token):
+        validate_sources.return_value = ['carlistmy']
+        apply_async.return_value = SimpleNamespace(id='task-real')
+        build_token.return_value = 'fill-token'
+        self.client.force_login(self.admin_user)
+
+        response = self.client.post(
+            reverse('admin_cars_standard_fill_again', kwargs={'username': self.admin_user.username}),
+            {'target_table': 'cars_unified', 'sources': 'carlistmy', 'batch_size': 500},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        apply_async.assert_not_called()
+        self.assertFalse(CarsStandardMaintenanceJob.objects.exists())
+
+        response = self.client.post(
+            reverse('admin_cars_standard_fill_again', kwargs={'username': self.admin_user.username}),
+            {'target_table': 'cars_unified', 'sources': 'carlistmy', 'batch_size': 500, 'confirm': 'on'},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        build_token.assert_called_once_with('cars_unified', ['carlistmy'], 500, self.admin_user.id)
+        apply_async.assert_called_once()
+        execute_fill.assert_not_called()
+        job = CarsStandardMaintenanceJob.objects.get(job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID)
+        self.assertFalse(job.dry_run)
+        self.assertEqual(job.parameters['preview_token'], 'fill-token')
 
     @patch('dashboard.tasks.insert_missing_cars_standard.apply_async')
     @patch('dashboard.forms.validate_sources')

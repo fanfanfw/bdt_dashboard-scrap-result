@@ -10,7 +10,7 @@
       <i class="fas fa-car-side me-2"></i>
       Cars Standard Maintenance
     </h1>
-    <p class="page-subtitle">Maintain normalized car rows, aliases, and duplicate merges</p>
+    <p class="page-subtitle">Maintain normalized car rows and aliases</p>
   </div>
 </div>
 
@@ -90,8 +90,101 @@
 <div class="admin-card">
   <div class="card-header">
     <h3 class="card-title">
+      <i class="fas fa-magnifying-glass-chart me-2"></i>
+      NULL Inspector
+    </h3>
+  </div>
+  <form method="post" action="{% url 'admin_cars_standard_null_inspector' username=username %}" class="row g-3 mb-4">
+    {% csrf_token %}
+    <div class="col-md-3">
+      <label class="form-label" for="{{ null_inspector_form.target_table.id_for_label }}">Target table</label>
+      {{ null_inspector_form.target_table }}
+    </div>
+    <div class="col-md-5">
+      <label class="form-label" for="{{ null_inspector_form.source.id_for_label }}">Source</label>
+      {{ null_inspector_form.source }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="{{ null_inspector_form.preview_limit.id_for_label }}">Preview limit</label>
+      {{ null_inspector_form.preview_limit }}
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button type="submit" class="btn-admin btn-primary mb-1 w-100">
+        <i class="fas fa-eye"></i>
+        Analyze
+      </button>
+    </div>
+  </form>
+
+  {% if null_inspector_preview %}
+    <hr>
+    <h4>Analysis Result</h4>
+    <div class="alert {% if null_inspector_preview.preview_truncated %}alert-warning{% else %}alert-info{% endif %}">{{ null_inspector_preview.message }}</div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-2"><strong>Table</strong><br>{{ null_inspector_preview.table_name }}</div>
+      <div class="col-md-2"><strong>Source</strong><br>{{ null_inspector_preview.source }}</div>
+      <div class="col-md-2"><strong>Total NULL</strong><br>{{ null_inspector_preview.total_null_rows|intcomma }}</div>
+      <div class="col-md-2"><strong>Matched</strong><br>{{ null_inspector_preview.estimated_matched|intcomma }}</div>
+      <div class="col-md-2"><strong>Unmatched</strong><br>{{ null_inspector_preview.estimated_unmatched|intcomma }}</div>
+      <div class="col-md-2"><strong>Ambiguous</strong><br>{{ null_inspector_preview.estimated_ambiguous|intcomma }}</div>
+      <div class="col-md-2"><strong>Distinct unmatched</strong><br>{{ null_inspector_preview.distinct_unmatched_standards_count|intcomma }}</div>
+      <div class="col-md-2"><strong>Scanned</strong><br>{{ null_inspector_preview.scanned_rows|intcomma }}</div>
+    </div>
+    <div class="row">
+      <div class="col-md-4">
+        <h5>Unmatched records</h5>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead><tr><th>Row</th><th>Source values</th></tr></thead>
+            <tbody>
+              {% for row in null_inspector_preview.sample_unmatched_records %}
+                <tr><td>{{ row.id }}</td><td>{{ row.brand }} / {{ row.model }} / {{ row.variant }}</td></tr>
+              {% empty %}
+                <tr><td colspan="2" class="text-muted">No unmatched rows.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <h5>Ambiguous records</h5>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead><tr><th>Row</th><th>Candidate IDs</th></tr></thead>
+            <tbody>
+              {% for row in null_inspector_preview.sample_ambiguous_records %}
+                <tr><td>{{ row.source_row.id }}</td><td>{{ row.candidate_ids|join:', ' }}</td></tr>
+              {% empty %}
+                <tr><td colspan="2" class="text-muted">No ambiguous rows.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <h5>Distinct normalized candidates</h5>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead><tr><th>Brand</th><th>Group</th><th>Model</th><th>Variant</th></tr></thead>
+            <tbody>
+              {% for row in null_inspector_preview.distinct_normalized_candidates %}
+                <tr><td>{{ row.brand_norm }}</td><td>{{ row.model_group_norm }}</td><td>{{ row.model_norm }}</td><td>{{ row.variant_norm }}</td></tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">No candidates.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<div class="admin-card">
+  <div class="card-header">
+    <h3 class="card-title">
       <i class="fas fa-plus-circle me-2"></i>
-      Insert Missing cars_standard Workflow
+      Bulk Add Missing Standards
     </h3>
   </div>
   <form method="post" action="{% url 'admin_cars_standard_insert_missing_preview' username=username %}" class="row g-3 mb-4">
@@ -210,10 +303,16 @@
       {{ fill_preview_form.batch_size }}
     </div>
     <div class="col-md-2 d-flex align-items-end">
-      <button type="submit" class="btn-admin btn-primary mb-1 w-100">
-        <i class="fas fa-eye"></i>
-        Preview
-      </button>
+      <div class="w-100">
+        <div class="form-check mb-2">
+          {{ fill_preview_form.dry_run }}
+          <label class="form-check-label" for="{{ fill_preview_form.dry_run.id_for_label }}">Dry run</label>
+        </div>
+        <button type="submit" class="btn-admin btn-primary mb-1 w-100">
+          <i class="fas fa-eye"></i>
+          Preview Fill
+        </button>
+      </div>
     </div>
   </form>
 
@@ -230,9 +329,20 @@
       <div class="col-md-3"><strong>Sources</strong><br>{{ fill_preview.sources|join:', ' }}</div>
       <div class="col-md-2"><strong>Null rows</strong><br>{{ fill_preview.null_rows|intcomma }}</div>
       <div class="col-md-1"><strong>Scanned</strong><br>{{ fill_preview.scanned_rows|intcomma }}</div>
-      <div class="col-md-2"><strong>Matched</strong><br>{{ fill_preview.estimated_matched|intcomma }}</div>
+      <div class="col-md-2"><strong>Would update</strong><br>{{ fill_preview.estimated_matched|intcomma }}</div>
       <div class="col-md-1"><strong>Unmatched</strong><br>{{ fill_preview.estimated_unmatched|intcomma }}</div>
       <div class="col-md-1"><strong>Ambiguous</strong><br>{{ fill_preview.estimated_ambiguous|intcomma }}</div>
+    </div>
+    <h5>Per-source result</h5>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm table-hover">
+        <thead><tr><th>Source</th><th>Null</th><th>Scanned</th><th>Would update</th><th>Unmatched</th><th>Ambiguous</th></tr></thead>
+        <tbody>
+          {% for row in fill_preview.per_source %}
+            <tr><td>{{ row.source }}</td><td>{{ row.null_rows|intcomma }}</td><td>{{ row.scanned_rows|intcomma }}</td><td>{{ row.matched|intcomma }}</td><td>{{ row.unmatched|intcomma }}</td><td>{{ row.ambiguous|intcomma }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
     <div class="row">
       <div class="col-md-4">
@@ -287,19 +397,22 @@
       <input type="hidden" name="sources" value="{{ fill_preview.sources|join:',' }}">
       <input type="hidden" name="batch_size" value="{{ fill_preview.batch_size }}">
       <input type="hidden" name="preview_token" value="{{ fill_preview.preview_token }}">
-      <div class="form-check mb-3">
-        <input class="form-check-input" type="checkbox" name="confirm" value="on" id="fillConfirm" required>
-        <label class="form-check-label" for="fillConfirm">
-          {% if fill_preview.preview_truncated %}
-            I confirm this Celery job may update all non-ambiguous NULL rows for the selected table and sources, including rows not scanned by the truncated preview.
-          {% else %}
-            I confirm this Celery job may update {{ fill_preview.estimated_matched|intcomma }} non-ambiguous NULL rows only.
-          {% endif %}
-        </label>
-      </div>
-      <button type="submit" class="btn-admin btn-danger" {% if fill_preview.estimated_matched == 0 and not fill_preview.preview_truncated %}disabled{% endif %}>
+      {% if fill_preview.dry_run %}<input type="hidden" name="dry_run" value="on">{% endif %}
+      {% if not fill_preview.dry_run %}
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" name="confirm" value="on" id="fillConfirm" required>
+          <label class="form-check-label" for="fillConfirm">
+            {% if fill_preview.preview_truncated %}
+              I confirm this Celery job may update all non-ambiguous NULL rows for the selected table and sources, including rows not scanned by the truncated preview.
+            {% else %}
+              I confirm this Celery job may update {{ fill_preview.estimated_matched|intcomma }} non-ambiguous NULL rows only.
+            {% endif %}
+          </label>
+        </div>
+      {% endif %}
+      <button type="submit" class="btn-admin {% if fill_preview.dry_run %}btn-primary{% else %}btn-danger{% endif %}" {% if not fill_preview.dry_run and fill_preview.estimated_matched == 0 and not fill_preview.preview_truncated %}disabled{% endif %}>
         <i class="fas fa-play"></i>
-        Execute Fill Job
+        Run Fill{% if fill_preview.dry_run %} Dry Run{% endif %}
       </button>
     </form>
   {% endif %}
@@ -309,70 +422,67 @@
   <div class="card-header">
     <h3 class="card-title">
       <i class="fas fa-gears me-2"></i>
-      Background Jobs
+      Recent Operations
     </h3>
   </div>
-  <form method="post" action="{% url 'admin_cars_standard_job_start' username=username %}" class="row g-3 mb-4">
-    {% csrf_token %}
-    <div class="col-md-2">
-      <label class="form-label" for="{{ maintenance_job_form.job_type.id_for_label }}">Job type</label>
-      {{ maintenance_job_form.job_type }}
-    </div>
-    <div class="col-md-2">
-      <label class="form-label" for="{{ maintenance_job_form.target_table.id_for_label }}">Target table</label>
-      {{ maintenance_job_form.target_table }}
-    </div>
-    <div class="col-md-3">
-      <label class="form-label" for="{{ maintenance_job_form.sources.id_for_label }}">Sources</label>
-      {{ maintenance_job_form.sources }}
-    </div>
-    <div class="col-md-2">
-      <label class="form-label" for="{{ maintenance_job_form.batch_size.id_for_label }}">Batch size</label>
-      {{ maintenance_job_form.batch_size }}
-    </div>
-    <div class="col-md-3 d-flex align-items-end">
-      <div class="form-check me-3 mb-2">
-        {{ maintenance_job_form.dry_run }}
-        <label class="form-check-label" for="{{ maintenance_job_form.dry_run.id_for_label }}">Dry run</label>
-      </div>
-      <button type="submit" class="btn-admin btn-primary mb-1">Queue</button>
-    </div>
-  </form>
-
   <div class="table-responsive">
-    <table class="table table-sm table-hover" id="maintenance-jobs-table" data-status-url="{% url 'admin_cars_standard_jobs_status' username=username %}">
+    <table class="table table-sm table-hover" id="maintenance-jobs-table" data-status-url="{% url 'admin_cars_standard_jobs_status' username=username %}" data-fill-again-url="{% url 'admin_cars_standard_fill_again' username=username %}">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>Type</th>
+          <th>Operation</th>
           <th>Status</th>
-          <th>Progress</th>
           <th>Requested by</th>
           <th>Table</th>
           <th>Sources</th>
-          <th>Dry run</th>
+          <th>Mode</th>
           <th>Started</th>
           <th>Finished</th>
-          <th>Result/Error</th>
+          <th>Summary</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for job in maintenance_jobs %}
           <tr>
-            <td>#{{ job.id }}</td>
-            <td>{{ job.get_job_type_display }}</td>
-            <td>{{ job.get_status_display }}</td>
-            <td>{{ job.progress.message|default:'-' }}</td>
+            <td>{{ job.operation_label }}</td>
+            <td>{{ job.get_status_display }}{% if job.progress.message %}<br><small class="text-muted">{{ job.progress.message }}</small>{% endif %}</td>
             <td>{{ job.requested_by.username|default:'-' }}</td>
-            <td>{{ job.target_table }}</td>
+            <td>{{ job.target_table|default:'-' }}</td>
             <td>{{ job.sources|join:', '|default:'All' }}</td>
-            <td>{{ job.dry_run|yesno:'Yes,No' }}</td>
+            <td>{{ job.dry_run|yesno:'Dry run,Update' }}</td>
             <td>{{ job.started_at|date:'Y-m-d H:i:s'|default:'-' }}</td>
             <td>{{ job.finished_at|date:'Y-m-d H:i:s'|default:'-' }}</td>
-            <td>{% if job.error_message %}<span class="text-danger">{{ job.error_message }}</span>{% else %}{{ job.result.message|default:'-' }}{% endif %}</td>
+            <td>
+              <span{% if job.error_message %} class="text-danger"{% endif %}>{{ job.result_summary }}</span>
+              {% if job.failed_sample %}<br><small>Failed sample: {% for row in job.failed_sample|slice:":3" %}#{% if row.id %}{{ row.id }}{% else %}{{ row.source_row.id }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</small>{% endif %}
+              {% if job.ambiguous_sample %}<br><small>Ambiguous sample: {% for row in job.ambiguous_sample|slice:":3" %}#{% if row.id %}{{ row.id }}{% else %}{{ row.source_row.id }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</small>{% endif %}
+            </td>
+            <td>
+              {% if job.can_run_fill_again %}
+                <form method="post" action="{% url 'admin_cars_standard_fill_again' username=username %}" class="mb-2">
+                  {% csrf_token %}
+                  <input type="hidden" name="target_table" value="{{ job.target_table }}">
+                  <input type="hidden" name="sources" value="{{ job.sources|join:',' }}">
+                  <input type="hidden" name="batch_size" value="{{ job.parameters.batch_size|default:500 }}">
+                  <input type="hidden" name="dry_run" value="on">
+                  <button type="submit" class="btn btn-sm btn-outline-primary">Run Fill Again</button>
+                </form>
+                <form method="post" action="{% url 'admin_cars_standard_fill_again' username=username %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="target_table" value="{{ job.target_table }}">
+                  <input type="hidden" name="sources" value="{{ job.sources|join:',' }}">
+                  <input type="hidden" name="batch_size" value="{{ job.parameters.batch_size|default:500 }}">
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="confirm" value="on" id="fillAgainConfirm{{ job.id }}" required>
+                    <label class="form-check-label" for="fillAgainConfirm{{ job.id }}">Confirm update</label>
+                  </div>
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Run Real Fill</button>
+                </form>
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
-          <tr><td colspan="11" class="text-center text-muted">No background jobs yet.</td></tr>
+          <tr><td colspan="10" class="text-center text-muted">No recent operations yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -403,6 +513,65 @@
     </div>
   </form>
 </div>
+
+<div class="admin-card">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-plus me-2"></i>
+      Create cars_standard
+    </h3>
+  </div>
+  <form method="post" action="{% url 'admin_cars_standard_create' username=username %}">
+    {% csrf_token %}
+    <div class="row g-3">
+      {% for field in create_form.visible_fields %}
+        <div class="col-md-3">
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}<div class="text-danger small">{{ field.errors|join:', ' }}</div>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn-admin btn-primary mt-3">
+      <i class="fas fa-plus"></i>
+      Create Standard
+    </button>
+  </form>
+</div>
+
+{% if delete_preview %}
+  <div class="admin-card border-danger">
+    <div class="card-header">
+      <h3 class="card-title text-danger">
+        <i class="fas fa-trash me-2"></i>
+        Delete cars_standard #{{ delete_preview.cars_standard_id }}
+      </h3>
+    </div>
+    <div class="alert alert-danger">
+      This hard-deletes the row. Related rows must become <code>cars_standard_id = NULL</code> via <code>ON DELETE SET NULL</code>.
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Table</th><th>References</th><th>Delete rule</th></tr></thead>
+        <tbody>
+          {% for item in delete_preview.reference_rows %}
+            <tr><td>{{ item.table }}</td><td>{{ item.count|intcomma }}</td><td>{{ item.delete_rule }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="{% url 'admin_cars_standard_delete' username=username %}">
+      {% csrf_token %}
+      {{ delete_form.cars_standard_id }}
+      <div class="form-check mb-3">
+        {{ delete_form.confirm_set_null }}
+        <label class="form-check-label" for="{{ delete_form.confirm_set_null.id_for_label }}">I confirm references will become NULL due to ON DELETE SET NULL.</label>
+      </div>
+      <button type="submit" class="btn btn-sm btn-danger" {% if not delete_preview.all_set_null %}disabled{% endif %}>Delete Permanently</button>
+      <a href="{% url 'admin_cars_standard' username=username %}" class="btn btn-sm btn-secondary">Cancel</a>
+    </form>
+  </div>
+{% endif %}
 
 <div class="admin-card">
   <div class="card-header">
@@ -449,130 +618,6 @@
   {% endif %}
 </div>
 
-<div class="admin-card">
-  <div class="card-header">
-    <h3 class="card-title">
-      <i class="fas fa-code-merge me-2"></i>
-      Merge Duplicate Rows
-    </h3>
-  </div>
-  <form method="post" action="{% url 'admin_cars_standard_merge_preview' username=username %}" class="row g-3">
-    {% csrf_token %}
-    <div class="col-md-5">
-      <label for="id_source_id" class="form-label">Source row ID to delete</label>
-      <input type="number" min="1" name="source_id" id="id_source_id" class="form-control" required value="{{ merge_preview.source_id|default:'' }}">
-    </div>
-    <div class="col-md-5">
-      <label for="id_target_id" class="form-label">Target row ID to keep</label>
-      <input type="number" min="1" name="target_id" id="id_target_id" class="form-control" required value="{{ merge_preview.target_id|default:'' }}">
-    </div>
-    <div class="col-md-2 d-flex align-items-end">
-      <button type="submit" class="btn-admin btn-primary w-100">
-        <i class="fas fa-eye"></i>
-        Preview
-      </button>
-    </div>
-  </form>
-
-  {% if merge_preview %}
-    <hr>
-    <h4>Merge Preview</h4>
-    <div class="row">
-      <div class="col-md-6">
-        <h5 class="text-danger">Source #{{ merge_preview.source_id }} will be deleted</h5>
-        <div class="table-responsive">
-          <table class="table table-sm">
-            <tbody>
-              {% for field, value in merge_preview.source.items %}
-                <tr><th>{{ field }}</th><td>{{ value|default_if_none:"" }}</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <h5 class="text-success">Target #{{ merge_preview.target_id }} will be kept</h5>
-        <div class="table-responsive">
-          <table class="table table-sm">
-            <tbody>
-              {% for field, value in merge_preview.target.items %}
-                <tr><th>{{ field }}</th><td>{{ value|default_if_none:"" }}</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div class="row mt-3">
-      <div class="col-md-6">
-        <h5>Suggested alias transfers</h5>
-        {% if merge_preview.suggestions %}
-          <table class="table table-sm table-hover">
-            <thead><tr><th>Source field</th><th>Target alias</th><th>Value</th><th>Normalized</th></tr></thead>
-            <tbody>
-              {% for item in merge_preview.suggestions %}
-                <tr>
-                  <td>{{ item.source_field }}</td>
-                  <td>{{ item.target_field }}</td>
-                  <td>{{ item.value }}</td>
-                  <td>{{ item.normalized_value }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        {% else %}
-          <p class="text-muted">No empty alias fields available or no transfer needed.</p>
-        {% endif %}
-      </div>
-      <div class="col-md-6">
-        <h5>Affected references</h5>
-        <table class="table table-sm">
-          <thead><tr><th>Table</th><th class="text-end">Rows</th><th>Delete rule</th></tr></thead>
-          <tbody>
-            {% for row in merge_preview.reference_rows %}
-              <tr>
-                <td>{{ row.table }}</td>
-                <td class="text-end">{{ row.count|intcomma }}</td>
-                <td>{{ row.delete_rule }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% if merge_preview.manual_null_fallback_tables %}
-          <div class="alert alert-warning">Some FK rules are not SET NULL; execution will manually null those references before deleting source.</div>
-        {% endif %}
-      </div>
-    </div>
-
-    <form method="post" action="{% url 'admin_cars_standard_merge_execute' username=username %}" class="mt-3">
-      {% csrf_token %}
-      <input type="hidden" name="source_id" value="{{ merge_preview.source_id }}">
-      <input type="hidden" name="target_id" value="{{ merge_preview.target_id }}">
-      <input type="hidden" name="alias_changes" value="{{ merge_preview.alias_changes_json }}">
-      <input type="hidden" name="preview_token" value="{{ merge_preview.preview_token }}">
-      <h5>Confirm alias changes</h5>
-      <div class="row g-3 mb-3">
-        {% for change in merge_preview.alias_change_rows %}
-          <div class="col-md-3">
-            <label class="form-label">{{ change.field }}</label>
-            <input type="text" maxlength="100" class="form-control form-control-sm" name="alias__{{ change.field }}" value="{{ change.value }}" readonly>
-          </div>
-        {% empty %}
-          <div class="col-12 text-muted">No alias changes will be applied.</div>
-        {% endfor %}
-      </div>
-      <div class="form-check mb-3">
-        <input class="form-check-input" type="checkbox" name="confirm" value="on" id="mergeConfirm" required>
-        <label class="form-check-label" for="mergeConfirm">I confirm this merge will update target aliases, delete source, and null affected references.</label>
-      </div>
-      <button type="submit" class="btn-admin btn-danger">
-        <i class="fas fa-triangle-exclamation"></i>
-        Execute Merge
-      </button>
-    </form>
-  {% endif %}
-</div>
 
 <div class="admin-card">
   <div class="card-header">
@@ -599,6 +644,7 @@
             {% endfor %}
             <td>
               <a class="btn btn-sm btn-outline-primary" href="?edit_id={{ row.id }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">Edit</a>
+              <a class="btn btn-sm btn-outline-danger" href="?delete_id={{ row.id }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">Delete</a>
             </td>
           </tr>
         {% empty %}
@@ -638,39 +684,85 @@
   const table = document.getElementById('maintenance-jobs-table');
   if (!table) return;
   const statusUrl = table.dataset.statusUrl;
+  const fillAgainUrl = table.dataset.fillAgainUrl;
+  const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
   const tbody = table.querySelector('tbody');
   const formatDate = (value) => value ? new Date(value).toLocaleString() : '-';
+  const escapeAttr = (value) => String(value ?? '').replace(/[&<>"]/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[char]));
+  const sampleIds = (rows) => (Array.isArray(rows) ? rows : []).slice(0, 3).map((row) => row.id || (row.source_row && row.source_row.id)).filter(Boolean).map((id) => `#${id}`).join(', ');
+  const appendSample = (cell, label, rows) => {
+    const ids = sampleIds(rows);
+    if (!ids) return;
+    cell.appendChild(document.createElement('br'));
+    const small = document.createElement('small');
+    small.textContent = `${label}: ${ids}`;
+    cell.appendChild(small);
+  };
   const renderJobs = (jobs) => {
     if (!jobs.length) {
-      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No background jobs yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No recent operations yet.</td></tr>';
       return;
     }
     tbody.innerHTML = jobs.map((job) => {
       const sources = Array.isArray(job.sources) && job.sources.length ? job.sources.join(', ') : 'All';
-      const progress = job.progress && job.progress.message ? job.progress.message : '-';
-      const result = job.error_message || ((job.result && job.result.message) || '-');
+      const progress = job.progress && job.progress.message ? job.progress.message : '';
+      const result = job.result_summary || '-';
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td>#${job.id}</td>
         <td></td>
         <td></td>
         <td></td>
         <td></td>
         <td></td>
-        <td></td>
-        <td>${job.dry_run ? 'Yes' : 'No'}</td>
+        <td>${job.dry_run ? 'Dry run' : 'Update'}</td>
         <td>${formatDate(job.started_at)}</td>
         <td>${formatDate(job.finished_at)}</td>
         <td></td>
+        <td></td>
       `;
-      row.children[1].textContent = job.job_type_display;
-      row.children[2].textContent = job.status_display;
-      row.children[3].textContent = progress;
-      row.children[4].textContent = job.requested_by || '-';
-      row.children[5].textContent = job.target_table || '-';
-      row.children[6].textContent = sources;
-      row.children[10].textContent = result;
-      if (job.error_message) row.children[10].classList.add('text-danger');
+      row.children[0].textContent = job.job_type_display;
+      row.children[1].textContent = job.status_display;
+      if (progress) {
+        row.children[1].appendChild(document.createElement('br'));
+        const small = document.createElement('small');
+        small.className = 'text-muted';
+        small.textContent = progress;
+        row.children[1].appendChild(small);
+      }
+      row.children[2].textContent = job.requested_by || '-';
+      row.children[3].textContent = job.target_table || '-';
+      row.children[4].textContent = sources;
+      row.children[8].textContent = result;
+      appendSample(row.children[8], 'Failed sample', job.failed_sample);
+      appendSample(row.children[8], 'Ambiguous sample', job.ambiguous_sample);
+      if (job.error_summary) row.children[8].classList.add('text-danger');
+      if (job.can_run_fill_again) {
+        const sourcesValue = escapeAttr(Array.isArray(job.sources) ? job.sources.join(',') : '');
+        const targetTable = escapeAttr(job.target_table || '');
+        const batchSize = escapeAttr(job.batch_size || 500);
+        const confirmId = escapeAttr(`fillAgainConfirm${job.id}`);
+        row.children[9].innerHTML = `
+          <form method="post" action="${escapeAttr(fillAgainUrl)}" class="mb-2">
+            <input type="hidden" name="csrfmiddlewaretoken" value="${escapeAttr(csrfToken)}">
+            <input type="hidden" name="target_table" value="${targetTable}">
+            <input type="hidden" name="sources" value="${sourcesValue}">
+            <input type="hidden" name="batch_size" value="${batchSize}">
+            <input type="hidden" name="dry_run" value="on">
+            <button type="submit" class="btn btn-sm btn-outline-primary">Run Fill Again</button>
+          </form>
+          <form method="post" action="${escapeAttr(fillAgainUrl)}">
+            <input type="hidden" name="csrfmiddlewaretoken" value="${escapeAttr(csrfToken)}">
+            <input type="hidden" name="target_table" value="${targetTable}">
+            <input type="hidden" name="sources" value="${sourcesValue}">
+            <input type="hidden" name="batch_size" value="${batchSize}">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="confirm" value="on" id="${confirmId}" required>
+              <label class="form-check-label" for="${confirmId}">Confirm update</label>
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-danger">Run Real Fill</button>
+          </form>
+        `;
+      }
       return row.outerHTML;
     }).join('');
   };

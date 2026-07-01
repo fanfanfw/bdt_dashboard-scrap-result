@@ -554,8 +554,11 @@ def admin_cars_standard(request, username):
 
     search_query = request.GET.get('q', '')
     page_number = request.GET.get('page')
+    table_filters = {field: request.GET.get(field, '') for field in ('id', 'brand_norm', 'model_norm', 'variant_norm')}
+    search_result = search_cars_standard(search_query, page_number, filters=table_filters)
+    if _is_ajax(request):
+        return JsonResponse(_cars_standard_page_json(search_result))
     overview = get_admin_overview()
-    search_result = search_cars_standard(search_query, page_number)
     edit_form = None
     edit_row = None
     delete_preview = None
@@ -591,13 +594,43 @@ def admin_cars_standard(request, username):
         'delete_form': CarsStandardDeleteForm(initial={'cars_standard_id': delete_preview['cars_standard_id']}) if delete_preview else None,
         'page_obj': search_result['page_obj'],
         'columns': search_result['columns'],
+        'edit_columns': CARS_STANDARD_EDIT_FIELDS,
         'search_query': search_result['query'],
+        'table_filters': search_result.get('filters', {'id': '', 'brand_norm': '', 'model_norm': '', 'variant_norm': ''}),
         'edit_form': edit_form,
         'edit_row': edit_row,
         'edit_normalized_preview': get_normalized_preview(serialize_cars_standard(edit_row)) if edit_row else None,
         'merge_preview_form': CarsStandardMergePreviewForm(),
     }
     return render(request, 'dashboard/admin_cars_standard.html', context)
+
+
+def _is_ajax(request):
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+
+def _cars_standard_json(row):
+    data = {'id': row.id, **serialize_cars_standard(row)}
+    return {key: value or '' for key, value in data.items()}
+
+
+def _cars_standard_page_json(search_result):
+    page_obj = search_result['page_obj']
+    return {
+        'success': True,
+        'columns': search_result['columns'],
+        'rows': [{key: value or '' for key, value in row.items()} for row in page_obj],
+        'pagination': {
+            'count': page_obj.paginator.count,
+            'number': page_obj.number,
+            'num_pages': page_obj.paginator.num_pages,
+            'has_previous': page_obj.has_previous(),
+            'has_next': page_obj.has_next(),
+            'previous_page_number': page_obj.previous_page_number() if page_obj.has_previous() else None,
+            'next_page_number': page_obj.next_page_number() if page_obj.has_next() else None,
+        },
+        'filters': search_result.get('filters', {'id': '', 'brand_norm': '', 'model_norm': '', 'variant_norm': ''}),
+    }
 
 
 @login_required
@@ -611,11 +644,17 @@ def admin_cars_standard_create(request, username):
     if form.is_valid():
         try:
             row = create_cars_standard(form.cleaned_data, request.user)
+            if _is_ajax(request):
+                return JsonResponse({'success': True, 'row': _cars_standard_json(row)})
             messages.success(request, f'Created cars_standard #{row.id}.')
             return redirect(f"{reverse('admin_cars_standard', kwargs={'username': request.user.username})}?edit_id={row.id}")
         except Exception as exc:
+            if _is_ajax(request):
+                return JsonResponse({'success': False, 'error': str(exc)}, status=400)
             messages.error(request, f'Create failed: {exc}')
     else:
+        if _is_ajax(request):
+            return JsonResponse({'success': False, 'errors': form.errors}, status=400)
         messages.error(request, 'Create failed. Check the form values.')
     return redirect('admin_cars_standard', username=request.user.username)
 
@@ -632,12 +671,20 @@ def admin_cars_standard_delete(request, username):
         row_id = form.cleaned_data['cars_standard_id']
         try:
             result = delete_cars_standard(row_id, request.user)
+            if _is_ajax(request):
+                return JsonResponse({'success': True, 'row_id': row_id, 'references_after': sum(result['affected_references_after'].values())})
             messages.success(request, f"Deleted cars_standard #{row_id}. References after delete: {sum(result['affected_references_after'].values())}.")
         except CarsStandard.DoesNotExist:
+            if _is_ajax(request):
+                return JsonResponse({'success': False, 'error': 'Selected cars_standard row was not found.'}, status=404)
             messages.error(request, 'Selected cars_standard row was not found.')
         except Exception as exc:
+            if _is_ajax(request):
+                return JsonResponse({'success': False, 'error': str(exc)}, status=400)
             messages.error(request, f'Delete failed: {exc}')
     else:
+        if _is_ajax(request):
+            return JsonResponse({'success': False, 'errors': form.errors}, status=400)
         messages.error(request, 'Delete requires confirmation that references become NULL via ON DELETE SET NULL.')
     return redirect('admin_cars_standard', username=request.user.username)
 
@@ -654,13 +701,21 @@ def admin_cars_standard_update(request, username):
         try:
             row_id = form.cleaned_data['cars_standard_id']
             result = update_cars_standard(row_id, form.cleaned_data, request.user)
+            if _is_ajax(request):
+                return JsonResponse({'success': True, 'row': _cars_standard_json(result['row']), 'updated_fields': result['updated_fields']})
             messages.success(request, f"Updated cars_standard #{row_id}. Fields changed: {len(result['updated_fields'])}.")
             return redirect(f"{reverse('admin_cars_standard', kwargs={'username': request.user.username})}?edit_id={row_id}")
         except CarsStandard.DoesNotExist:
+            if _is_ajax(request):
+                return JsonResponse({'success': False, 'error': 'Selected cars_standard row was not found.'}, status=404)
             messages.error(request, 'Selected cars_standard row was not found.')
         except Exception as exc:
+            if _is_ajax(request):
+                return JsonResponse({'success': False, 'error': str(exc)}, status=400)
             messages.error(request, f'Update failed: {exc}')
     else:
+        if _is_ajax(request):
+            return JsonResponse({'success': False, 'errors': form.errors}, status=400)
         messages.error(request, 'Update failed. Check the form values.')
     return redirect('admin_cars_standard', username=request.user.username)
 
@@ -979,8 +1034,11 @@ def admin_cars_standard_fill_preview(request, username):
 def admin_cars_standard_fill_execute(request, username):
     if request.user.username != username:
         return redirect('admin_cars_standard', username=request.user.username)
+    is_ajax = _is_ajax(request)
     form = CarsStandardFillExecuteForm(request.POST)
     if not form.is_valid():
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'Fill execution requires valid inputs. Non-dry-run needs confirmation and a recent preview.'}, status=400)
         messages.error(request, 'Fill execution requires valid inputs. Non-dry-run needs confirmation and a recent preview.')
         return redirect('admin_cars_standard', username=request.user.username)
     if not form.cleaned_data['dry_run']:
@@ -993,6 +1051,8 @@ def admin_cars_standard_fill_execute(request, username):
                 request.user.id,
             )
         except ValueError as exc:
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': str(exc)}, status=400)
             messages.error(request, str(exc))
             return redirect('admin_cars_standard', username=request.user.username)
     job = CarsStandardMaintenanceJob.objects.create(
@@ -1014,12 +1074,16 @@ def admin_cars_standard_fill_execute(request, username):
         async_result = fill_standard_id.apply_async(args=[job.id])
         job.celery_task_id = async_result.id or ''
         job.save(update_fields=['celery_task_id', 'updated_at'])
+        if is_ajax:
+            return JsonResponse({'success': True, 'message': f'Queued Fill IDs operation #{job.id}.', 'job': serialize_maintenance_job(job)})
         messages.success(request, f'Queued Fill IDs operation #{job.id}.')
     except Exception as exc:
         job.status = CarsStandardMaintenanceJob.STATUS_FAILED
         job.error_message = str(exc)
         job.finished_at = timezone.now()
         job.save(update_fields=['status', 'error_message', 'finished_at', 'updated_at'])
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': f'Failed to queue fill job #{job.id}: {exc}', 'job': serialize_maintenance_job(job)}, status=500)
         messages.error(request, f'Failed to queue fill job #{job.id}: {exc}')
     return redirect('admin_cars_standard', username=request.user.username)
 

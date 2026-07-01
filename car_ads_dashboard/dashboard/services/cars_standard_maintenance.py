@@ -231,20 +231,30 @@ def get_cars_standard_total_count():
         return 0
 
 
-def search_cars_standard(query='', page=1, per_page=25):
+def search_cars_standard(query='', page=1, per_page=25, filters=None):
     columns = get_available_cars_standard_columns()
     query = (query or '').strip()
+    filters = filters or {}
+    field_filters = {
+        field: str(filters.get(field) or '').strip()
+        for field in ('id', 'brand_norm', 'model_norm', 'variant_norm')
+    }
 
     try:
         queryset = CarsStandard.objects.values(*columns).order_by('id')
         if query:
-            filters = Q()
+            search_filters = Q()
             if query.isdigit() and 'id' in columns:
-                filters |= Q(id=int(query))
+                search_filters |= Q(id=int(query))
             for column in STANDARD_SEARCH_COLUMNS:
                 if column in columns:
-                    filters |= Q(**{f'{column}__icontains': query})
-            queryset = queryset.filter(filters)
+                    search_filters |= Q(**{f'{column}__icontains': query})
+            queryset = queryset.filter(search_filters)
+        for field, value in field_filters.items():
+            if value and field == 'id' and value.isdigit() and field in columns:
+                queryset = queryset.filter(id=int(value))
+            elif value and field in columns:
+                queryset = queryset.filter(**{f'{field}__icontains': value})
         paginator = Paginator(queryset, per_page)
         page_obj = paginator.get_page(page)
     except DatabaseError:
@@ -255,6 +265,7 @@ def search_cars_standard(query='', page=1, per_page=25):
         'page_obj': page_obj,
         'columns': columns,
         'query': query,
+        'filters': field_filters,
     }
 
 

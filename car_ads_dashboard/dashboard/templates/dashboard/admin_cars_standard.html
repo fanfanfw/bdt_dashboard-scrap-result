@@ -4,6 +4,38 @@
 {% block title %}Cars Standard Maintenance{% endblock %}
 
 {% block content %}
+<style>
+  #cars-standard-table {
+    width: max-content;
+    min-width: 100%;
+  }
+  #cars-standard-table th,
+  #cars-standard-table td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  #cars-standard-table td[data-field] input {
+    min-width: 14ch;
+    max-width: none;
+  }
+  #cars-standard-table td[data-field*="brand"] input,
+  #cars-standard-table td[data-field*="model"] input,
+  #cars-standard-table td[data-field*="variant"] input {
+    min-width: 18ch;
+  }
+  #cars-standard-table td[data-field="model_group_norm"] input,
+  #cars-standard-table td[data-field="model_group_raw"] input {
+    min-width: 22ch;
+  }
+  #cars-standard-table td:last-child {
+    min-width: 190px;
+  }
+  #cars-standard-table .cars-standard-form {
+    display: flex;
+    gap: .35rem;
+    align-items: center;
+  }
+</style>
 <div class="page-header">
   <div>
     <h1 class="page-title">
@@ -397,7 +429,7 @@
         </div>
       </div>
     </div>
-    <form method="post" action="{% url 'admin_cars_standard_fill_execute' username=username %}" class="mt-3">
+      <form method="post" action="{% url 'admin_cars_standard_fill_execute' username=username %}" class="mt-3 fill-execute-form">
       {% csrf_token %}
       <input type="hidden" name="target_table" value="{{ fill_preview.table_name }}">
       <input type="hidden" name="sources" value="{{ fill_preview.sources|join:',' }}">
@@ -495,56 +527,6 @@
   </div>
 </div>
 
-<div class="admin-card">
-  <div class="card-header">
-    <h3 class="card-title">
-      <i class="fas fa-search me-2"></i>
-      Search cars_standard
-    </h3>
-  </div>
-  <form method="get" class="row g-3">
-    <div class="col-md-9">
-      <label for="q" class="form-label">Search</label>
-      <input type="text" name="q" id="q" class="form-control" value="{{ search_query }}" placeholder="ID, brand, model, variant, or alias">
-    </div>
-    <div class="col-md-3 d-flex align-items-end">
-      <button type="submit" class="btn-admin btn-primary me-2">
-        <i class="fas fa-search"></i>
-        Search
-      </button>
-      <a href="{% url 'admin_cars_standard' username=username %}" class="btn-admin btn-secondary">
-        <i class="fas fa-times"></i>
-        Clear
-      </a>
-    </div>
-  </form>
-</div>
-
-<div class="admin-card">
-  <div class="card-header">
-    <h3 class="card-title">
-      <i class="fas fa-plus me-2"></i>
-      Create cars_standard
-    </h3>
-  </div>
-  <form method="post" action="{% url 'admin_cars_standard_create' username=username %}">
-    {% csrf_token %}
-    <div class="row g-3">
-      {% for field in create_form.visible_fields %}
-        <div class="col-md-3">
-          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-          {{ field }}
-          {% if field.errors %}<div class="text-danger small">{{ field.errors|join:', ' }}</div>{% endif %}
-        </div>
-      {% endfor %}
-    </div>
-    <button type="submit" class="btn-admin btn-primary mt-3">
-      <i class="fas fa-plus"></i>
-      Create Standard
-    </button>
-  </form>
-</div>
-
 {% if delete_preview %}
   <div class="admin-card border-danger">
     <div class="card-header">
@@ -555,16 +537,6 @@
     </div>
     <div class="alert alert-danger">
       This hard-deletes the row. Related rows must become <code>cars_standard_id = NULL</code> via <code>ON DELETE SET NULL</code>.
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm">
-        <thead><tr><th>Table</th><th>References</th><th>Delete rule</th></tr></thead>
-        <tbody>
-          {% for item in delete_preview.reference_rows %}
-            <tr><td>{{ item.table }}</td><td>{{ item.count|intcomma }}</td><td>{{ item.delete_rule }}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
     </div>
     <form method="post" action="{% url 'admin_cars_standard_delete' username=username %}">
       {% csrf_token %}
@@ -579,61 +551,68 @@
   </div>
 {% endif %}
 
-<div class="admin-card">
-  <div class="card-header">
-    <h3 class="card-title">
-      <i class="fas fa-pen-to-square me-2"></i>
-      Edit / Alias Row
-    </h3>
-  </div>
-  {% if edit_form and edit_row %}
-    <div class="alert alert-warning">
-      Editing normalized fields affects future matching. Use raw/alias fields for typo or alternate values when possible.
-    </div>
-    <form method="post" action="{% url 'admin_cars_standard_update' username=username %}">
+{% if edit_form and edit_row %}
+  <details class="admin-card" open>
+    <summary class="card-title mb-3">
+      <i class="fas fa-pen me-2"></i>
+      Edit cars_standard #{{ edit_row.id }}
+    </summary>
+    <form method="post" action="{% url 'admin_cars_standard_update' username=username %}" class="row g-3">
       {% csrf_token %}
       {{ edit_form.cars_standard_id }}
-      <div class="row g-3">
-        {% for field in edit_form.visible_fields %}
+      {% for field in edit_form %}
+        {% if field.name != 'cars_standard_id' %}
           <div class="col-md-3">
             <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
-            {% if field.errors %}<div class="text-danger small">{{ field.errors|join:', ' }}</div>{% endif %}
           </div>
-        {% endfor %}
+        {% endif %}
+      {% endfor %}
+      <div class="col-12">
+        <button type="submit" class="btn btn-sm btn-primary">Save Edit</button>
+        <a href="{% url 'admin_cars_standard' username=username %}" class="btn btn-sm btn-secondary">Close</a>
       </div>
-      <button type="submit" class="btn-admin btn-primary mt-3">
-        <i class="fas fa-save"></i>
-        Save Changes
-      </button>
     </form>
-    {% if edit_normalized_preview %}
-      <h5 class="mt-4">Current normalized comparison preview</h5>
-      <div class="table-responsive">
-        <table class="table table-sm">
-          <tbody>
-            {% for field, value in edit_normalized_preview.items %}
-              <tr><th>{{ field }}</th><td>{{ value }}</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% endif %}
-  {% else %}
-    <p class="text-muted mb-0">Choose Edit from a row below to update normalized or alias fields.</p>
-  {% endif %}
-</div>
+  </details>
+{% endif %}
 
-
-<div class="admin-card">
+<div class="admin-card" id="cars-standard-table-card" data-create-url="{% url 'admin_cars_standard_create' username=username %}" data-update-url="{% url 'admin_cars_standard_update' username=username %}" data-delete-url="{% url 'admin_cars_standard_delete' username=username %}">
   <div class="card-header">
     <h3 class="card-title">
       <i class="fas fa-table me-2"></i>
-      cars_standard Rows ({{ page_obj.paginator.count|intcomma }} total)
+      cars_standard Rows (<span id="cars-standard-total-count">{{ page_obj.paginator.count|intcomma }}</span> total)
     </h3>
   </div>
+  <form method="get" class="row g-3 mb-3" id="cars-standard-filter-form">
+    <div class="col-md-2">
+      <label for="id_filter" class="form-label">id</label>
+      <input type="number" name="id" id="id_filter" class="form-control" value="{{ table_filters.id }}" placeholder="ID" min="1">
+    </div>
+    <div class="col-md-2">
+      <label for="brand_norm" class="form-label">brand_norm</label>
+      <input type="text" name="brand_norm" id="brand_norm" class="form-control" value="{{ table_filters.brand_norm }}" placeholder="Brand">
+    </div>
+    <div class="col-md-3">
+      <label for="model_norm" class="form-label">model_norm</label>
+      <input type="text" name="model_norm" id="model_norm" class="form-control" value="{{ table_filters.model_norm }}" placeholder="Model">
+    </div>
+    <div class="col-md-3">
+      <label for="variant_norm" class="form-label">variant_norm</label>
+      <input type="text" name="variant_norm" id="variant_norm" class="form-control" value="{{ table_filters.variant_norm }}" placeholder="Variant">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button type="submit" class="btn-admin btn-primary me-2"><i class="fas fa-search"></i> Filter</button>
+      <a href="{% url 'admin_cars_standard' username=username %}" class="btn-admin btn-secondary"><i class="fas fa-times"></i> Clear</a>
+    </div>
+  </form>
+  <div class="mb-3">
+    <button type="button" class="btn btn-sm btn-outline-primary" id="add-row-above">Add above selected</button>
+    <button type="button" class="btn btn-sm btn-outline-primary" id="add-row-below">Add below selected</button>
+    <small class="text-muted ms-2">Click a row to select insertion point.</small>
+  </div>
+  <div id="cars-standard-inline-message"></div>
   <div class="table-responsive">
-    <table class="table table-hover table-sm">
+    <table class="table table-hover table-sm" id="cars-standard-table">
       <thead>
         <tr>
           {% for column in columns %}
@@ -643,18 +622,48 @@
         </tr>
       </thead>
       <tbody>
+        <tr class="cars-standard-create-row" data-new-row="1">
+          {% for column in columns %}
+            <td data-field="{{ column }}">
+              {% if column == 'id' %}
+                <span class="text-muted">New</span>
+              {% else %}
+                <input class="form-control form-control-sm" name="{{ column }}" form="create-form-top" value="{% if column == 'model_group_norm' %}NO MODEL GROUP{% endif %}">
+              {% endif %}
+            </td>
+          {% endfor %}
+          <td>
+            <form method="post" action="{% url 'admin_cars_standard_create' username=username %}" id="create-form-top" class="cars-standard-form cars-standard-create-form">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-success">Save</button>
+              <button type="button" class="btn btn-sm btn-secondary cancel-create-row">Cancel</button>
+            </form>
+          </td>
+        </tr>
         {% for row in page_obj %}
-          <tr>
-            {% for value in row.values %}
-              <td>{{ value|default_if_none:"" }}</td>
+          <tr data-row-id="{{ row.id }}">
+            {% for column, value in row.items %}
+              <td data-field="{{ column }}">
+                {% if column == 'id' %}
+                  {{ value }}
+                {% else %}
+                  <input class="form-control form-control-sm" name="{{ column }}" form="update-form-{{ row.id }}" value="{{ value|default_if_none:'' }}" data-original="{{ value|default_if_none:'' }}">
+                {% endif %}
+              </td>
             {% endfor %}
             <td>
-              <a class="btn btn-sm btn-outline-primary" href="?edit_id={{ row.id }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">Edit</a>
-              <a class="btn btn-sm btn-outline-danger" href="?delete_id={{ row.id }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">Delete</a>
+              <form method="post" action="{% url 'admin_cars_standard_update' username=username %}" id="update-form-{{ row.id }}" class="cars-standard-form cars-standard-update-form">
+                {% csrf_token %}
+                <input type="hidden" name="cars_standard_id" value="{{ row.id }}">
+                <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                <button type="button" class="btn btn-sm btn-secondary cancel-row">Cancel</button>
+                <button type="button" class="btn btn-sm btn-outline-danger delete-row">Delete</button>
+                <noscript><a href="?delete_id={{ row.id }}" class="btn btn-sm btn-outline-danger">Delete</a></noscript>
+              </form>
             </td>
           </tr>
         {% empty %}
-          <tr>
+          <tr class="empty-row">
             <td colspan="20" class="text-center text-muted">No rows found.</td>
           </tr>
         {% endfor %}
@@ -662,30 +671,210 @@
     </table>
   </div>
 
-  {% if page_obj.has_other_pages %}
-    <nav aria-label="cars_standard pagination">
-      <ul class="pagination justify-content-center mt-3">
-        {% if page_obj.has_previous %}
-          <li class="page-item">
-            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">Previous</a>
+  <div id="cars-standard-pagination">
+    {% if page_obj.has_other_pages %}
+      <nav aria-label="cars_standard pagination">
+        <ul class="pagination justify-content-center mt-3">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if table_filters.id %}&id={{ table_filters.id|urlencode }}{% endif %}{% if table_filters.brand_norm %}&brand_norm={{ table_filters.brand_norm|urlencode }}{% endif %}{% if table_filters.model_norm %}&model_norm={{ table_filters.model_norm|urlencode }}{% endif %}{% if table_filters.variant_norm %}&variant_norm={{ table_filters.variant_norm|urlencode }}{% endif %}">Previous</a>
+            </li>
+          {% endif %}
+          <li class="page-item active">
+            <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
           </li>
-        {% endif %}
-        <li class="page-item active">
-          <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-        </li>
-        {% if page_obj.has_next %}
-          <li class="page-item">
-            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">Next</a>
-          </li>
-        {% endif %}
-      </ul>
-    </nav>
-  {% endif %}
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if table_filters.id %}&id={{ table_filters.id|urlencode }}{% endif %}{% if table_filters.brand_norm %}&brand_norm={{ table_filters.brand_norm|urlencode }}{% endif %}{% if table_filters.model_norm %}&model_norm={{ table_filters.model_norm|urlencode }}{% endif %}{% if table_filters.variant_norm %}&variant_norm={{ table_filters.variant_norm|urlencode }}{% endif %}">Next</a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+(function () {
+  const card = document.getElementById('cars-standard-table-card');
+  const table = document.getElementById('cars-standard-table');
+  if (!card || !table) return;
+  const message = document.getElementById('cars-standard-inline-message');
+  const filterForm = document.getElementById('cars-standard-filter-form');
+  const pagination = document.getElementById('cars-standard-pagination');
+  const totalCount = document.getElementById('cars-standard-total-count');
+  let createRow = table.querySelector('.cars-standard-create-row');
+  const createForm = table.querySelector('.cars-standard-create-form');
+  const csrf = createForm?.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
+  const showMessage = (text, type) => {
+    if (message) message.innerHTML = `<div class="alert alert-${type || 'info'}">${escapeHtml(text)}</div>`;
+  };
+  const columns = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim()).filter((column) => column !== 'Actions');
+  const sizeInput = (input) => {
+    const length = Math.max(10, String(input.value || input.placeholder || '').length + 2);
+    input.style.width = `${length}ch`;
+  };
+  const sizeInputs = (root) => root.querySelectorAll('td[data-field] input').forEach(sizeInput);
+  const resetCreateRow = () => {
+    createRow.querySelectorAll('input[name]').forEach((input) => {
+      input.value = input.name === 'model_group_norm' ? 'NO MODEL GROUP' : '';
+      sizeInput(input);
+    });
+  };
+  const selectedRow = () => table.querySelector('tbody tr.table-active[data-row-id]');
+  const selectRow = (tr) => {
+    if (!tr) return;
+    table.querySelectorAll('tr.table-active').forEach((row) => row.classList.remove('table-active'));
+    tr.classList.add('table-active');
+  };
+  const placeCreateRow = (after) => {
+    resetCreateRow();
+    createRow.style.display = '';
+    const row = selectedRow();
+    if (row && after) row.after(createRow);
+    else if (row) row.before(createRow);
+    else table.querySelector('tbody').prepend(createRow);
+    createRow.querySelector('input[name]')?.focus();
+  };
+  const rowHtml = (row) => {
+    const id = row.id;
+    const cells = columns.map((column) => {
+      if (column === 'id') return `<td data-field="id">${escapeHtml(id)}</td>`;
+      const value = row[column] || '';
+      return `<td data-field="${escapeHtml(column)}"><input class="form-control form-control-sm" name="${escapeHtml(column)}" form="update-form-${escapeHtml(id)}" value="${escapeHtml(value)}" data-original="${escapeHtml(value)}"></td>`;
+    }).join('');
+    return `<tr data-row-id="${escapeHtml(id)}">${cells}<td><form method="post" action="${escapeHtml(card.dataset.updateUrl)}" id="update-form-${escapeHtml(id)}" class="cars-standard-form cars-standard-update-form"><input type="hidden" name="csrfmiddlewaretoken" value="${escapeHtml(csrf)}"><input type="hidden" name="cars_standard_id" value="${escapeHtml(id)}"><button type="submit" class="btn btn-sm btn-primary">Save</button> <button type="button" class="btn btn-sm btn-secondary cancel-row">Cancel</button> <button type="button" class="btn btn-sm btn-outline-danger delete-row">Delete</button> <noscript><a href="?delete_id=${escapeHtml(id)}" class="btn btn-sm btn-outline-danger">Delete</a></noscript></form></td></tr>`;
+  };
+  const syncRow = (tr, row) => {
+    columns.forEach((column) => {
+      if (column === 'id') return;
+      const input = tr.querySelector(`input[name="${CSS.escape(column)}"]`);
+      if (input) {
+        input.value = row[column] || '';
+        input.dataset.original = row[column] || '';
+        sizeInput(input);
+      }
+    });
+  };
+  const submitJson = (form) => fetch(form.action, {method: 'POST', body: new FormData(form), headers: {'X-Requested-With': 'XMLHttpRequest'}}).then((response) => response.json().then((data) => ({ok: response.ok, data})));
+  const createRowHtml = () => {
+    const cells = columns.map((column) => {
+      if (column === 'id') return '<td data-field="id"><span class="text-muted">New</span></td>';
+      const value = column === 'model_group_norm' ? 'NO MODEL GROUP' : '';
+      return `<td data-field="${escapeHtml(column)}"><input class="form-control form-control-sm" name="${escapeHtml(column)}" form="create-form-top" value="${value}"></td>`;
+    }).join('');
+    return `<tr class="cars-standard-create-row" data-new-row="1" style="display: none;">${cells}<td><form method="post" action="${escapeHtml(card.dataset.createUrl)}" id="create-form-top" class="cars-standard-form cars-standard-create-form"><input type="hidden" name="csrfmiddlewaretoken" value="${escapeHtml(csrf)}"><button type="submit" class="btn btn-sm btn-success">Save</button> <button type="button" class="btn btn-sm btn-secondary cancel-create-row">Cancel</button></form></td></tr>`;
+  };
+  const renderPagination = (data) => {
+    if (totalCount) totalCount.textContent = Number(data.pagination.count || 0).toLocaleString();
+    if (!pagination) return;
+    const p = data.pagination;
+    if (!p.has_previous && !p.has_next) {
+      pagination.innerHTML = '';
+      return;
+    }
+    const params = new URLSearchParams(new FormData(filterForm));
+    const pageUrl = (page) => {
+      params.set('page', page);
+      return `?${params.toString()}`;
+    };
+    pagination.innerHTML = `<nav aria-label="cars_standard pagination"><ul class="pagination justify-content-center mt-3">${p.has_previous ? `<li class="page-item"><a class="page-link" href="${escapeHtml(pageUrl(p.previous_page_number))}">Previous</a></li>` : ''}<li class="page-item active"><span class="page-link">Page ${escapeHtml(p.number)} of ${escapeHtml(p.num_pages)}</span></li>${p.has_next ? `<li class="page-item"><a class="page-link" href="${escapeHtml(pageUrl(p.next_page_number))}">Next</a></li>` : ''}</ul></nav>`;
+  };
+  const renderTableData = (data) => {
+    const tbody = table.querySelector('tbody');
+    const rows = data.rows.length ? data.rows.map(rowHtml).join('') : '<tr class="empty-row"><td colspan="20" class="text-center text-muted">No rows found.</td></tr>';
+    tbody.innerHTML = `${createRowHtml()}${rows}`;
+    createRow = table.querySelector('.cars-standard-create-row');
+    sizeInputs(table);
+    renderPagination(data);
+  };
+  const loadTable = (url) => fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+    .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+    .then(({ok, data}) => {
+      if (!ok || !data.success) throw new Error(data.error || 'Filter failed.');
+      renderTableData(data);
+    })
+    .catch((error) => showMessage(error.message, 'danger'));
+  if (createRow) createRow.style.display = 'none';
+  sizeInputs(table);
+  document.getElementById('add-row-above')?.addEventListener('click', () => placeCreateRow(false));
+  document.getElementById('add-row-below')?.addEventListener('click', () => placeCreateRow(true));
+  filterForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const url = `${window.location.pathname}?${new URLSearchParams(new FormData(filterForm)).toString()}`;
+    window.history.replaceState({}, '', url);
+    loadTable(url);
+  });
+  filterForm?.querySelector('a.btn-admin')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    filterForm.reset();
+    const url = window.location.pathname;
+    window.history.replaceState({}, '', url);
+    loadTable(url);
+  });
+  pagination?.addEventListener('click', (event) => {
+    const link = event.target.closest('a.page-link');
+    if (!link) return;
+    event.preventDefault();
+    window.history.replaceState({}, '', link.href);
+    loadTable(link.href);
+  });
+  table.addEventListener('focusin', (event) => selectRow(event.target.closest('tr[data-row-id]')));
+  table.addEventListener('input', (event) => {
+    if (event.target.matches('td[data-field] input')) sizeInput(event.target);
+  });
+  table.addEventListener('click', (event) => {
+    const target = event.target;
+    const tr = target.closest('tr[data-row-id]');
+    selectRow(tr);
+    if (target.classList.contains('cancel-row')) {
+      tr.querySelectorAll('input[data-original]').forEach((input) => { input.value = input.dataset.original || ''; });
+    }
+    if (target.classList.contains('cancel-create-row')) {
+      resetCreateRow();
+      createRow.style.display = 'none';
+    }
+    if (target.classList.contains('delete-row') && tr && confirm(`Delete cars_standard #${tr.dataset.rowId}?`)) {
+      const data = new FormData();
+      data.append('csrfmiddlewaretoken', csrf);
+      data.append('cars_standard_id', tr.dataset.rowId);
+      data.append('confirm_set_null', 'on');
+      fetch(card.dataset.deleteUrl, {method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'}})
+        .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+        .then(({ok, data}) => {
+          if (!ok || !data.success) throw new Error(data.error || 'Delete failed.');
+          tr.remove();
+          showMessage(`Deleted cars_standard #${data.row_id}.`, 'success');
+        })
+        .catch((error) => showMessage(error.message, 'danger'));
+    }
+  });
+  table.addEventListener('submit', (event) => {
+    const form = event.target.closest('.cars-standard-form');
+    if (!form) return;
+    event.preventDefault();
+    submitJson(form)
+      .then(({ok, data}) => {
+        if (!ok || !data.success) throw new Error(data.error || 'Save failed.');
+        if (form.classList.contains('cars-standard-create-form')) {
+          createRow.insertAdjacentHTML('afterend', rowHtml(data.row));
+          sizeInputs(table);
+          resetCreateRow();
+          createRow.style.display = 'none';
+          table.querySelector('.empty-row')?.remove();
+          showMessage(`Created cars_standard #${data.row.id}.`, 'success');
+        } else {
+          syncRow(form.closest('tr'), data.row);
+          showMessage(`Saved cars_standard #${data.row.id}.`, 'success');
+        }
+      })
+      .catch((error) => showMessage(error.message, 'danger'));
+  });
+})();
+
 (function () {
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
   const fmt = (value) => Number(value || 0).toLocaleString();
@@ -849,7 +1038,7 @@
         <div class="col-md-4"><h5>Failed / unmatched sample</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Row</th><th>Source values</th></tr></thead><tbody>${renderSampleRows(preview.failed_sample, [(row) => row.id, (row) => sourceValues(row)], 'No unmatched rows.')}</tbody></table></div></div>
         <div class="col-md-4"><h5>Ambiguous sample</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Row</th><th>Candidate IDs</th></tr></thead><tbody>${renderSampleRows(preview.ambiguous_sample, [(row) => row.source_row?.id, (row) => Array.isArray(row.candidate_ids) ? row.candidate_ids.join(', ') : ''], 'No ambiguous rows.')}</tbody></table></div></div>
       </div>
-      <form method="post" action="{% url 'admin_cars_standard_fill_execute' username=username %}" class="mt-3">
+    <form method="post" action="{% url 'admin_cars_standard_fill_execute' username=username %}" class="mt-3 fill-execute-form">
         <input type="hidden" name="csrfmiddlewaretoken" value="${escapeHtml(form.querySelector('[name=csrfmiddlewaretoken]')?.value || '')}">
         <input type="hidden" name="target_table" value="${escapeHtml(preview.table_name)}">
         <input type="hidden" name="sources" value="${escapeHtml(Array.isArray(preview.sources) ? preview.sources.join(',') : '')}">
@@ -880,6 +1069,37 @@
       })
       .catch((error) => {
         result.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
+      })
+      .finally(() => {
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = originalText;
+        }
+      });
+  });
+  document.addEventListener('submit', (event) => {
+    const executeForm = event.target.closest('.fill-execute-form');
+    if (!executeForm) return;
+    event.preventDefault();
+    const button = executeForm.querySelector('button[type="submit"]');
+    const originalText = button ? button.innerHTML : '';
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Queueing...';
+    }
+    fetch(executeForm.action, {
+      method: 'POST',
+      body: new FormData(executeForm),
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+    })
+      .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+      .then(({ok, data}) => {
+        if (!ok || !data.success) throw new Error(data.error || 'Failed to queue fill job.');
+        result.insertAdjacentHTML('afterbegin', `<div class="alert alert-success">${escapeHtml(data.message || 'Queued Fill IDs operation.')}</div>`);
+        if (data.job) window.dispatchEvent(new CustomEvent('cars-standard-job-update', {detail: data.job}));
+      })
+      .catch((error) => {
+        result.insertAdjacentHTML('afterbegin', `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`);
       })
       .finally(() => {
         if (button) {
@@ -1007,6 +1227,9 @@
     clearInterval(pollTimer);
     pollTimer = setInterval(refreshJobs, delay);
   };
+  window.addEventListener('cars-standard-job-update', (event) => {
+    if (event.detail) upsertJob(event.detail);
+  });
   const connectSocket = () => {
     if (!('WebSocket' in window)) {
       refreshJobs();

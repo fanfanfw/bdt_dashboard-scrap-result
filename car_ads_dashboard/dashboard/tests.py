@@ -560,6 +560,78 @@ class CarsStandardAdminCrudEndpointTests(TestCase):
             cursor.execute('SELECT COUNT(*) FROM cars_unified WHERE cars_standard_id IS NULL')
             self.assertEqual(cursor.fetchone()[0], 1)
 
+    def test_admin_table_filters_can_be_combined(self):
+        service.create_cars_standard({'brand_norm': 'HONDA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'CITY', 'variant_norm': 'V'}, self.admin_user)
+        service.create_cars_standard({'brand_norm': 'HONDA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'CIVIC', 'variant_norm': 'RS'}, self.admin_user)
+        service.create_cars_standard({'brand_norm': 'TOYOTA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'CITY', 'variant_norm': 'G'}, self.admin_user)
+
+        response = self.client.get(
+            reverse('admin_cars_standard', kwargs={'username': self.admin_user.username}),
+            {'brand_norm': 'hon', 'model_norm': 'city'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'HONDA')
+        self.assertContains(response, 'CITY')
+        self.assertNotContains(response, 'CIVIC')
+        self.assertNotContains(response, 'TOYOTA')
+
+        city = service.CarsStandard.objects.get(brand_norm='HONDA', model_norm='CITY')
+        ajax_response = self.client.get(
+            reverse('admin_cars_standard', kwargs={'username': self.admin_user.username}),
+            {'id': str(city.id)},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(ajax_response.status_code, 200)
+        self.assertEqual(ajax_response.json()['rows'][0]['id'], city.id)
+
+    def test_admin_page_renders_no_js_edit_delete_fallbacks(self):
+        row = service.create_cars_standard(
+            {'brand_norm': 'HONDA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'CITY', 'variant_norm': 'V'},
+            self.admin_user,
+        )
+
+        response = self.client.get(reverse('admin_cars_standard', kwargs={'username': self.admin_user.username}), {'edit_id': row.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'Edit cars_standard #{row.id}')
+        self.assertContains(response, f'?delete_id={row.id}')
+        self.assertContains(response, "table.addEventListener('focusin'")
+
+    def test_admin_create_update_delete_ajax_endpoints_return_json(self):
+        create_response = self.client.post(
+            reverse('admin_cars_standard_create', kwargs={'username': self.admin_user.username}),
+            {'brand_norm': ' honda ', 'model_norm': ' city ', 'variant_norm': ' v '},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        created = create_response.json()
+        row_id = created['row']['id']
+
+        update_response = self.client.post(
+            reverse('admin_cars_standard_update', kwargs={'username': self.admin_user.username}),
+            {
+                'cars_standard_id': row_id,
+                'brand_norm': 'honda',
+                'model_group_norm': 'no model group',
+                'model_norm': 'civic',
+                'variant_norm': 'rs',
+            },
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        delete_response = self.client.post(
+            reverse('admin_cars_standard_delete', kwargs={'username': self.admin_user.username}),
+            {'cars_standard_id': row_id, 'confirm_set_null': 'on'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(create_response.status_code, 200)
+        self.assertTrue(created['success'])
+        self.assertEqual(created['row']['brand_norm'], 'HONDA')
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()['row']['model_norm'], 'CIVIC')
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(service.CarsStandard.objects.filter(pk=row_id).exists())
+
 
 class CarsStandardDryRunServiceTests(TestCase):
     @patch('dashboard.services.cars_standard_maintenance.CarsStandardAuditLog.objects.create')

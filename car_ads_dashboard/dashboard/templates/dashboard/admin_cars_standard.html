@@ -596,6 +596,7 @@
                   <input type="hidden" name="target_table" value="{{ job.target_table }}">
                   <input type="hidden" name="sources" value="{{ job.sources|join:',' }}">
                   <input type="hidden" name="batch_size" value="{{ job.parameters.batch_size|default:500 }}">
+                  <input type="hidden" name="parent_job_id" value="{{ job.id }}">
                   <input type="hidden" name="dry_run" value="on">
                   <button type="submit" class="btn btn-sm btn-outline-primary">Run Fill Again</button>
                 </form>
@@ -604,6 +605,7 @@
                   <input type="hidden" name="target_table" value="{{ job.target_table }}">
                   <input type="hidden" name="sources" value="{{ job.sources|join:',' }}">
                   <input type="hidden" name="batch_size" value="{{ job.parameters.batch_size|default:500 }}">
+                  <input type="hidden" name="parent_job_id" value="{{ job.id }}">
                   <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" name="confirm" value="on" id="fillAgainConfirm{{ job.id }}" required>
                     <label class="form-check-label" for="fillAgainConfirm{{ job.id }}">Confirm update</label>
@@ -1524,6 +1526,7 @@
             <input type="hidden" name="target_table" value="${targetTable}">
             <input type="hidden" name="sources" value="${sourcesValue}">
             <input type="hidden" name="batch_size" value="${batchSize}">
+            <input type="hidden" name="parent_job_id" value="${escapeAttr(job.id)}">
             <input type="hidden" name="dry_run" value="on">
             <button type="submit" class="btn btn-sm btn-outline-primary">Run Fill Again</button>
           </form>
@@ -1532,6 +1535,7 @@
             <input type="hidden" name="target_table" value="${targetTable}">
             <input type="hidden" name="sources" value="${sourcesValue}">
             <input type="hidden" name="batch_size" value="${batchSize}">
+            <input type="hidden" name="parent_job_id" value="${escapeAttr(job.id)}">
             <div class="form-check mb-2">
               <input class="form-check-input" type="checkbox" name="confirm" value="on" id="${confirmId}" required>
               <label class="form-check-label" for="${confirmId}">Confirm update</label>

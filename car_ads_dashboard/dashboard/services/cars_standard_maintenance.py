@@ -363,7 +363,12 @@ def decorate_maintenance_job(job):
     result = job.result or {}
     job.failed_sample = result.get('failed_sample') or result.get('failed_records') or []
     job.ambiguous_sample = result.get('ambiguous_sample') or result.get('ambiguous_records') or []
-    job.can_run_fill_again = job.job_type == CarsStandardMaintenanceJob.JOB_INSERT_MISSING and job.status == CarsStandardMaintenanceJob.STATUS_SUCCESS and not job.dry_run and result.get('inserted', 0) > 0 and bool(job.target_table and job.sources)
+    real_fill_started = CarsStandardMaintenanceJob.objects.filter(
+        job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID,
+        dry_run=False,
+        parameters__parent_job_id=job.id,
+    ).exists()
+    job.can_run_fill_again = job.job_type == CarsStandardMaintenanceJob.JOB_INSERT_MISSING and job.status == CarsStandardMaintenanceJob.STATUS_SUCCESS and not job.dry_run and result.get('inserted', 0) > 0 and bool(job.target_table and job.sources) and not real_fill_started
     job.interactive_result = _interactive_ambiguous_result(job)
     job.interactive_result_json = json.dumps(job.interactive_result) if job.interactive_result else ''
     return job

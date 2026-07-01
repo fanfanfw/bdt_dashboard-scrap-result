@@ -1157,6 +1157,7 @@ def admin_cars_standard_fill_again(request, username):
         messages.error(request, 'Run Fill Again requires valid inputs. Real update needs confirmation.')
         return redirect('admin_cars_standard', username=request.user.username)
     dry_run = form.cleaned_data['dry_run']
+    parent_job_id = request.POST.get('parent_job_id') or ''
     preview_token = '' if dry_run else build_fill_preview_token(
         form.cleaned_data['target_table'],
         form.cleaned_data['sources'],
@@ -1175,6 +1176,7 @@ def admin_cars_standard_fill_again(request, username):
             'batch_size': form.cleaned_data['batch_size'],
             'dry_run': dry_run,
             'preview_token': preview_token,
+            'parent_job_id': int(parent_job_id) if parent_job_id.isdigit() else None,
         },
     )
     try:

@@ -1171,6 +1171,24 @@ class CarsStandardAccessControlTests(TestCase):
         self.assertFalse(job.dry_run)
         self.assertEqual(job.parameters['preview_token'], 'fill-token')
 
+        parent = CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_INSERT_MISSING,
+            status=CarsStandardMaintenanceJob.STATUS_SUCCESS,
+            target_table='cars_unified',
+            sources=['carlistmy'],
+            result={'inserted': 1},
+        )
+        child = CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID,
+            status=CarsStandardMaintenanceJob.STATUS_RUNNING,
+            dry_run=False,
+            parameters={'parent_job_id': parent.id},
+        )
+        self.assertFalse(service.serialize_maintenance_job(parent)['can_run_fill_again'])
+        child.status = CarsStandardMaintenanceJob.STATUS_FAILED
+        child.save(update_fields=['status'])
+        self.assertFalse(service.serialize_maintenance_job(parent)['can_run_fill_again'])
+
     @patch('dashboard.tasks.inspect_null_rows.apply_async')
     @patch('dashboard.forms.validate_sources')
     def test_null_inspector_background_queues_celery(self, validate_sources, apply_async):

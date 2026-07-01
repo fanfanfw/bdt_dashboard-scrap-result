@@ -585,6 +585,22 @@ class CarsStandardAdminCrudEndpointTests(TestCase):
         self.assertEqual(ajax_response.status_code, 200)
         self.assertEqual(ajax_response.json()['rows'][0]['id'], city.id)
 
+        multi_response = self.client.get(
+            reverse('admin_cars_standard', kwargs={'username': self.admin_user.username}),
+            {'brand_norm': 'honda,toyota', 'model_norm': 'city'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(multi_response.status_code, 200)
+        brands = {row['brand_norm'] for row in multi_response.json()['rows']}
+        self.assertEqual(brands, {'HONDA', 'TOYOTA'})
+
+        multi_id_response = self.client.get(
+            reverse('admin_cars_standard', kwargs={'username': self.admin_user.username}),
+            {'id': f'{city.id},999999'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual([row['id'] for row in multi_id_response.json()['rows']], [city.id])
+
     def test_admin_page_renders_no_js_edit_delete_fallbacks(self):
         row = service.create_cars_standard(
             {'brand_norm': 'HONDA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'CITY', 'variant_norm': 'V'},

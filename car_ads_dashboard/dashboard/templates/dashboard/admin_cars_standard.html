@@ -644,19 +644,19 @@
   <form method="get" class="row g-3 mb-3" id="cars-standard-filter-form">
     <div class="col-md-1">
       <label for="id_filter" class="form-label">id</label>
-      <input type="number" name="id" id="id_filter" class="form-control" value="{{ table_filters.id }}" placeholder="ID" min="1">
+      <input type="text" name="id" id="id_filter" class="form-control" value="{{ table_filters.id }}" placeholder="2123,44532">
     </div>
     <div class="col-md-2">
       <label for="brand_norm" class="form-label">brand_norm</label>
-      <input type="text" name="brand_norm" id="brand_norm" class="form-control" value="{{ table_filters.brand_norm }}" placeholder="Brand">
+      <input type="text" name="brand_norm" id="brand_norm" class="form-control" value="{{ table_filters.brand_norm }}" placeholder="Brand A,Brand B">
     </div>
     <div class="col-md-3">
       <label for="model_norm" class="form-label">model_norm</label>
-      <input type="text" name="model_norm" id="model_norm" class="form-control" value="{{ table_filters.model_norm }}" placeholder="Model">
+      <input type="text" name="model_norm" id="model_norm" class="form-control" value="{{ table_filters.model_norm }}" placeholder="Model A,Model B">
     </div>
     <div class="col-md-3">
       <label for="variant_norm" class="form-label">variant_norm</label>
-      <input type="text" name="variant_norm" id="variant_norm" class="form-control" value="{{ table_filters.variant_norm }}" placeholder="Variant">
+      <input type="text" name="variant_norm" id="variant_norm" class="form-control" value="{{ table_filters.variant_norm }}" placeholder="STD,RS">
     </div>
     <div class="col-md-1">
       <label for="cars_standard_per_page" class="form-label">Rows</label>
@@ -671,6 +671,7 @@
       <a href="{% url 'admin_cars_standard' username=username %}" class="btn-admin btn-secondary"><i class="fas fa-times"></i> Clear</a>
     </div>
   </form>
+  <small class="d-block text-muted mb-3">Use commas for multiple values. Example: id 2123,44532 or brand Brand A,Brand B. Values inside one field use OR; different fields combine with AND.</small>
   <div class="mb-3">
     <button type="button" class="btn btn-sm btn-outline-primary" id="add-row-above">Add above selected</button>
     <button type="button" class="btn btn-sm btn-outline-primary" id="add-row-below">Add below selected</button>

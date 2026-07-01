@@ -251,10 +251,17 @@ def search_cars_standard(query='', page=1, per_page=25, filters=None):
                     search_filters |= Q(**{f'{column}__icontains': query})
             queryset = queryset.filter(search_filters)
         for field, value in field_filters.items():
-            if value and field == 'id' and value.isdigit() and field in columns:
-                queryset = queryset.filter(id=int(value))
-            elif value and field in columns:
-                queryset = queryset.filter(**{f'{field}__icontains': value})
+            if not value or field not in columns:
+                continue
+            values = [item.strip() for item in value.split(',') if item.strip()]
+            if field == 'id':
+                ids = [int(item) for item in values if item.isdigit()]
+                queryset = queryset.filter(id__in=ids or [-1])
+                continue
+            field_query = Q()
+            for item in values:
+                field_query |= Q(**{f'{field}__icontains': item})
+            queryset = queryset.filter(field_query)
         paginator = Paginator(queryset, per_page)
         page_obj = paginator.get_page(page)
     except DatabaseError:

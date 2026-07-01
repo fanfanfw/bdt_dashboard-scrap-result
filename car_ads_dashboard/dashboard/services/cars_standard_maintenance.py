@@ -335,6 +335,28 @@ def summarize_maintenance_job_result(job):
     return '-'
 
 
+def _interactive_ambiguous_result(job):
+    if job.job_type != CarsStandardMaintenanceJob.JOB_AMBIGUOUS_RESOLVER or job.status != CarsStandardMaintenanceJob.STATUS_SUCCESS:
+        return None
+    result = job.result or {}
+    groups = result.get('groups')
+    if not groups:
+        return None
+    return {
+        'status': result.get('status', 'preview'),
+        'table_name': result.get('table_name', job.target_table),
+        'source': result.get('source', job.sources[0] if job.sources else ''),
+        'total_null_rows': result.get('total_null_rows', 0),
+        'scanned_rows': result.get('scanned_rows', 0),
+        'ambiguous_count': result.get('ambiguous_count', 0),
+        'group_count': result.get('group_count', len(groups)),
+        'display_limit': result.get('display_limit', len(groups)),
+        'groups': groups,
+        'display_truncated': result.get('display_truncated', False),
+        'message': result.get('message', ''),
+    }
+
+
 def decorate_maintenance_job(job):
     job.operation_label = get_operation_label(job)
     job.result_summary = summarize_maintenance_job_result(job)
@@ -342,6 +364,8 @@ def decorate_maintenance_job(job):
     job.failed_sample = result.get('failed_sample') or result.get('failed_records') or []
     job.ambiguous_sample = result.get('ambiguous_sample') or result.get('ambiguous_records') or []
     job.can_run_fill_again = job.job_type == CarsStandardMaintenanceJob.JOB_INSERT_MISSING and job.status == CarsStandardMaintenanceJob.STATUS_SUCCESS and not job.dry_run and result.get('inserted', 0) > 0 and bool(job.target_table and job.sources)
+    job.interactive_result = _interactive_ambiguous_result(job)
+    job.interactive_result_json = json.dumps(job.interactive_result) if job.interactive_result else ''
     return job
 
 
@@ -374,6 +398,7 @@ def serialize_job_progress(job):
 
 def serialize_maintenance_job(job):
     decorate_maintenance_job(job)
+    interactive_result = job.interactive_result
     return {
         'id': job.id,
         'job_type': job.job_type,
@@ -387,6 +412,7 @@ def serialize_maintenance_job(job):
         'dry_run': job.dry_run,
         'progress': serialize_job_progress(job),
         'result_summary': job.result_summary,
+        'result': interactive_result,
         'failed_sample': job.failed_sample,
         'ambiguous_sample': job.ambiguous_sample,
         'can_run_fill_again': job.can_run_fill_again,
@@ -1053,6 +1079,70 @@ def _classify_fill_record(cursor, standard_columns, record):
     return 'unmatched', matches
 
 
+def _normalized_candidate_values(candidate, key):
+    values = []
+    seen = set()
+    for column in STANDARD_MATCH_COLUMN_GROUPS.get(key, []):
+        value = normalize_match_value(candidate.get(column))
+        if value is not None and value not in seen:
+            values.append(value)
+            seen.add(value)
+    return values
+
+
+def _build_standard_candidate_index(cursor, standard_columns):
+    if not any(column in standard_columns for column in STANDARD_MATCH_COLUMN_GROUPS['brand']):
+        raise RuntimeError('cars_standard has no brand lookup columns.')
+    cursor.execute(
+        f'''
+        SELECT {_standard_select_columns(standard_columns)}
+        FROM {quote_identifier(CarsStandard._meta.db_table)}
+        ORDER BY id
+        '''
+    )
+    by_core = {}
+    by_model_group = {}
+    for candidate in _fetch_dicts(cursor):
+        brands = _normalized_candidate_values(candidate, 'brand')
+        model_groups = _normalized_candidate_values(candidate, 'model_group')
+        models = _normalized_candidate_values(candidate, 'model')
+        variants = _normalized_candidate_values(candidate, 'variant')
+        for brand in brands:
+            for model in models:
+                for variant in variants:
+                    by_core.setdefault((brand, model, variant), []).append(candidate)
+                    for model_group in model_groups:
+                        by_model_group.setdefault((brand, model_group, model, variant), []).append(candidate)
+    return {'core': by_core, 'model_group': by_model_group}
+
+
+def _find_cars_standard_matches_from_index(candidate_index, brand, model_group, model, variant):
+    brand_norm = normalize_match_value(brand)
+    model_group_norm = normalize_match_value(model_group)
+    model_norm = normalize_match_value(model)
+    variant_norm = normalize_match_value(variant)
+    if brand_norm is None or model_norm is None or variant_norm is None:
+        return []
+    if model_group_norm in {None, MODEL_GROUP_DEFAULT}:
+        return candidate_index['core'].get((brand_norm, model_norm, variant_norm), [])
+    return candidate_index['model_group'].get((brand_norm, model_group_norm, model_norm, variant_norm), [])
+
+
+def _classify_fill_record_from_index(candidate_index, record):
+    matches = _find_cars_standard_matches_from_index(
+        candidate_index,
+        record.get('brand'),
+        record.get('model_group'),
+        record.get('model'),
+        record.get('variant'),
+    )
+    if len(matches) == 1:
+        return 'matched', matches
+    if len(matches) > 1:
+        return 'ambiguous', matches
+    return 'unmatched', matches
+
+
 def _source_select_sql(table_name):
     config = validate_target_table(table_name)
     source_columns = get_table_columns(table_name)
@@ -1189,7 +1279,7 @@ def analyze_null_rows(table_name, source, preview_limit=None):
     }
 
 
-def get_ambiguous_resolver_groups(table_name, source, display_limit=10):
+def get_ambiguous_resolver_groups(table_name, source, display_limit=10, progress_callback=None):
     validate_target_table(table_name)
     source = validate_sources(table_name, [source])[0]
     display_limit = validate_ambiguous_resolver_limit(display_limit)
@@ -1198,41 +1288,69 @@ def get_ambiguous_resolver_groups(table_name, source, display_limit=10):
     total_null_rows = _count_source_null_rows(table_name, source)
     groups = {}
     ambiguous_count = 0
+    records = []
+    if progress_callback:
+        progress_callback({
+            'current': 0,
+            'total': total_null_rows,
+            'percent': 0 if total_null_rows else 100,
+            'message': 'Building cars_standard candidate index.',
+            'ambiguous_count': 0,
+            'group_count': 0,
+        })
     with connection.cursor() as cursor:
+        candidate_index = _build_standard_candidate_index(cursor, standard_columns)
         cursor.execute(_source_select_sql(table_name), [source])
         records = _fetch_dicts(cursor)
-        for record in records:
-            match_status, matches = _classify_fill_record(cursor, standard_columns, record)
-            if match_status != 'ambiguous':
-                continue
-            ambiguous_count += 1
-            source_record = _serialize_source_record(record)
-            candidate_ids = tuple(match['id'] for match in matches)
-            key = (
-                normalize_match_value(record.get('brand')) or '',
-                normalize_match_value(record.get('model')) or '',
-                normalize_match_value(record.get('variant')) or '',
-                candidate_ids,
-            )
-            group = groups.setdefault(
-                key,
-                {
-                    'source_brand': source_record['brand'] or '',
-                    'source_model': source_record['model'] or '',
-                    'source_variant': source_record['variant'] or '',
-                    'candidate_ids': list(candidate_ids),
-                    'row_count': 0,
-                    'sample_source_row_ids': [],
-                    'candidates': [
-                        {column: candidate.get(column) or '' for column in ['id', *STANDARD_EDIT_COLUMNS]}
-                        for candidate in matches
-                    ],
-                },
-            )
-            group['row_count'] += 1
-            if len(group['sample_source_row_ids']) < SAMPLE_LIMIT:
-                group['sample_source_row_ids'].append(source_record['id'])
+        for scanned, record in enumerate(records, 1):
+            match_status, matches = _classify_fill_record_from_index(candidate_index, record)
+            if match_status == 'ambiguous':
+                ambiguous_count += 1
+                source_record = _serialize_source_record(record)
+                candidate_ids = tuple(match['id'] for match in matches)
+                key = (
+                    normalize_match_value(record.get('brand')) or '',
+                    normalize_match_value(record.get('model')) or '',
+                    normalize_match_value(record.get('variant')) or '',
+                    candidate_ids,
+                )
+                group = groups.setdefault(
+                    key,
+                    {
+                        'source_brand': source_record['brand'] or '',
+                        'source_model': source_record['model'] or '',
+                        'source_variant': source_record['variant'] or '',
+                        'candidate_ids': list(candidate_ids),
+                        'row_count': 0,
+                        'sample_source_row_ids': [],
+                        'candidates': [
+                            {column: candidate.get(column) or '' for column in ['id', *STANDARD_EDIT_COLUMNS]}
+                            for candidate in matches
+                        ],
+                    },
+                )
+                group['row_count'] += 1
+                if len(group['sample_source_row_ids']) < SAMPLE_LIMIT:
+                    group['sample_source_row_ids'].append(source_record['id'])
+            if progress_callback and scanned % FILL_PROGRESS_ROW_INTERVAL == 0:
+                progress_callback({
+                    'current': scanned,
+                    'total': total_null_rows,
+                    'percent': round(scanned * 100 / total_null_rows) if total_null_rows else 100,
+                    'message': f"Scanned {scanned} of {total_null_rows} rows.",
+                    'ambiguous_count': ambiguous_count,
+                    'group_count': len(groups),
+                })
     sorted_groups = sorted(groups.values(), key=lambda item: (-item['row_count'], item['source_brand'], item['source_model'], item['source_variant'], item['candidate_ids']))
+    if progress_callback:
+        progress_callback({
+            'current': len(records),
+            'total': total_null_rows,
+            'percent': round(len(records) * 100 / total_null_rows) if total_null_rows else 100,
+            'message': f"Scanned {len(records)} NULL rows and found {ambiguous_count} ambiguous rows in {len(sorted_groups)} groups.",
+            'ambiguous_count': ambiguous_count,
+            'group_count': len(sorted_groups),
+        })
     return {
         'status': 'preview',
         'table_name': table_name,

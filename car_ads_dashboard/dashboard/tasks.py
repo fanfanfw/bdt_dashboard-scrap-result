@@ -103,6 +103,7 @@ def resolve_ambiguous_groups(self, job_id):
             job.target_table,
             job.sources[0] if job.sources else job.parameters.get('source', ''),
             job.parameters.get('display_limit', 10),
+            progress_callback=_progress_callback(job_id),
         )
         _set_job_success(job, result)
         return result

@@ -11,6 +11,7 @@ from django.core.paginator import Paginator
 from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
+from . import tasks
 from .consumers import CarsStandardJobConsumer
 
 from .models import CarsStandardMaintenanceJob
@@ -138,6 +139,31 @@ class CarsStandardServiceValidationTests(TestCase):
 
         self.assertEqual(status, 'ambiguous')
         self.assertEqual([match['id'] for match in matches], [7, 8])
+
+    def test_candidate_index_matches_ambiguous_classifier_parity(self):
+        cursor = Mock()
+        cursor.description = [('id',), ('brand_norm',), ('brand_raw',), ('brand_raw2',), ('model_group_norm',), ('model_group_raw',), ('model_norm',), ('model_raw',), ('model_raw2',), ('variant_norm',), ('variant_raw',), ('variant_raw2',), ('variant_raw3',), ('variant_raw4',)]
+        cursor.fetchall.return_value = [
+            (7, 'TOYOTA', None, None, 'NO MODEL GROUP', None, 'COROLLA', None, None, 'HYBRID', None, None, None, None),
+            (8, 'TOYOTA', None, None, 'NO MODEL GROUP', None, 'COROLLA', None, None, 'HYBRID', None, None, None, None),
+            (9, 'TOYOTA', None, None, 'SEDAN', None, 'COROLLA', None, None, 'HYBRID', None, None, None, None),
+            (10, 'HONDA', None, None, 'NO MODEL GROUP', None, 'CITY', None, None, 'V', None, None, None, None),
+        ]
+        candidate_index = service._build_standard_candidate_index(cursor, set(service.STANDARD_DISPLAY_COLUMNS))
+
+        missing_group_status, missing_group_matches = service._classify_fill_record_from_index(
+            candidate_index,
+            {'brand': 'toyota', 'model_group': None, 'model': 'corolla', 'variant': 'hybrid'},
+        )
+        explicit_group_status, explicit_group_matches = service._classify_fill_record_from_index(
+            candidate_index,
+            {'brand': 'toyota', 'model_group': 'sedan', 'model': 'corolla', 'variant': 'hybrid'},
+        )
+
+        self.assertEqual(missing_group_status, 'ambiguous')
+        self.assertEqual([match['id'] for match in missing_group_matches], [7, 8, 9])
+        self.assertEqual(explicit_group_status, 'matched')
+        self.assertEqual([match['id'] for match in explicit_group_matches], [9])
 
     @patch('dashboard.services.cars_standard_maintenance._classify_fill_record')
     @patch('dashboard.services.cars_standard_maintenance._fetch_dicts')
@@ -392,6 +418,24 @@ class CarsStandardBulkAddServiceTests(TestCase):
         self.assertEqual(result['groups'][0]['source_brand'], 'Toyota')
         self.assertEqual(result['groups'][0]['sample_source_row_ids'], [1, 2])
         self.assertEqual(len(result['groups'][0]['candidates']), 2)
+
+    def test_ambiguous_resolver_reports_progress(self):
+        progress = []
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_standard (brand_norm, model_group_norm, model_norm, variant_norm) VALUES ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID'), ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID'), ('HONDA', 'NO MODEL GROUP', 'CITY', 'V'), ('HONDA', 'NO MODEL GROUP', 'CITY', 'V')")
+            cursor.execute("INSERT INTO cars_unified (source, cars_standard_id, brand, model_group, model, variant) VALUES ('carlistmy', NULL, 'Toyota', NULL, 'Corolla', 'Hybrid'), ('carlistmy', NULL, 'Toyota', NULL, 'Corolla', 'Hybrid'), ('carlistmy', NULL, 'Honda', NULL, 'City', 'V')")
+
+        with patch.object(service, 'FILL_PROGRESS_ROW_INTERVAL', 2):
+            result = service.get_ambiguous_resolver_groups('cars_unified', 'carlistmy', 10, progress_callback=progress.append)
+
+        self.assertEqual(result['ambiguous_count'], 3)
+        self.assertGreaterEqual(len(progress), 2)
+        self.assertEqual(progress[-1]['current'], 3)
+        self.assertEqual(progress[-1]['total'], 3)
+        self.assertEqual(progress[-1]['percent'], 100)
+        self.assertEqual(progress[-1]['ambiguous_count'], 3)
+        self.assertEqual(progress[-1]['group_count'], 2)
+        self.assertIn('message', progress[-1])
 
 
 class CarsStandardCrudServiceTests(TestCase):
@@ -1169,6 +1213,32 @@ class CarsStandardAccessControlTests(TestCase):
         self.assertEqual(job.celery_task_id, 'task-ambiguous')
         apply_async.assert_called_once_with(args=[job.id])
 
+    @patch('dashboard.tasks.broadcast_cars_standard_job')
+    @patch('dashboard.tasks.get_ambiguous_resolver_groups')
+    def test_ambiguous_resolver_task_passes_progress_callback(self, get_groups, broadcast):
+        job = CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_AMBIGUOUS_RESOLVER,
+            target_table='cars_unified',
+            sources=['carlistmy'],
+            parameters={'display_limit': 10},
+            requested_by=self.admin_user,
+        )
+
+        def run_groups(*args, **kwargs):
+            kwargs['progress_callback']({'current': 5, 'total': 10, 'message': 'half', 'ambiguous_count': 2, 'group_count': 1})
+            return {'message': 'done', 'scanned_rows': 10, 'total_null_rows': 10, 'ambiguous_count': 2, 'group_count': 1}
+
+        get_groups.side_effect = run_groups
+
+        result = tasks.resolve_ambiguous_groups.run(job.id)
+        job.refresh_from_db()
+
+        self.assertEqual(result['message'], 'done')
+        self.assertEqual(job.status, CarsStandardMaintenanceJob.STATUS_SUCCESS)
+        self.assertEqual(job.result['ambiguous_count'], 2)
+        self.assertEqual(get_groups.call_args.kwargs['progress_callback'].__name__, 'callback')
+        self.assertGreaterEqual(broadcast.call_count, 3)
+
     def test_scan_job_summaries_are_readable(self):
         null_job = CarsStandardMaintenanceJob.objects.create(
             job_type=CarsStandardMaintenanceJob.JOB_NULL_INSPECTOR,
@@ -1176,11 +1246,15 @@ class CarsStandardAccessControlTests(TestCase):
         )
         ambiguous_job = CarsStandardMaintenanceJob.objects.create(
             job_type=CarsStandardMaintenanceJob.JOB_AMBIGUOUS_RESOLVER,
-            result={'scanned_rows': 7, 'total_null_rows': 9, 'ambiguous_count': 4, 'group_count': 3},
+            status=CarsStandardMaintenanceJob.STATUS_SUCCESS,
+            result={'scanned_rows': 7, 'total_null_rows': 9, 'ambiguous_count': 4, 'group_count': 3, 'groups': [{'candidate_ids': [1, 2]}], 'internal': 'hidden'},
         )
 
         self.assertEqual(service.serialize_maintenance_job(null_job)['result_summary'], 'Scanned 5 of 9 NULL rows: matched 2, unmatched 1, ambiguous 2')
-        self.assertEqual(service.serialize_maintenance_job(ambiguous_job)['result_summary'], 'Scanned 7 of 9 NULL rows: ambiguous 4 across 3 groups')
+        serialized = service.serialize_maintenance_job(ambiguous_job)
+        self.assertEqual(serialized['result_summary'], 'Scanned 7 of 9 NULL rows: ambiguous 4 across 3 groups')
+        self.assertEqual(serialized['result']['groups'][0]['candidate_ids'], [1, 2])
+        self.assertNotIn('internal', serialized['result'])
 
     @patch('dashboard.tasks.insert_missing_cars_standard.apply_async')
     @patch('dashboard.forms.validate_sources')

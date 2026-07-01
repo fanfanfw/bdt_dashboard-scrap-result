@@ -587,6 +587,9 @@
               {% if job.ambiguous_sample %}<br><small>Ambiguous sample: {% for row in job.ambiguous_sample|slice:":3" %}#{% if row.id %}{{ row.id }}{% else %}{{ row.source_row.id }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</small>{% endif %}
             </td>
             <td>
+              {% if job.interactive_result_json %}
+                <button type="button" class="btn btn-sm btn-outline-primary show-ambiguous-result mb-2" data-job-id="{{ job.id }}" data-result="{{ job.interactive_result_json|escapejs }}">Open result</button>
+              {% endif %}
               {% if job.can_run_fill_again %}
                 <form method="post" action="{% url 'admin_cars_standard_fill_again' username=username %}" class="mb-2">
                   {% csrf_token %}
@@ -1190,6 +1193,9 @@
       ${groupHtml}`;
     sizeInputs(result);
   };
+  window.addEventListener('ambiguous-resolver-result', (event) => {
+    if (event.detail) renderGroups(event.detail);
+  });
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const button = form.querySelector('button[type="submit"]');
@@ -1412,6 +1418,7 @@
   const jobsPagination = document.getElementById('maintenance-jobs-pagination');
   const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/cars-standard/jobs/`;
   let jobs = [];
+  const ambiguousResults = new Map();
   let jobsPage = Number('{{ maintenance_jobs_page.number|default:1 }}');
   let jobsPageSize = Number(pageSizeSelect?.value || 10);
   let socket;
@@ -1485,6 +1492,7 @@
       return;
     }
     tbody.innerHTML = jobs.map((job) => {
+      if (job.job_type === 'ambiguous_resolver' && job.result) ambiguousResults.set(String(job.id), job.result);
       const sources = Array.isArray(job.sources) && job.sources.length ? job.sources.join(', ') : 'All';
       const result = job.result_summary || '-';
       const row = document.createElement('tr');
@@ -1502,6 +1510,9 @@
       appendSample(row.children[8], 'Failed sample', job.failed_sample);
       appendSample(row.children[8], 'Ambiguous sample', job.ambiguous_sample);
       if (job.error_summary) row.children[8].classList.add('text-danger');
+      if (job.job_type === 'ambiguous_resolver' && job.status === 'success' && job.result && Array.isArray(job.result.groups)) {
+        row.children[9].innerHTML = `<button type="button" class="btn btn-sm btn-outline-primary show-ambiguous-result" data-job-id="${escapeAttr(job.id)}">Open result</button>`;
+      }
       if (job.can_run_fill_again) {
         const sourcesValue = escapeAttr(Array.isArray(job.sources) ? job.sources.join(',') : '');
         const targetTable = escapeAttr(job.target_table || '');
@@ -1549,6 +1560,20 @@
     clearInterval(pollTimer);
     pollTimer = setInterval(refreshJobs, delay);
   };
+  table.addEventListener('click', (event) => {
+    const button = event.target.closest('.show-ambiguous-result');
+    if (!button) return;
+    let result = ambiguousResults.get(String(button.dataset.jobId));
+    if (!result && button.dataset.result) {
+      try {
+        result = JSON.parse(button.dataset.result);
+        ambiguousResults.set(String(button.dataset.jobId), result);
+      } catch (error) {
+        result = null;
+      }
+    }
+    if (result) window.dispatchEvent(new CustomEvent('ambiguous-resolver-result', {detail: result}));
+  });
   pageSizeSelect?.addEventListener('change', () => {
     jobsPageSize = Number(pageSizeSelect.value || 10);
     jobsPage = 1;
@@ -1585,6 +1610,9 @@
       }
       if (data.type === 'job_update' || data.type === 'update') {
         if (jobsPage === 1) upsertJob(data.job);
+        if (data.job && data.job.job_type === 'ambiguous_resolver' && data.job.status === 'success' && data.job.result) {
+          window.dispatchEvent(new CustomEvent('ambiguous-resolver-result', {detail: data.job.result}));
+        }
       }
     };
     socket.onclose = () => startPolling(5000);

@@ -14,11 +14,12 @@ from django.conf import settings
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
 from channels.security.websocket import AllowedHostsOriginValidator
-import dashboard.routing
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'car_ads_dashboard.settings')
 
 django_asgi_app = get_asgi_application()
+
+import dashboard.routing
 
 serve_static = os.getenv("DJANGO_SERVE_STATIC", "").strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 if settings.DEBUG or serve_static:

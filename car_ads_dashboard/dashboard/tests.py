@@ -632,23 +632,16 @@ class CarsStandardAdminCrudEndpointTests(TestCase):
         self.assertContains(response, f'?delete_id={row.id}')
         self.assertContains(response, "table.addEventListener('focusin'")
 
-    def test_ambiguous_resolver_ajax_returns_grouped_candidates(self):
+    def test_ambiguous_resolver_service_returns_grouped_candidates(self):
         with service.connection.cursor() as cursor:
             cursor.execute("INSERT INTO cars_standard (brand_norm, model_group_norm, model_norm, variant_norm) VALUES ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID'), ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID')")
             cursor.execute("INSERT INTO cars_unified (source, cars_standard_id, brand, model_group, model, variant) VALUES ('carlistmy', NULL, 'Toyota', NULL, 'Corolla', 'Hybrid')")
 
-        response = self.client.post(
-            reverse('admin_cars_standard_ambiguous_resolver', kwargs={'username': self.admin_user.username}),
-            {'target_table': 'cars_unified', 'source': 'carlistmy', 'display_limit': 10},
-            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
-        )
-        data = response.json()
+        preview = service.get_ambiguous_resolver_groups('cars_unified', 'carlistmy', 10)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(data['success'])
-        self.assertEqual(data['preview']['ambiguous_count'], 1)
-        self.assertEqual(data['preview']['groups'][0]['candidate_ids'], [1, 2])
-        self.assertEqual(len(data['preview']['groups'][0]['candidates']), 2)
+        self.assertEqual(preview['ambiguous_count'], 1)
+        self.assertEqual(preview['groups'][0]['candidate_ids'], [1, 2])
+        self.assertEqual(len(preview['groups'][0]['candidates']), 2)
 
     def test_admin_create_update_delete_ajax_endpoints_return_json(self):
         create_response = self.client.post(
@@ -807,31 +800,12 @@ class CarsStandardAccessControlTests(TestCase):
         self.assertNotContains(response, 'Merge Duplicate Rows')
         self.assertNotContains(response, 'admin_cars_standard_merge_preview')
 
+    @patch('dashboard.tasks.inspect_null_rows.apply_async')
     @patch('dashboard.forms.validate_sources')
-    @patch('dashboard.views.search_cars_standard')
-    @patch('dashboard.views.get_admin_overview')
-    @patch('dashboard.views.get_pending_users_count')
     @patch('dashboard.views.analyze_null_rows')
-    def test_null_inspector_endpoint_renders_analysis(self, analyze, pending_count, overview, search, validate_sources):
+    def test_null_inspector_endpoint_queues_scan_instead_of_sync_analysis(self, analyze, validate_sources, apply_async):
         validate_sources.return_value = ['carlistmy']
-        pending_count.return_value = 0
-        overview.return_value = self.overview_context()
-        search.return_value = self.search_context()
-        analyze.return_value = {
-            'message': 'Analyzed 1 of 1 NULL rows for cars_unified/carlistmy.',
-            'table_name': 'cars_unified',
-            'source': 'carlistmy',
-            'total_null_rows': 1,
-            'scanned_rows': 1,
-            'preview_truncated': False,
-            'estimated_matched': 0,
-            'estimated_unmatched': 1,
-            'estimated_ambiguous': 0,
-            'distinct_unmatched_standards_count': 1,
-            'sample_unmatched_records': [],
-            'sample_ambiguous_records': [],
-            'distinct_normalized_candidates': [{'brand_norm': 'HONDA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'CITY', 'variant_norm': 'V'}],
-        }
+        apply_async.return_value = SimpleNamespace(id='task-null-sync-safe')
         self.client.force_login(self.admin_user)
 
         response = self.client.post(
@@ -839,10 +813,10 @@ class CarsStandardAccessControlTests(TestCase):
             {'target_table': 'cars_unified', 'source': 'carlistmy', 'preview_limit': 50},
         )
 
-        self.assertEqual(response.status_code, 200)
-        analyze.assert_called_once_with('cars_unified', 'carlistmy', 50)
-        self.assertContains(response, 'NULL Inspector')
-        self.assertContains(response, 'HONDA')
+        self.assertEqual(response.status_code, 302)
+        analyze.assert_not_called()
+        job = CarsStandardMaintenanceJob.objects.get(celery_task_id='task-null-sync-safe')
+        self.assertEqual(job.job_type, CarsStandardMaintenanceJob.JOB_NULL_INSPECTOR)
 
     @patch('dashboard.views.execute_merge')
     def test_merge_execute_requires_confirmation(self, execute_merge):
@@ -1152,6 +1126,61 @@ class CarsStandardAccessControlTests(TestCase):
         job = CarsStandardMaintenanceJob.objects.get(job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID)
         self.assertFalse(job.dry_run)
         self.assertEqual(job.parameters['preview_token'], 'fill-token')
+
+    @patch('dashboard.tasks.inspect_null_rows.apply_async')
+    @patch('dashboard.forms.validate_sources')
+    def test_null_inspector_background_queues_celery(self, validate_sources, apply_async):
+        validate_sources.return_value = ['carlistmy']
+        apply_async.return_value = SimpleNamespace(id='task-null')
+        self.client.force_login(self.admin_user)
+
+        response = self.client.post(
+            reverse('admin_cars_standard_null_inspector', kwargs={'username': self.admin_user.username}),
+            {'target_table': 'cars_unified', 'source': 'carlistmy', 'preview_limit': 50, 'background': 'on'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        data = json.loads(response.content)
+        job = CarsStandardMaintenanceJob.objects.get(job_type=CarsStandardMaintenanceJob.JOB_NULL_INSPECTOR)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['job']['job_type_display'], 'NULL Inspector')
+        self.assertEqual(job.celery_task_id, 'task-null')
+        apply_async.assert_called_once_with(args=[job.id])
+
+    @patch('dashboard.tasks.resolve_ambiguous_groups.apply_async')
+    @patch('dashboard.forms.validate_sources')
+    def test_ambiguous_resolver_background_queues_celery(self, validate_sources, apply_async):
+        validate_sources.return_value = ['carlistmy']
+        apply_async.return_value = SimpleNamespace(id='task-ambiguous')
+        self.client.force_login(self.admin_user)
+
+        response = self.client.post(
+            reverse('admin_cars_standard_ambiguous_resolver', kwargs={'username': self.admin_user.username}),
+            {'target_table': 'cars_unified', 'source': 'carlistmy', 'display_limit': 10, 'background': 'on'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        data = json.loads(response.content)
+        job = CarsStandardMaintenanceJob.objects.get(job_type=CarsStandardMaintenanceJob.JOB_AMBIGUOUS_RESOLVER)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['job']['job_type_display'], 'Ambiguous Resolver')
+        self.assertEqual(job.celery_task_id, 'task-ambiguous')
+        apply_async.assert_called_once_with(args=[job.id])
+
+    def test_scan_job_summaries_are_readable(self):
+        null_job = CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_NULL_INSPECTOR,
+            result={'scanned_rows': 5, 'total_null_rows': 9, 'estimated_matched': 2, 'estimated_unmatched': 1, 'estimated_ambiguous': 2},
+        )
+        ambiguous_job = CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_AMBIGUOUS_RESOLVER,
+            result={'scanned_rows': 7, 'total_null_rows': 9, 'ambiguous_count': 4, 'group_count': 3},
+        )
+
+        self.assertEqual(service.serialize_maintenance_job(null_job)['result_summary'], 'Scanned 5 of 9 NULL rows: matched 2, unmatched 1, ambiguous 2')
+        self.assertEqual(service.serialize_maintenance_job(ambiguous_job)['result_summary'], 'Scanned 7 of 9 NULL rows: ambiguous 4 across 3 groups')
 
     @patch('dashboard.tasks.insert_missing_cars_standard.apply_async')
     @patch('dashboard.forms.validate_sources')

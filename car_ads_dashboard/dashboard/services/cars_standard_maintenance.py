@@ -279,7 +279,8 @@ def search_cars_standard(query='', page=1, per_page=25, filters=None):
 def get_operation_label(job):
     labels = {
         'analyze': 'Analyze',
-        'null_inspector': 'Analyze',
+        CarsStandardMaintenanceJob.JOB_NULL_INSPECTOR: 'NULL Inspector',
+        CarsStandardMaintenanceJob.JOB_AMBIGUOUS_RESOLVER: 'Ambiguous Resolver',
         CarsStandardMaintenanceJob.JOB_INSERT_MISSING: 'Bulk Add Standards',
         CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID: 'Fill IDs',
         CarsStandardMaintenanceJob.JOB_MERGE: 'Merge',
@@ -318,8 +319,10 @@ def summarize_maintenance_job_result(job):
             source_parts.append(f"{row.get('source')}: scanned {row.get('scanned_rows', row.get('null_rows', 0))}, updated {row.get('updated', row.get('matched', 0))}, unmatched {row.get('failed', row.get('unmatched', 0))}, ambiguous {row.get('ambiguous', 0)}")
         suffix = f" | {'; '.join(source_parts)}" if source_parts else ''
         return f"Scanned {scanned}, updated {updated}, unmatched {unmatched}, ambiguous {ambiguous}{suffix}"
-    if job.job_type in ('analyze', 'null_inspector') and result:
+    if job.job_type in ('analyze', CarsStandardMaintenanceJob.JOB_NULL_INSPECTOR) and result:
         return f"Scanned {result.get('scanned_rows', 0)} of {result.get('total_null_rows', 0)} NULL rows: matched {result.get('estimated_matched', 0)}, unmatched {result.get('estimated_unmatched', 0)}, ambiguous {result.get('estimated_ambiguous', 0)}"
+    if job.job_type == CarsStandardMaintenanceJob.JOB_AMBIGUOUS_RESOLVER and result:
+        return f"Scanned {result.get('scanned_rows', 0)} of {result.get('total_null_rows', 0)} NULL rows: ambiguous {result.get('ambiguous_count', 0)} across {result.get('group_count', 0)} groups"
     if job.job_type == CarsStandardMaintenanceJob.JOB_INSERT_MISSING and result:
         return result.get('message') or f"Inserted {result.get('inserted', 0)} cars_standard rows."
     if job.job_type == CarsStandardMaintenanceJob.JOB_DELETE and result:

@@ -624,6 +624,37 @@ def _page_size(value, default=25):
     return value if value in {10, 50, 100} else default
 
 
+def _wants_background(request):
+    return request.POST.get('background') == 'on' or request.GET.get('background') == 'on'
+
+
+def _queue_scan_job(request, job_type, target_table, source, parameters):
+    job = CarsStandardMaintenanceJob.objects.create(
+        job_type=job_type,
+        requested_by=request.user,
+        target_table=target_table,
+        sources=[source],
+        dry_run=True,
+        parameters=parameters,
+    )
+    try:
+        if job_type == CarsStandardMaintenanceJob.JOB_NULL_INSPECTOR:
+            from .tasks import inspect_null_rows
+            async_result = inspect_null_rows.apply_async(args=[job.id])
+        else:
+            from .tasks import resolve_ambiguous_groups
+            async_result = resolve_ambiguous_groups.apply_async(args=[job.id])
+        job.celery_task_id = async_result.id or ''
+        job.save(update_fields=['celery_task_id', 'updated_at'])
+        return job, None
+    except Exception as exc:
+        job.status = CarsStandardMaintenanceJob.STATUS_FAILED
+        job.error_message = str(exc)
+        job.finished_at = timezone.now()
+        job.save(update_fields=['status', 'error_message', 'finished_at', 'updated_at'])
+        return job, exc
+
+
 def _cars_standard_json(row):
     data = {'id': row.id, **serialize_cars_standard(row)}
     return {key: value or '' for key, value in data.items()}
@@ -829,49 +860,26 @@ def admin_cars_standard_merge_execute(request, username):
 def admin_cars_standard_null_inspector(request, username):
     if request.user.username != username:
         return redirect('admin_cars_standard', username=request.user.username)
-    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+    is_ajax = _is_ajax(request)
     form = CarsStandardNullInspectorForm(request.POST)
     if not form.is_valid():
         if is_ajax:
             return JsonResponse({'success': False, 'error': 'NULL Inspector failed. Check table, source, and preview limit.'}, status=400)
         messages.error(request, 'NULL Inspector failed. Check table, source, and preview limit.')
         return redirect('admin_cars_standard', username=request.user.username)
-    try:
-        preview = analyze_null_rows(
-            form.cleaned_data['target_table'],
-            form.cleaned_data['source'],
-            form.cleaned_data['preview_limit'],
-        )
-    except Exception as exc:
-        if is_ajax:
-            return JsonResponse({'success': False, 'error': f'NULL Inspector failed: {exc}'}, status=400)
-        messages.error(request, f'NULL Inspector failed: {exc}')
-        return redirect('admin_cars_standard', username=request.user.username)
+    job, error = _queue_scan_job(request, CarsStandardMaintenanceJob.JOB_NULL_INSPECTOR, form.cleaned_data['target_table'], form.cleaned_data['source'], {
+        'target_table': form.cleaned_data['target_table'],
+        'source': form.cleaned_data['source'],
+        'preview_limit': form.cleaned_data['preview_limit'],
+    })
     if is_ajax:
-        return JsonResponse({'success': True, 'preview': preview})
-
-    search_query = request.GET.get('q', '')
-    overview = get_admin_overview()
-    search_result = search_cars_standard(search_query, request.GET.get('page'))
-    context = {
-        'username': request.user.username,
-        'role': 'Admin',
-        'pending_users_count': get_pending_users_count(),
-        'cars_standard_total': overview['cars_standard_total'],
-        'null_count_summary': overview['null_count_summary'],
-        'maintenance_jobs': overview['maintenance_jobs'],
-        'maintenance_job_form': CarsStandardMaintenanceJobForm(),
-        'null_inspector_form': form,
-        'null_inspector_preview': preview,
-        'ambiguous_resolver_form': CarsStandardAmbiguousResolverForm(initial={'target_table': preview['table_name'], 'source': preview['source']}),
-        'insert_missing_preview_form': CarsStandardInsertMissingPreviewForm(initial={'target_table': preview['table_name'], 'sources': preview['source']}),
-        'fill_preview_form': CarsStandardFillPreviewForm(),
-        'page_obj': search_result['page_obj'],
-        'columns': search_result['columns'],
-        'search_query': search_result['query'],
-        'merge_preview_form': CarsStandardMergePreviewForm(),
-    }
-    return render(request, 'dashboard/admin_cars_standard.html', context)
+        status = 500 if error else 200
+        return JsonResponse({'success': error is None, 'message': f'Queued NULL Inspector scan #{job.id}.', 'error': str(error) if error else '', 'job': serialize_maintenance_job(job)}, status=status)
+    if error:
+        messages.error(request, f'Failed to queue NULL Inspector scan #{job.id}: {error}')
+    else:
+        messages.success(request, f'Queued NULL Inspector scan #{job.id}.')
+    return redirect('admin_cars_standard', username=request.user.username)
 
 
 @login_required
@@ -881,18 +889,26 @@ def admin_cars_standard_null_inspector(request, username):
 def admin_cars_standard_ambiguous_resolver(request, username):
     if request.user.username != username:
         return redirect('admin_cars_standard', username=request.user.username)
+    is_ajax = _is_ajax(request)
     form = CarsStandardAmbiguousResolverForm(request.POST)
     if not form.is_valid():
-        return JsonResponse({'success': False, 'error': 'Ambiguous resolver failed. Check table, source, and display limit.'}, status=400)
-    try:
-        preview = get_ambiguous_resolver_groups(
-            form.cleaned_data['target_table'],
-            form.cleaned_data['source'],
-            form.cleaned_data['display_limit'],
-        )
-    except Exception as exc:
-        return JsonResponse({'success': False, 'error': f'Ambiguous resolver failed: {exc}'}, status=400)
-    return JsonResponse({'success': True, 'preview': preview})
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'Ambiguous resolver failed. Check table, source, and display limit.'}, status=400)
+        messages.error(request, 'Ambiguous resolver failed. Check table, source, and display limit.')
+        return redirect('admin_cars_standard', username=request.user.username)
+    job, error = _queue_scan_job(request, CarsStandardMaintenanceJob.JOB_AMBIGUOUS_RESOLVER, form.cleaned_data['target_table'], form.cleaned_data['source'], {
+        'target_table': form.cleaned_data['target_table'],
+        'source': form.cleaned_data['source'],
+        'display_limit': form.cleaned_data['display_limit'],
+    })
+    if is_ajax:
+        status = 500 if error else 200
+        return JsonResponse({'success': error is None, 'message': f'Queued Ambiguous Resolver scan #{job.id}.', 'error': str(error) if error else '', 'job': serialize_maintenance_job(job)}, status=status)
+    if error:
+        messages.error(request, f'Failed to queue Ambiguous Resolver scan #{job.id}: {error}')
+    else:
+        messages.success(request, f'Queued Ambiguous Resolver scan #{job.id}.')
+    return redirect('admin_cars_standard', username=request.user.username)
 
 
 @login_required

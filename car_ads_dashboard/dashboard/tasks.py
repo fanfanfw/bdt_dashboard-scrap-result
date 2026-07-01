@@ -3,7 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import CarsStandardMaintenanceJob
-from .services.cars_standard_maintenance import broadcast_cars_standard_job, execute_fill_standard_id, execute_insert_missing_cars_standard
+from .services.cars_standard_maintenance import analyze_null_rows, broadcast_cars_standard_job, execute_fill_standard_id, execute_insert_missing_cars_standard, get_ambiguous_resolver_groups
 
 
 def _set_job_running(job):
@@ -62,6 +62,48 @@ def _run_placeholder_job(job_id, expected_job_type):
             'sources': job.sources,
             'parameters': job.parameters,
         }
+        _set_job_success(job, result)
+        return result
+    except Exception as exc:
+        _set_job_failed(job, exc)
+        raise
+
+
+@shared_task(bind=True)
+def inspect_null_rows(self, job_id):
+    job = CarsStandardMaintenanceJob.objects.select_related('requested_by').get(pk=job_id)
+    try:
+        with transaction.atomic():
+            job = CarsStandardMaintenanceJob.objects.select_for_update().get(pk=job_id)
+            if job.job_type != CarsStandardMaintenanceJob.JOB_NULL_INSPECTOR:
+                raise ValueError('Job type does not match task wrapper')
+            _set_job_running(job)
+        result = analyze_null_rows(
+            job.target_table,
+            job.sources[0] if job.sources else job.parameters.get('source', ''),
+            job.parameters.get('preview_limit'),
+        )
+        _set_job_success(job, result)
+        return result
+    except Exception as exc:
+        _set_job_failed(job, exc)
+        raise
+
+
+@shared_task(bind=True)
+def resolve_ambiguous_groups(self, job_id):
+    job = CarsStandardMaintenanceJob.objects.select_related('requested_by').get(pk=job_id)
+    try:
+        with transaction.atomic():
+            job = CarsStandardMaintenanceJob.objects.select_for_update().get(pk=job_id)
+            if job.job_type != CarsStandardMaintenanceJob.JOB_AMBIGUOUS_RESOLVER:
+                raise ValueError('Job type does not match task wrapper')
+            _set_job_running(job)
+        result = get_ambiguous_resolver_groups(
+            job.target_table,
+            job.sources[0] if job.sources else job.parameters.get('source', ''),
+            job.parameters.get('display_limit', 10),
+        )
         _set_job_success(job, result)
         return result
     except Exception as exc:

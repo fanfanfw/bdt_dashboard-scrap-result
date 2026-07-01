@@ -190,9 +190,9 @@
       {{ null_inspector_form.preview_limit }}
     </div>
     <div class="col-md-2 d-flex align-items-end">
-      <button type="submit" class="btn-admin btn-primary mb-1 w-100">
-        <i class="fas fa-eye"></i>
-        Analyze
+      <button type="submit" name="background" value="on" class="btn-admin btn-primary mb-1 w-100">
+        <i class="fas fa-clock"></i>
+        Queue Scan
       </button>
     </div>
   </form>
@@ -285,9 +285,9 @@
       {{ ambiguous_resolver_form.display_limit }}
     </div>
     <div class="col-md-3 d-flex align-items-end">
-      <button type="submit" class="btn-admin btn-primary mb-1 w-100">
-        <i class="fas fa-search"></i>
-        Find ambiguous
+      <button type="submit" name="background" value="on" class="btn-admin btn-primary mb-1 w-100">
+        <i class="fas fa-clock"></i>
+        Queue Scan
       </button>
     </div>
   </form>
@@ -827,6 +827,15 @@
   const showMessage = (text, type) => {
     if (message) message.innerHTML = `<div class="alert alert-${type || 'info'}">${escapeHtml(text)}</div>`;
   };
+  const parseJsonResponse = (response) => response.text().then((text) => {
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (error) {
+      data = {success: false, error: response.status >= 500 ? 'Server error. The request may have timed out.' : 'Unexpected server response.'};
+    }
+    return {ok: response.ok, data};
+  });
   const columns = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim()).filter((column) => column !== 'Actions');
   const sizeInput = (input) => {
     const length = Math.max(10, String(input.value || input.placeholder || '').length + 2);
@@ -874,7 +883,7 @@
       }
     });
   };
-  const submitJson = (form) => fetch(form.action, {method: 'POST', body: new FormData(form), headers: {'X-Requested-With': 'XMLHttpRequest'}}).then((response) => response.json().then((data) => ({ok: response.ok, data})));
+  const submitJson = (form) => fetch(form.action, {method: 'POST', body: new FormData(form), headers: {'X-Requested-With': 'XMLHttpRequest'}}).then(parseJsonResponse);
   const createRowHtml = () => {
     const cells = columns.map((column) => {
       if (column === 'id') return '<td data-field="id"><span class="text-muted">New</span></td>';
@@ -907,7 +916,7 @@
     renderPagination(data);
   };
   const loadTable = (url) => fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
-    .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+    .then(parseJsonResponse)
     .then(({ok, data}) => {
       if (!ok || !data.success) throw new Error(data.error || 'Filter failed.');
       renderTableData(data);
@@ -959,7 +968,7 @@
       data.append('cars_standard_id', tr.dataset.rowId);
       data.append('confirm_set_null', 'on');
       fetch(card.dataset.deleteUrl, {method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'}})
-        .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+        .then(parseJsonResponse)
         .then(({ok, data}) => {
           if (!ok || !data.success) throw new Error(data.error || 'Delete failed.');
           tr.remove();
@@ -1010,16 +1019,30 @@
       button.innerHTML = original;
     };
   };
-  const submitPreview = (form, result, loadingText, renderPreview) => {
+  const parseJsonResponse = (response) => response.text().then((text) => {
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (error) {
+      data = {success: false, error: response.status >= 500 ? 'Server error. The request may have timed out.' : 'Unexpected server response.'};
+    }
+    return {ok: response.ok, data};
+  });
+  const submitPreview = (form, result, loadingText, renderPreview, submitter) => {
     const restore = setLoading(form, true, loadingText);
     fetch(form.action, {
       method: 'POST',
-      body: new FormData(form),
+      body: new FormData(form, submitter),
       headers: {'X-Requested-With': 'XMLHttpRequest'},
     })
-      .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+      .then(parseJsonResponse)
       .then(({ok, data}) => {
         if (!ok || !data.success) throw new Error(data.error || 'Preview failed.');
+        if (data.job) {
+          result.innerHTML = `<div class="alert alert-success">${escapeHtml(data.message || 'Queued scan.')}</div>`;
+          window.dispatchEvent(new CustomEvent('cars-standard-job-update', {detail: data.job}));
+          return;
+        }
         renderPreview(data.preview);
       })
       .catch((error) => {
@@ -1032,7 +1055,7 @@
   if (nullForm && nullResult) {
     nullForm.addEventListener('submit', (event) => {
       event.preventDefault();
-      submitPreview(nullForm, nullResult, 'Analyzing...', (preview) => {
+      submitPreview(nullForm, nullResult, event.submitter?.value === 'on' ? 'Queueing...' : 'Analyzing...', (preview) => {
         const alertClass = preview.preview_truncated ? 'alert-warning' : 'alert-info';
         nullResult.innerHTML = `
           <hr>
@@ -1067,7 +1090,7 @@
           if (tableInput) tableInput.value = preview.table_name;
           if (sourceInput) sourceInput.value = preview.source;
         }
-      });
+      }, event.submitter);
     });
   }
   const bulkForm = document.getElementById('bulk-add-preview-form');
@@ -1116,6 +1139,15 @@
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
   const fmt = (value) => Number(value || 0).toLocaleString();
   const csrf = form.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+  const parseJsonResponse = (response) => response.text().then((text) => {
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (error) {
+      data = {success: false, error: response.status >= 500 ? 'Server error. The request may have timed out.' : 'Unexpected server response.'};
+    }
+    return {ok: response.ok, data};
+  });
   const columns = ['id', 'brand_norm', 'brand_raw', 'brand_raw2', 'model_group_norm', 'model_group_raw', 'model_norm', 'model_raw', 'model_raw2', 'variant_norm', 'variant_raw', 'variant_raw2', 'variant_raw3', 'variant_raw4'];
   const sizeInput = (input) => {
     const length = Math.max(10, String(input.value || input.placeholder || '').length + 2);
@@ -1166,10 +1198,15 @@
       button.disabled = true;
       button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
     }
-    fetch(form.action, {method: 'POST', body: new FormData(form), headers: {'X-Requested-With': 'XMLHttpRequest'}})
-      .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+    fetch(form.action, {method: 'POST', body: new FormData(form, event.submitter), headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(parseJsonResponse)
       .then(({ok, data}) => {
         if (!ok || !data.success) throw new Error(data.error || 'Ambiguous scan failed.');
+        if (data.job) {
+          result.innerHTML = `<div class="alert alert-success">${escapeHtml(data.message || 'Queued scan.')}</div>`;
+          window.dispatchEvent(new CustomEvent('cars-standard-job-update', {detail: data.job}));
+          return;
+        }
         renderGroups(data.preview);
       })
       .catch((error) => { result.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`; })
@@ -1199,7 +1236,7 @@
       data.append('cars_standard_id', tr.dataset.rowId);
       data.append('confirm_set_null', 'on');
       fetch(card.dataset.deleteUrl, {method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'}})
-        .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+        .then(parseJsonResponse)
         .then(({ok, data}) => {
           if (!ok || !data.success) throw new Error(data.error || 'Delete failed.');
           tr.remove();
@@ -1212,7 +1249,7 @@
     if (!candidateForm) return;
     event.preventDefault();
     fetch(candidateForm.action, {method: 'POST', body: new FormData(candidateForm), headers: {'X-Requested-With': 'XMLHttpRequest'}})
-      .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+      .then(parseJsonResponse)
       .then(({ok, data}) => {
         if (!ok || !data.success) throw new Error(data.error || 'Save failed.');
         const tr = candidateForm.closest('tr');
@@ -1238,6 +1275,15 @@
   const fmt = (value) => Number(value || 0).toLocaleString();
   const sourcesText = (sources) => Array.isArray(sources) ? sources.join(', ') : String(sources || '');
   const sourceValues = (row) => `${row.brand || ''} / ${row.model || ''} / ${row.variant || ''}`;
+  const parseJsonResponse = (response) => response.text().then((text) => {
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (error) {
+      data = {success: false, error: response.status >= 500 ? 'Server error. The request may have timed out.' : 'Unexpected server response.'};
+    }
+    return {ok: response.ok, data};
+  });
   const renderSampleRows = (rows, columns, emptyText) => {
     if (!Array.isArray(rows) || !rows.length) return `<tr><td colspan="${columns.length}" class="text-muted">${escapeHtml(emptyText)}</td></tr>`;
     return rows.slice(0, 20).map((row) => `<tr>${columns.map((column) => `<td>${escapeHtml(column(row))}</td>`).join('')}</tr>`).join('');
@@ -1307,7 +1353,7 @@
       body: new FormData(form),
       headers: {'X-Requested-With': 'XMLHttpRequest'},
     })
-      .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+      .then(parseJsonResponse)
       .then(({ok, data}) => {
         if (!ok || !data.success) throw new Error(data.error || 'Fill preview failed.');
         renderPreview(data.preview);
@@ -1337,7 +1383,7 @@
       body: new FormData(executeForm),
       headers: {'X-Requested-With': 'XMLHttpRequest'},
     })
-      .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+      .then(parseJsonResponse)
       .then(({ok, data}) => {
         if (!ok || !data.success) throw new Error(data.error || 'Failed to queue fill job.');
         result.insertAdjacentHTML('afterbegin', `<div class="alert alert-success">${escapeHtml(data.message || 'Queued Fill IDs operation.')}</div>`);
@@ -1372,6 +1418,15 @@
   let pollTimer;
   const formatDate = (value) => value ? new Date(value).toLocaleString() : '-';
   const escapeAttr = (value) => String(value ?? '').replace(/[&<>"]/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[char]));
+  const parseJsonResponse = (response) => response.text().then((text) => {
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (error) {
+      data = {success: false, error: response.status >= 500 ? 'Server error. The request may have timed out.' : 'Unexpected server response.'};
+    }
+    return {ok: response.ok, data};
+  });
   const sampleIds = (rows) => (Array.isArray(rows) ? rows : []).slice(0, 3).map((row) => row.id || (row.source_row && row.source_row.id)).filter(Boolean).map((id) => `#${id}`).join(', ');
   const appendText = (cell, className, text) => {
     if (!text) return;
@@ -1486,8 +1541,8 @@
   const refreshJobs = () => {
     const url = `${statusUrl}?page=${jobsPage}&per_page=${jobsPageSize}`;
     fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => { if (data && data.success) renderJobsResponse(data); })
+      .then(parseJsonResponse)
+      .then(({ok, data}) => { if (ok && data.success) renderJobsResponse(data); })
       .catch(() => {});
   };
   const startPolling = (delay) => {

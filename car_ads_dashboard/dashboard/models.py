@@ -41,6 +41,8 @@ class CarsStandardAuditLog(models.Model):
 class CarsStandardMaintenanceJob(models.Model):
     JOB_INSERT_MISSING = 'insert_missing'
     JOB_FILL_STANDARD_ID = 'fill_standard_id'
+    JOB_NULL_INSPECTOR = 'null_inspector'
+    JOB_AMBIGUOUS_RESOLVER = 'ambiguous_resolver'
     JOB_MERGE = 'merge'
     JOB_EDIT = 'edit'
     JOB_DELETE = 'delete'
@@ -48,6 +50,8 @@ class CarsStandardMaintenanceJob(models.Model):
     JOB_TYPE_CHOICES = [
         (JOB_INSERT_MISSING, 'Insert missing'),
         (JOB_FILL_STANDARD_ID, 'Fill standard ID'),
+        (JOB_NULL_INSPECTOR, 'NULL Inspector'),
+        (JOB_AMBIGUOUS_RESOLVER, 'Ambiguous Resolver'),
         (JOB_MERGE, 'Merge'),
         (JOB_EDIT, 'Edit'),
         (JOB_DELETE, 'Delete'),

@@ -1,3 +1,4 @@
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 import json
 import asyncio
@@ -5,6 +6,45 @@ import subprocess
 import re
 import os
 import base64
+
+from .services.cars_standard_maintenance import CARS_STANDARD_JOBS_GROUP, get_recent_maintenance_jobs, serialize_maintenance_job
+
+
+class CarsStandardJobConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        if not await self.is_admin():
+            await self.close(code=4403)
+            return
+        await self.channel_layer.group_add(CARS_STANDARD_JOBS_GROUP, self.channel_name)
+        await self.accept()
+        jobs = await self.recent_jobs()
+        await self.send(text_data=json.dumps({
+            'type': 'initial',
+            'jobs': jobs,
+        }))
+        await self.send(text_data=json.dumps({
+            'type': 'jobs_update',
+            'jobs': jobs,
+        }))
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(CARS_STANDARD_JOBS_GROUP, self.channel_name)
+
+    async def cars_standard_job_update(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'job_update',
+            'job': event['job'],
+        }))
+
+    @database_sync_to_async
+    def is_admin(self):
+        user = self.scope.get('user')
+        return bool(user and user.is_authenticated and (user.is_staff or user.groups.filter(name__in=['Admin', 'Super Admin']).exists()))
+
+    @database_sync_to_async
+    def recent_jobs(self):
+        return [serialize_maintenance_job(job) for job in get_recent_maintenance_jobs()]
+
 
 class CronLogConsumer(AsyncWebsocketConsumer):
     async def connect(self):

@@ -757,8 +757,11 @@ def admin_cars_standard_merge_execute(request, username):
 def admin_cars_standard_null_inspector(request, username):
     if request.user.username != username:
         return redirect('admin_cars_standard', username=request.user.username)
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
     form = CarsStandardNullInspectorForm(request.POST)
     if not form.is_valid():
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'NULL Inspector failed. Check table, source, and preview limit.'}, status=400)
         messages.error(request, 'NULL Inspector failed. Check table, source, and preview limit.')
         return redirect('admin_cars_standard', username=request.user.username)
     try:
@@ -768,8 +771,12 @@ def admin_cars_standard_null_inspector(request, username):
             form.cleaned_data['preview_limit'],
         )
     except Exception as exc:
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': f'NULL Inspector failed: {exc}'}, status=400)
         messages.error(request, f'NULL Inspector failed: {exc}')
         return redirect('admin_cars_standard', username=request.user.username)
+    if is_ajax:
+        return JsonResponse({'success': True, 'preview': preview})
 
     search_query = request.GET.get('q', '')
     overview = get_admin_overview()
@@ -801,8 +808,11 @@ def admin_cars_standard_null_inspector(request, username):
 def admin_cars_standard_insert_missing_preview(request, username):
     if request.user.username != username:
         return redirect('admin_cars_standard', username=request.user.username)
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
     form = CarsStandardInsertMissingPreviewForm(request.POST)
     if not form.is_valid():
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'Insert missing preview failed. Check table and sources.'}, status=400)
         messages.error(request, 'Insert missing preview failed. Check table and sources.')
         return redirect('admin_cars_standard', username=request.user.username)
     try:
@@ -813,8 +823,12 @@ def admin_cars_standard_insert_missing_preview(request, username):
             request.user.id,
         )
     except Exception as exc:
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': f'Insert missing preview failed: {exc}'}, status=400)
         messages.error(request, f'Insert missing preview failed: {exc}')
         return redirect('admin_cars_standard', username=request.user.username)
+    if is_ajax:
+        return JsonResponse({'success': True, 'preview': preview})
 
     search_query = request.GET.get('q', '')
     overview = get_admin_overview()
@@ -900,8 +914,11 @@ def admin_cars_standard_insert_missing_execute(request, username):
 def admin_cars_standard_fill_preview(request, username):
     if request.user.username != username:
         return redirect('admin_cars_standard', username=request.user.username)
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
     form = CarsStandardFillPreviewForm(request.POST)
     if not form.is_valid():
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'Fill preview failed. Check table, sources, and batch size.'}, status=400)
         messages.error(request, 'Fill preview failed. Check table, sources, and batch size.')
         return redirect('admin_cars_standard', username=request.user.username)
     try:
@@ -918,8 +935,12 @@ def admin_cars_standard_fill_preview(request, username):
             request.user.id,
         )
     except Exception as exc:
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': f'Fill preview failed: {exc}'}, status=400)
         messages.error(request, f'Fill preview failed: {exc}')
         return redirect('admin_cars_standard', username=request.user.username)
+    if is_ajax:
+        return JsonResponse({'success': True, 'preview': preview})
 
     search_query = request.GET.get('q', '')
     overview = get_admin_overview()

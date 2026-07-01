@@ -3,6 +3,8 @@ import re
 import secrets
 import time
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.core.paginator import Paginator
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.db import DatabaseError, connection, transaction
@@ -326,6 +328,22 @@ def get_recent_maintenance_jobs(limit=10):
     return [decorate_maintenance_job(job) for job in CarsStandardMaintenanceJob.objects.select_related('requested_by').order_by('-created_at')[:limit]]
 
 
+def serialize_job_progress(job):
+    progress = dict(job.progress or {})
+    current = progress.get('current')
+    total = progress.get('total')
+    percent = progress.get('percent')
+    if percent is None and isinstance(current, (int, float)) and isinstance(total, (int, float)) and total:
+        percent = min(100, round(current * 100 / total))
+    if percent is None and job.status == CarsStandardMaintenanceJob.STATUS_SUCCESS:
+        percent = 100
+    progress['current'] = current
+    progress['total'] = total
+    progress['percent'] = percent
+    progress['message'] = progress.get('message') or summarize_maintenance_job_result(job)
+    return progress
+
+
 def serialize_maintenance_job(job):
     decorate_maintenance_job(job)
     return {
@@ -339,7 +357,7 @@ def serialize_maintenance_job(job):
         'sources': job.sources,
         'batch_size': (job.parameters or {}).get('batch_size', 500),
         'dry_run': job.dry_run,
-        'progress': job.progress,
+        'progress': serialize_job_progress(job),
         'result_summary': job.result_summary,
         'failed_sample': job.failed_sample,
         'ambiguous_sample': job.ambiguous_sample,
@@ -349,6 +367,20 @@ def serialize_maintenance_job(job):
         'started_at': job.started_at.isoformat() if job.started_at else None,
         'finished_at': job.finished_at.isoformat() if job.finished_at else None,
     }
+
+
+CARS_STANDARD_JOBS_GROUP = 'cars_standard_jobs'
+
+
+def broadcast_cars_standard_job(job):
+    channel_layer = get_channel_layer()
+    if not channel_layer:
+        return False
+    async_to_sync(channel_layer.group_send)(
+        CARS_STANDARD_JOBS_GROUP,
+        {'type': 'cars_standard_job_update', 'job': serialize_maintenance_job(job)},
+    )
+    return True
 
 
 def get_admin_overview():
@@ -803,7 +835,7 @@ def validate_insert_missing_preview_token(token, table_name, sources, user_id):
     return payload
 
 
-def execute_insert_missing_cars_standard(table_name, sources, user, preview_token=None, dry_run=False):
+def execute_insert_missing_cars_standard(table_name, sources, user, preview_token=None, dry_run=False, progress_callback=None):
     validate_target_table(table_name)
     sources = validate_sources(table_name, sources)
     ensure_insert_missing_schema(table_name)
@@ -813,6 +845,16 @@ def execute_insert_missing_cars_standard(table_name, sources, user, preview_toke
         with connection.cursor() as cursor:
             cursor.execute('SELECT pg_advisory_xact_lock(hashtext(%s))', ['cars_standard_insert_missing'])
         preview = get_insert_missing_preview(table_name, sources)
+        if progress_callback:
+            total = preview['distinct_candidates'] or preview['rows_to_insert'] or 1
+            progress_callback({
+                'current': preview['already_exists'],
+                'total': total,
+                'percent': round(preview['already_exists'] * 100 / total) if total else 0,
+                'message': f"Found {preview['rows_to_insert']} rows to insert.",
+                'inserted': 0,
+                'skipped': preview['already_exists'],
+            })
         if dry_run or preview['rows_to_insert'] == 0:
             result = {
                 **preview,
@@ -850,6 +892,17 @@ def execute_insert_missing_cars_standard(table_name, sources, user, preview_toke
                 'inserted_sample': inserted_rows[:SAMPLE_LIMIT],
                 'message': f"Inserted {len(inserted_rows)} cars_standard rows.",
             }
+        if progress_callback:
+            total = result['distinct_candidates'] or result.get('inserted') or 1
+            current = result['already_exists'] + result.get('inserted', 0)
+            progress_callback({
+                'current': current,
+                'total': total,
+                'percent': round(current * 100 / total) if total else 100,
+                'message': result.get('message', 'Insert completed.'),
+                'inserted': result.get('inserted', 0),
+                'skipped': result.get('already_exists', 0),
+            })
         CarsStandardAuditLog.objects.create(
             user=user,
             action=CarsStandardAuditLog.ACTION_INSERT_MISSING,
@@ -1228,7 +1281,7 @@ def validate_fill_preview_token(token, table_name, sources, batch_size, user_id)
     return payload
 
 
-def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_token=None, dry_run=False):
+def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_token=None, dry_run=False, progress_callback=None):
     validate_target_table(table_name)
     sources = validate_sources(table_name, sources)
     batch_size = validate_fill_batch_size(batch_size)
@@ -1237,6 +1290,18 @@ def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_
         result = get_fill_standard_id_preview(table_name, sources, batch_size)
         result['status'] = 'dry_run'
         result['message'] = 'Dry-run fill matching completed without updates.'
+        if progress_callback:
+            total = result.get('null_rows') or result.get('scanned_rows') or 1
+            current = result.get('scanned_rows', 0)
+            progress_callback({
+                'current': current,
+                'total': total,
+                'percent': round(current * 100 / total) if total else 100,
+                'message': result['message'],
+                'updated': 0,
+                'unmatched': result.get('estimated_unmatched', 0),
+                'ambiguous': result.get('estimated_ambiguous', 0),
+            })
         CarsStandardAuditLog.objects.create(
             user=user,
             action=CarsStandardAuditLog.ACTION_FILL_STANDARD_ID,
@@ -1264,6 +1329,7 @@ def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_
     total_failed = 0
     total_ambiguous = 0
     total_seen = 0
+    total_rows = sum(_count_source_null_rows(table_name, source) for source in sources)
     per_source = []
     matched_sample = []
     failed_records = []
@@ -1315,9 +1381,31 @@ def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_
                     if len(update_batch) >= batch_size:
                         cursor.executemany(update_sql, update_batch)
                         update_batch = []
+                        if progress_callback:
+                            progress_callback({
+                                'current': total_seen,
+                                'total': total_rows,
+                                'percent': round(total_seen * 100 / total_rows) if total_rows else 100,
+                                'message': f"Processed {total_seen} of {total_rows} rows.",
+                                'source': source,
+                                'updated': total_updated,
+                                'unmatched': total_failed,
+                                'ambiguous': total_ambiguous,
+                            })
                 if update_batch:
                     cursor.executemany(update_sql, update_batch)
                 per_source.append(source_counts)
+                if progress_callback:
+                    progress_callback({
+                        'current': total_seen,
+                        'total': total_rows,
+                        'percent': round(total_seen * 100 / total_rows) if total_rows else 100,
+                        'message': f"Processed {source_counts['scanned_rows']} {source} rows.",
+                        'source': source,
+                        'updated': total_updated,
+                        'unmatched': total_failed,
+                        'ambiguous': total_ambiguous,
+                    })
     duration = round(time.monotonic() - started, 3)
     result = {
         'status': 'success',

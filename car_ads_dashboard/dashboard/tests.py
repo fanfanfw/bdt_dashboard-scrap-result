@@ -3,10 +3,15 @@ from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import Group, User
 from django.core.paginator import Paginator
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
+
+from .consumers import CarsStandardJobConsumer
 
 from .models import CarsStandardMaintenanceJob
 from .services import cars_standard_maintenance as service
@@ -785,6 +790,39 @@ class CarsStandardAccessControlTests(TestCase):
         self.assertTrue(job['can_run_fill_again'])
         self.assertFalse(job['dry_run'])
 
+    def test_job_serializer_adds_percent_and_message(self):
+        job = CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID,
+            status=CarsStandardMaintenanceJob.STATUS_RUNNING,
+            requested_by=self.admin_user,
+            progress={'current': 5, 'total': 10},
+        )
+
+        serialized = service.serialize_maintenance_job(job)
+
+        self.assertEqual(serialized['progress']['percent'], 50)
+        self.assertEqual(serialized['progress']['message'], '-')
+
+    @patch('dashboard.services.cars_standard_maintenance.async_to_sync')
+    @patch('dashboard.services.cars_standard_maintenance.get_channel_layer')
+    def test_broadcast_job_sends_serialized_update(self, get_channel_layer, sync):
+        layer = Mock()
+        get_channel_layer.return_value = layer
+        sender = Mock()
+        sync.return_value = sender
+        job = CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID,
+            requested_by=self.admin_user,
+        )
+
+        self.assertTrue(service.broadcast_cars_standard_job(job))
+
+        sync.assert_called_once_with(layer.group_send)
+        sender.assert_called_once()
+        self.assertEqual(sender.call_args.args[0], service.CARS_STANDARD_JOBS_GROUP)
+        self.assertEqual(sender.call_args.args[1]['type'], 'cars_standard_job_update')
+        self.assertEqual(sender.call_args.args[1]['job']['id'], job.id)
+
     @patch('dashboard.views.search_cars_standard')
     @patch('dashboard.views.get_admin_overview')
     @patch('dashboard.views.get_pending_users_count')
@@ -799,6 +837,7 @@ class CarsStandardAccessControlTests(TestCase):
             dry_run=True,
             celery_task_id='task-secret',
             error_message='{"error":"Queue unavailable"}',
+            progress={'current': 5, 'total': 10, 'message': 'Processed 5 rows'},
         )
         overview.return_value = {**self.overview_context(), 'maintenance_jobs': [service.decorate_maintenance_job(job)]}
         search.return_value = self.search_context()
@@ -810,6 +849,9 @@ class CarsStandardAccessControlTests(TestCase):
         self.assertContains(response, 'Fill IDs')
         self.assertContains(response, 'Failed')
         self.assertContains(response, 'Queue unavailable')
+        self.assertContains(response, 'Processed 5 rows')
+        self.assertContains(response, '/ws/cars-standard/jobs/')
+        self.assertContains(response, 'progress-bar')
         self.assertNotContains(response, 'task-secret')
         self.assertNotContains(response, '{"error"')
 
@@ -1005,3 +1047,56 @@ class CarsStandardAccessControlTests(TestCase):
         self.assertEqual(response.status_code, 302)
         apply_async.assert_not_called()
         self.assertFalse(CarsStandardMaintenanceJob.objects.exists())
+
+
+@override_settings(CHANNEL_LAYERS={'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}})
+class CarsStandardJobConsumerTests(TransactionTestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name='Admin')
+        self.admin_user = User.objects.create_user(username='adminws', password='pass')
+        self.admin_user.groups.add(self.admin_group)
+        self.regular_user = User.objects.create_user(username='regularws', password='pass')
+
+    def connect(self, user):
+        async def runner():
+            communicator = WebsocketCommunicator(CarsStandardJobConsumer.as_asgi(), '/ws/cars-standard/jobs/')
+            communicator.scope['user'] = user
+            connected, _ = await communicator.connect()
+            message = await communicator.receive_json_from() if connected else None
+            if connected:
+                await communicator.disconnect()
+            return connected, message
+        return async_to_sync(runner)()
+
+    def test_consumer_requires_admin_and_sends_recent_jobs(self):
+        CarsStandardMaintenanceJob.objects.create(
+            job_type=CarsStandardMaintenanceJob.JOB_FILL_STANDARD_ID,
+            requested_by=self.admin_user,
+        )
+
+        self.assertFalse(self.connect(self.regular_user)[0])
+        connected, message = self.connect(self.admin_user)
+
+        self.assertTrue(connected)
+        self.assertEqual(message['type'], 'initial')
+        self.assertEqual(len(message['jobs']), 1)
+
+    def test_consumer_sends_job_update_payload(self):
+        async def runner():
+            communicator = WebsocketCommunicator(CarsStandardJobConsumer.as_asgi(), '/ws/cars-standard/jobs/')
+            communicator.scope['user'] = self.admin_user
+            connected, _ = await communicator.connect()
+            await communicator.receive_json_from()
+            await communicator.receive_json_from()
+            await get_channel_layer().group_send(
+                service.CARS_STANDARD_JOBS_GROUP,
+                {'type': 'cars_standard_job_update', 'job': {'id': 123}},
+            )
+            message = await communicator.receive_json_from()
+            await communicator.disconnect()
+            return connected, message
+
+        connected, message = async_to_sync(runner)()
+
+        self.assertTrue(connected)
+        self.assertEqual(message, {'type': 'job_update', 'job': {'id': 123}})

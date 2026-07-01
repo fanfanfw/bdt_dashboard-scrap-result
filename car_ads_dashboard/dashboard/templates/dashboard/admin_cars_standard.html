@@ -94,7 +94,7 @@
       NULL Inspector
     </h3>
   </div>
-  <form method="post" action="{% url 'admin_cars_standard_null_inspector' username=username %}" class="row g-3 mb-4">
+  <form method="post" action="{% url 'admin_cars_standard_null_inspector' username=username %}" class="row g-3 mb-4" id="null-inspector-form">
     {% csrf_token %}
     <div class="col-md-3">
       <label class="form-label" for="{{ null_inspector_form.target_table.id_for_label }}">Target table</label>
@@ -115,6 +115,8 @@
       </button>
     </div>
   </form>
+
+  <div id="null-inspector-ajax-result"></div>
 
   {% if null_inspector_preview %}
     <hr>
@@ -187,7 +189,7 @@
       Bulk Add Missing Standards
     </h3>
   </div>
-  <form method="post" action="{% url 'admin_cars_standard_insert_missing_preview' username=username %}" class="row g-3 mb-4">
+  <form method="post" action="{% url 'admin_cars_standard_insert_missing_preview' username=username %}" class="row g-3 mb-4" id="bulk-add-preview-form">
     {% csrf_token %}
     <div class="col-md-4">
       <label class="form-label" for="{{ insert_missing_preview_form.target_table.id_for_label }}">Target table</label>
@@ -205,6 +207,8 @@
       </button>
     </div>
   </form>
+
+  <div id="bulk-add-ajax-result"></div>
 
   {% if insert_missing_preview %}
     <hr>
@@ -287,7 +291,7 @@
       Fill cars_standard_id Workflow
     </h3>
   </div>
-  <form method="post" action="{% url 'admin_cars_standard_fill_preview' username=username %}" class="row g-3 mb-4">
+  <form method="post" action="{% url 'admin_cars_standard_fill_preview' username=username %}" class="row g-3 mb-4" id="fill-preview-form">
     {% csrf_token %}
     <div class="col-md-3">
       <label class="form-label" for="{{ fill_preview_form.target_table.id_for_label }}">Target table</label>
@@ -315,6 +319,8 @@
       </div>
     </div>
   </form>
+
+  <div id="fill-preview-ajax-result"></div>
 
   {% if fill_preview %}
     <hr>
@@ -681,57 +687,276 @@
 {% block extra_js %}
 <script>
 (function () {
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
+  const fmt = (value) => Number(value || 0).toLocaleString();
+  const sourceValues = (row) => `${row.brand || ''} / ${row.model || ''} / ${row.variant || ''}`;
+  const renderRows = (rows, columns, emptyText) => {
+    if (!Array.isArray(rows) || !rows.length) return `<tr><td colspan="${columns.length}" class="text-muted">${escapeHtml(emptyText)}</td></tr>`;
+    return rows.slice(0, 20).map((row) => `<tr>${columns.map((column) => `<td>${escapeHtml(column(row))}</td>`).join('')}</tr>`).join('');
+  };
+  const setLoading = (form, loading, text) => {
+    const button = form.querySelector('button[type="submit"]');
+    if (!button) return () => {};
+    const original = button.innerHTML;
+    button.disabled = loading;
+    if (loading) button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${text}`;
+    return () => {
+      button.disabled = false;
+      button.innerHTML = original;
+    };
+  };
+  const submitPreview = (form, result, loadingText, renderPreview) => {
+    const restore = setLoading(form, true, loadingText);
+    fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+    })
+      .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+      .then(({ok, data}) => {
+        if (!ok || !data.success) throw new Error(data.error || 'Preview failed.');
+        renderPreview(data.preview);
+      })
+      .catch((error) => {
+        result.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
+      })
+      .finally(restore);
+  };
+  const nullForm = document.getElementById('null-inspector-form');
+  const nullResult = document.getElementById('null-inspector-ajax-result');
+  if (nullForm && nullResult) {
+    nullForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      submitPreview(nullForm, nullResult, 'Analyzing...', (preview) => {
+        const alertClass = preview.preview_truncated ? 'alert-warning' : 'alert-info';
+        nullResult.innerHTML = `
+          <hr>
+          <h4>Analysis Result</h4>
+          <div class="alert ${alertClass}">${escapeHtml(preview.message)}</div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-2"><strong>Table</strong><br>${escapeHtml(preview.table_name)}</div>
+            <div class="col-md-2"><strong>Source</strong><br>${escapeHtml(preview.source)}</div>
+            <div class="col-md-2"><strong>Total NULL</strong><br>${fmt(preview.total_null_rows)}</div>
+            <div class="col-md-2"><strong>Matched</strong><br>${fmt(preview.estimated_matched)}</div>
+            <div class="col-md-2"><strong>Unmatched</strong><br>${fmt(preview.estimated_unmatched)}</div>
+            <div class="col-md-2"><strong>Ambiguous</strong><br>${fmt(preview.estimated_ambiguous)}</div>
+            <div class="col-md-2"><strong>Distinct unmatched</strong><br>${fmt(preview.distinct_unmatched_standards_count)}</div>
+            <div class="col-md-2"><strong>Scanned</strong><br>${fmt(preview.scanned_rows)}</div>
+          </div>
+          <div class="row">
+            <div class="col-md-4"><h5>Unmatched records</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Row</th><th>Source values</th></tr></thead><tbody>${renderRows(preview.sample_unmatched_records, [(row) => row.id, sourceValues], 'No unmatched rows.')}</tbody></table></div></div>
+            <div class="col-md-4"><h5>Ambiguous records</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Row</th><th>Candidate IDs</th></tr></thead><tbody>${renderRows(preview.sample_ambiguous_records, [(row) => row.source_row?.id, (row) => Array.isArray(row.candidate_ids) ? row.candidate_ids.join(', ') : ''], 'No ambiguous rows.')}</tbody></table></div></div>
+            <div class="col-md-4"><h5>Distinct normalized candidates</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Brand</th><th>Group</th><th>Model</th><th>Variant</th></tr></thead><tbody>${renderRows(preview.distinct_normalized_candidates, [(row) => row.brand_norm, (row) => row.model_group_norm, (row) => row.model_norm, (row) => row.variant_norm], 'No candidates.')}</tbody></table></div></div>
+          </div>`;
+        const bulkForm = document.getElementById('bulk-add-preview-form');
+        if (bulkForm) {
+          const tableInput = bulkForm.querySelector('[name="target_table"]');
+          const sourcesInput = bulkForm.querySelector('[name="sources"]');
+          if (tableInput) tableInput.value = preview.table_name;
+          if (sourcesInput) sourcesInput.value = preview.source;
+        }
+      });
+    });
+  }
+  const bulkForm = document.getElementById('bulk-add-preview-form');
+  const bulkResult = document.getElementById('bulk-add-ajax-result');
+  if (bulkForm && bulkResult) {
+    bulkForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      submitPreview(bulkForm, bulkResult, 'Previewing...', (preview) => {
+        const csrf = bulkForm.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+        bulkResult.innerHTML = `
+          <hr>
+          <h4>Dry-run Preview</h4>
+          <div class="row g-3 mb-3">
+            <div class="col-md-3"><strong>Table</strong><br>${escapeHtml(preview.table_name)}</div>
+            <div class="col-md-3"><strong>Sources</strong><br>${escapeHtml(Array.isArray(preview.sources) ? preview.sources.join(', ') : '')}</div>
+            <div class="col-md-2"><strong>Distinct candidates</strong><br>${fmt(preview.distinct_candidates)}</div>
+            <div class="col-md-2"><strong>Already exists</strong><br>${fmt(preview.already_exists)}</div>
+            <div class="col-md-2"><strong>Rows to insert</strong><br>${fmt(preview.rows_to_insert)}</div>
+          </div>
+          <div class="row">
+            <div class="col-md-4"><h5>Candidate sample</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Brand</th><th>Group</th><th>Model</th><th>Variant</th></tr></thead><tbody>${renderRows(preview.candidate_sample, [(row) => row.brand_norm, (row) => row.model_group_norm, (row) => row.model_norm, (row) => row.variant_norm], 'No candidates.')}</tbody></table></div></div>
+            <div class="col-md-4"><h5>Already existing sample</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Brand</th><th>Group</th><th>Model</th><th>Variant</th></tr></thead><tbody>${renderRows(preview.existing_sample, [(row) => row.brand_norm, (row) => row.model_group_norm, (row) => row.model_norm, (row) => row.variant_norm], 'No existing matches.')}</tbody></table></div></div>
+            <div class="col-md-4"><h5>Insert sample</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Brand</th><th>Group</th><th>Model</th><th>Variant</th></tr></thead><tbody>${renderRows(preview.insert_sample, [(row) => row.brand_norm, (row) => row.model_group_norm, (row) => row.model_norm, (row) => row.variant_norm], 'Nothing to insert.')}</tbody></table></div></div>
+          </div>
+          <form method="post" action="{% url 'admin_cars_standard_insert_missing_execute' username=username %}" class="mt-3">
+            <input type="hidden" name="csrfmiddlewaretoken" value="${escapeHtml(csrf)}">
+            <input type="hidden" name="target_table" value="${escapeHtml(preview.table_name)}">
+            <input type="hidden" name="sources" value="${escapeHtml(Array.isArray(preview.sources) ? preview.sources.join(',') : '')}">
+            <input type="hidden" name="preview_token" value="${escapeHtml(preview.preview_token)}">
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="confirm" value="on" id="insertMissingConfirmAjax" required>
+              <label class="form-check-label" for="insertMissingConfirmAjax">I confirm this Celery job may insert ${fmt(preview.rows_to_insert)} missing cars_standard rows.</label>
+            </div>
+            <button type="submit" class="btn-admin btn-danger" ${Number(preview.rows_to_insert || 0) === 0 ? 'disabled' : ''}><i class="fas fa-play"></i> Execute Insert Job</button>
+          </form>`;
+      });
+    });
+  }
+})();
+
+(function () {
+  const form = document.getElementById('fill-preview-form');
+  const result = document.getElementById('fill-preview-ajax-result');
+  if (!form || !result) return;
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
+  const fmt = (value) => Number(value || 0).toLocaleString();
+  const sourcesText = (sources) => Array.isArray(sources) ? sources.join(', ') : String(sources || '');
+  const sourceValues = (row) => `${row.brand || ''} / ${row.model || ''} / ${row.variant || ''}`;
+  const renderSampleRows = (rows, columns, emptyText) => {
+    if (!Array.isArray(rows) || !rows.length) return `<tr><td colspan="${columns.length}" class="text-muted">${escapeHtml(emptyText)}</td></tr>`;
+    return rows.slice(0, 20).map((row) => `<tr>${columns.map((column) => `<td>${escapeHtml(column(row))}</td>`).join('')}</tr>`).join('');
+  };
+  const renderPreview = (preview) => {
+    const alertClass = preview.preview_truncated ? 'alert-warning' : 'alert-info';
+    const executeClass = preview.dry_run ? 'btn-primary' : 'btn-danger';
+    const dryRunInput = preview.dry_run ? '<input type="hidden" name="dry_run" value="on">' : '';
+    const confirm = preview.dry_run ? '' : `
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="confirm" value="on" id="fillConfirmAjax" required>
+        <label class="form-check-label" for="fillConfirmAjax">I confirm this Celery job may update ${fmt(preview.estimated_matched)} non-ambiguous NULL rows.</label>
+      </div>`;
+    result.innerHTML = `
+      <hr>
+      <h4>Dry-run Matching Preview</h4>
+      <div class="alert ${alertClass}">${escapeHtml(preview.message)}</div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-2"><strong>Table</strong><br>${escapeHtml(preview.table_name)}</div>
+        <div class="col-md-3"><strong>Sources</strong><br>${escapeHtml(sourcesText(preview.sources))}</div>
+        <div class="col-md-2"><strong>Null rows</strong><br>${fmt(preview.null_rows)}</div>
+        <div class="col-md-1"><strong>Scanned</strong><br>${fmt(preview.scanned_rows)}</div>
+        <div class="col-md-2"><strong>Would update</strong><br>${fmt(preview.estimated_matched)}</div>
+        <div class="col-md-1"><strong>Unmatched</strong><br>${fmt(preview.estimated_unmatched)}</div>
+        <div class="col-md-1"><strong>Ambiguous</strong><br>${fmt(preview.estimated_ambiguous)}</div>
+      </div>
+      <h5>Per-source result</h5>
+      <div class="table-responsive mb-3">
+        <table class="table table-sm table-hover">
+          <thead><tr><th>Source</th><th>Null</th><th>Scanned</th><th>Would update</th><th>Unmatched</th><th>Ambiguous</th></tr></thead>
+          <tbody>${renderSampleRows(preview.per_source, [
+            (row) => row.source,
+            (row) => fmt(row.null_rows),
+            (row) => fmt(row.scanned_rows),
+            (row) => fmt(row.matched),
+            (row) => fmt(row.unmatched),
+            (row) => fmt(row.ambiguous),
+          ], 'No sources.')}</tbody>
+        </table>
+      </div>
+      <div class="row">
+        <div class="col-md-4"><h5>Matched sample</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Row</th><th>Source values</th><th>Target ID</th></tr></thead><tbody>${renderSampleRows(preview.matched_sample, [(row) => row.source_row?.id, (row) => sourceValues(row.source_row || {}), (row) => row.cars_standard_id], 'No matches.')}</tbody></table></div></div>
+        <div class="col-md-4"><h5>Failed / unmatched sample</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Row</th><th>Source values</th></tr></thead><tbody>${renderSampleRows(preview.failed_sample, [(row) => row.id, (row) => sourceValues(row)], 'No unmatched rows.')}</tbody></table></div></div>
+        <div class="col-md-4"><h5>Ambiguous sample</h5><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Row</th><th>Candidate IDs</th></tr></thead><tbody>${renderSampleRows(preview.ambiguous_sample, [(row) => row.source_row?.id, (row) => Array.isArray(row.candidate_ids) ? row.candidate_ids.join(', ') : ''], 'No ambiguous rows.')}</tbody></table></div></div>
+      </div>
+      <form method="post" action="{% url 'admin_cars_standard_fill_execute' username=username %}" class="mt-3">
+        <input type="hidden" name="csrfmiddlewaretoken" value="${escapeHtml(form.querySelector('[name=csrfmiddlewaretoken]')?.value || '')}">
+        <input type="hidden" name="target_table" value="${escapeHtml(preview.table_name)}">
+        <input type="hidden" name="sources" value="${escapeHtml(Array.isArray(preview.sources) ? preview.sources.join(',') : '')}">
+        <input type="hidden" name="batch_size" value="${escapeHtml(preview.batch_size)}">
+        <input type="hidden" name="preview_token" value="${escapeHtml(preview.preview_token)}">
+        ${dryRunInput}
+        ${confirm}
+        <button type="submit" class="btn-admin ${executeClass}" ${!preview.dry_run && preview.estimated_matched === 0 && !preview.preview_truncated ? 'disabled' : ''}><i class="fas fa-play"></i> Run Fill${preview.dry_run ? ' Dry Run' : ''}</button>
+      </form>`;
+  };
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const originalText = button ? button.innerHTML : '';
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Previewing...';
+    }
+    fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+    })
+      .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+      .then(({ok, data}) => {
+        if (!ok || !data.success) throw new Error(data.error || 'Fill preview failed.');
+        renderPreview(data.preview);
+      })
+      .catch((error) => {
+        result.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
+      })
+      .finally(() => {
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = originalText;
+        }
+      });
+  });
+})();
+
+(function () {
   const table = document.getElementById('maintenance-jobs-table');
   if (!table) return;
   const statusUrl = table.dataset.statusUrl;
   const fillAgainUrl = table.dataset.fillAgainUrl;
   const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
   const tbody = table.querySelector('tbody');
+  const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/cars-standard/jobs/`;
+  let jobs = [];
+  let socket;
+  let pollTimer;
   const formatDate = (value) => value ? new Date(value).toLocaleString() : '-';
   const escapeAttr = (value) => String(value ?? '').replace(/[&<>"]/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[char]));
   const sampleIds = (rows) => (Array.isArray(rows) ? rows : []).slice(0, 3).map((row) => row.id || (row.source_row && row.source_row.id)).filter(Boolean).map((id) => `#${id}`).join(', ');
-  const appendSample = (cell, label, rows) => {
-    const ids = sampleIds(rows);
-    if (!ids) return;
+  const appendText = (cell, className, text) => {
+    if (!text) return;
     cell.appendChild(document.createElement('br'));
     const small = document.createElement('small');
-    small.textContent = `${label}: ${ids}`;
+    small.className = className;
+    small.textContent = text;
     cell.appendChild(small);
   };
-  const renderJobs = (jobs) => {
+  const appendSample = (cell, label, rows) => appendText(cell, '', sampleIds(rows) ? `${label}: ${sampleIds(rows)}` : '');
+  const progressStats = (progress) => ['updated', 'inserted', 'skipped', 'unmatched', 'ambiguous']
+    .filter((key) => progress && progress[key] !== undefined && progress[key] !== null)
+    .map((key) => `${key}: ${progress[key]}`)
+    .join(', ');
+  const appendProgress = (cell, progress) => {
+    if (!progress) return;
+    const percent = Number.isFinite(Number(progress.percent)) ? Math.max(0, Math.min(100, Number(progress.percent))) : 0;
+    const count = progress.total ? `${progress.current ?? 0}/${progress.total}` : (progress.current !== undefined && progress.current !== null ? String(progress.current) : '');
+    const label = [progress.message, count, progress.percent !== null && progress.percent !== undefined ? `${percent}%` : ''].filter(Boolean).join(' · ');
+    appendText(cell, 'text-muted', label);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'progress mt-1';
+    wrapper.style.height = '8px';
+    wrapper.setAttribute('role', 'progressbar');
+    wrapper.setAttribute('aria-valuemin', '0');
+    wrapper.setAttribute('aria-valuemax', '100');
+    wrapper.setAttribute('aria-valuenow', String(percent));
+    const bar = document.createElement('div');
+    bar.className = 'progress-bar';
+    bar.style.width = `${percent}%`;
+    wrapper.appendChild(bar);
+    cell.appendChild(wrapper);
+    appendText(cell, 'text-muted', progressStats(progress));
+  };
+  const renderJobs = (nextJobs) => {
+    jobs = Array.isArray(nextJobs) ? nextJobs : [];
     if (!jobs.length) {
       tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No recent operations yet.</td></tr>';
       return;
     }
     tbody.innerHTML = jobs.map((job) => {
       const sources = Array.isArray(job.sources) && job.sources.length ? job.sources.join(', ') : 'All';
-      const progress = job.progress && job.progress.message ? job.progress.message : '';
       const result = job.result_summary || '-';
       const row = document.createElement('tr');
-      row.innerHTML = `
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td>${job.dry_run ? 'Dry run' : 'Update'}</td>
-        <td>${formatDate(job.started_at)}</td>
-        <td>${formatDate(job.finished_at)}</td>
-        <td></td>
-        <td></td>
-      `;
-      row.children[0].textContent = job.job_type_display;
-      row.children[1].textContent = job.status_display;
-      if (progress) {
-        row.children[1].appendChild(document.createElement('br'));
-        const small = document.createElement('small');
-        small.className = 'text-muted';
-        small.textContent = progress;
-        row.children[1].appendChild(small);
-      }
+      for (let i = 0; i < 10; i += 1) row.appendChild(document.createElement('td'));
+      row.children[0].textContent = job.job_type_display || '-';
+      row.children[1].textContent = job.status_display || '-';
+      appendProgress(row.children[1], job.progress);
       row.children[2].textContent = job.requested_by || '-';
       row.children[3].textContent = job.target_table || '-';
       row.children[4].textContent = sources;
+      row.children[5].textContent = job.dry_run ? 'Dry run' : 'Update';
+      row.children[6].textContent = formatDate(job.started_at);
+      row.children[7].textContent = formatDate(job.finished_at);
       row.children[8].textContent = result;
       appendSample(row.children[8], 'Failed sample', job.failed_sample);
       appendSample(row.children[8], 'Ambiguous sample', job.ambiguous_sample);
@@ -766,14 +991,44 @@
       return row.outerHTML;
     }).join('');
   };
+  const upsertJob = (job) => {
+    jobs = [job, ...jobs.filter((item) => item.id !== job.id)]
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      .slice(0, 10);
+    renderJobs(jobs);
+  };
   const refreshJobs = () => {
     fetch(statusUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
       .then((response) => response.ok ? response.json() : null)
       .then((data) => { if (data && data.success) renderJobs(data.jobs); })
       .catch(() => {});
   };
-  refreshJobs();
-  setInterval(refreshJobs, 5000);
+  const startPolling = (delay) => {
+    clearInterval(pollTimer);
+    pollTimer = setInterval(refreshJobs, delay);
+  };
+  const connectSocket = () => {
+    if (!('WebSocket' in window)) {
+      refreshJobs();
+      startPolling(5000);
+      return;
+    }
+    socket = new WebSocket(wsUrl);
+    socket.onopen = () => clearInterval(pollTimer);
+    socket.onmessage = (event) => {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (error) {
+        return;
+      }
+      if (data.type === 'initial' || data.type === 'jobs_update') renderJobs(data.jobs);
+      if (data.type === 'job_update' || data.type === 'update') upsertJob(data.job);
+    };
+    socket.onclose = () => startPolling(5000);
+    socket.onerror = () => socket.close();
+  };
+  connectSocket();
 })();
 </script>
 {% endblock %}

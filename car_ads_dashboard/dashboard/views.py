@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
 from django.db.models.functions import Coalesce
 from .models import CarsInventory, PriceHistoryUnified, UserProfile, CarsStandard, CarsStandardMaintenanceJob, CarsUnified, Carsome
-from .services.cars_standard_maintenance import analyze_null_rows, build_fill_preview_token, build_insert_missing_preview_token, build_merge_preview_token, create_cars_standard, delete_cars_standard, execute_merge, get_admin_overview, get_cars_standard_for_edit, get_delete_preview, get_fill_standard_id_preview, get_insert_missing_preview, get_merge_preview, get_normalized_preview, serialize_alias_changes, serialize_cars_standard, serialize_maintenance_job, update_cars_standard, validate_fill_preview_token, validate_insert_missing_preview_token
+from .services.cars_standard_maintenance import analyze_null_rows, build_fill_preview_token, build_insert_missing_preview_token, build_merge_preview_token, create_cars_standard, delete_cars_standard, execute_merge, get_admin_overview, get_cars_standard_for_edit, get_delete_preview, get_fill_standard_id_preview, get_insert_missing_preview, get_maintenance_jobs_page, get_merge_preview, get_normalized_preview, serialize_alias_changes, serialize_cars_standard, serialize_maintenance_job, update_cars_standard, validate_fill_preview_token, validate_insert_missing_preview_token
 from .services.cars_standard_maintenance import search_cars_standard
 from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
@@ -554,10 +554,13 @@ def admin_cars_standard(request, username):
 
     search_query = request.GET.get('q', '')
     page_number = request.GET.get('page')
+    table_page_size = _page_size(request.GET.get('per_page'), 10)
     table_filters = {field: request.GET.get(field, '') for field in ('id', 'brand_norm', 'model_norm', 'variant_norm')}
-    search_result = search_cars_standard(search_query, page_number, filters=table_filters)
+    search_result = search_cars_standard(search_query, page_number, per_page=table_page_size, filters=table_filters)
     if _is_ajax(request):
         return JsonResponse(_cars_standard_page_json(search_result))
+    jobs_page_size = _page_size(request.GET.get('jobs_per_page'), 10)
+    jobs_page = get_maintenance_jobs_page(request.GET.get('jobs_page'), jobs_page_size)
     overview = get_admin_overview()
     edit_form = None
     edit_row = None
@@ -584,7 +587,9 @@ def admin_cars_standard(request, username):
         'pending_users_count': get_pending_users_count(),
         'cars_standard_total': overview['cars_standard_total'],
         'null_count_summary': overview['null_count_summary'],
-        'maintenance_jobs': overview['maintenance_jobs'],
+        'maintenance_jobs': [job for job in jobs_page] or overview['maintenance_jobs'],
+        'maintenance_jobs_page': jobs_page,
+        'jobs_page_size': jobs_page_size,
         'maintenance_job_form': CarsStandardMaintenanceJobForm(),
         'null_inspector_form': CarsStandardNullInspectorForm(),
         'insert_missing_preview_form': CarsStandardInsertMissingPreviewForm(),
@@ -593,6 +598,7 @@ def admin_cars_standard(request, username):
         'delete_preview': delete_preview,
         'delete_form': CarsStandardDeleteForm(initial={'cars_standard_id': delete_preview['cars_standard_id']}) if delete_preview else None,
         'page_obj': search_result['page_obj'],
+        'table_page_size': table_page_size,
         'columns': search_result['columns'],
         'edit_columns': CARS_STANDARD_EDIT_FIELDS,
         'search_query': search_result['query'],
@@ -609,6 +615,14 @@ def _is_ajax(request):
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
 
+def _page_size(value, default=25):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return default
+    return value if value in {10, 50, 100} else default
+
+
 def _cars_standard_json(row):
     data = {'id': row.id, **serialize_cars_standard(row)}
     return {key: value or '' for key, value in data.items()}
@@ -622,6 +636,7 @@ def _cars_standard_page_json(search_result):
         'rows': [{key: value or '' for key, value in row.items()} for row in page_obj],
         'pagination': {
             'count': page_obj.paginator.count,
+            'per_page': page_obj.paginator.per_page,
             'number': page_obj.number,
             'num_pages': page_obj.paginator.num_pages,
             'has_previous': page_obj.has_previous(),
@@ -1191,8 +1206,22 @@ def admin_cars_standard_job_start(request, username):
 def admin_cars_standard_jobs_status(request, username):
     if request.user.username != username:
         return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
-    jobs = CarsStandardMaintenanceJob.objects.select_related('requested_by').order_by('-created_at')[:10]
-    return JsonResponse({'success': True, 'jobs': [serialize_maintenance_job(job) for job in jobs]})
+    per_page = _page_size(request.GET.get('per_page'), 10)
+    page_obj = get_maintenance_jobs_page(request.GET.get('page'), per_page)
+    return JsonResponse({
+        'success': True,
+        'jobs': [serialize_maintenance_job(job) for job in page_obj],
+        'pagination': {
+            'count': page_obj.paginator.count,
+            'number': page_obj.number,
+            'num_pages': page_obj.paginator.num_pages,
+            'has_previous': page_obj.has_previous(),
+            'has_next': page_obj.has_next(),
+            'previous_page_number': page_obj.previous_page_number() if page_obj.has_previous() else None,
+            'next_page_number': page_obj.next_page_number() if page_obj.has_next() else None,
+        },
+        'per_page': per_page,
+    })
 
 
 # Approve user endpoint

@@ -5,18 +5,40 @@
 
 {% block content %}
 <style>
+  #cars-standard-table-card .table-responsive {
+    border: 1px solid #e5e7eb;
+    border-radius: .75rem;
+  }
   #cars-standard-table {
     width: max-content;
     min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
   }
   #cars-standard-table th,
   #cars-standard-table td {
     white-space: nowrap;
     vertical-align: middle;
+    padding: .55rem .6rem;
+  }
+  #cars-standard-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8fafc;
+    box-shadow: inset 0 -1px 0 #e5e7eb;
+  }
+  #cars-standard-table tbody tr:nth-child(even) td {
+    background: #fbfdff;
+  }
+  #cars-standard-table tbody tr.table-active td {
+    background: #eef6ff;
   }
   #cars-standard-table td[data-field] input {
     min-width: 14ch;
     max-width: none;
+    border-color: #d7dee8;
+    background: #fff;
   }
   #cars-standard-table td[data-field*="brand"] input,
   #cars-standard-table td[data-field*="model"] input,
@@ -27,8 +49,18 @@
   #cars-standard-table td[data-field="model_group_raw"] input {
     min-width: 22ch;
   }
+  #cars-standard-table th:last-child,
   #cars-standard-table td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
     min-width: 190px;
+    background: #fff;
+    box-shadow: -8px 0 12px -12px rgba(15, 23, 42, .35);
+  }
+  #cars-standard-table th:last-child {
+    z-index: 3;
+    background: #f8fafc;
   }
   #cars-standard-table .cars-standard-form {
     display: flex;
@@ -463,6 +495,17 @@
       Recent Operations
     </h3>
   </div>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <small class="text-muted">Showing recent operations</small>
+    <label class="d-flex align-items-center gap-2 mb-0">
+      <span class="text-muted">Rows</span>
+      <select class="form-select form-select-sm" id="maintenance-jobs-page-size" style="width: auto;">
+        <option value="10" {% if jobs_page_size == 10 %}selected{% endif %}>10</option>
+        <option value="50" {% if jobs_page_size == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if jobs_page_size == 100 %}selected{% endif %}>100</option>
+      </select>
+    </label>
+  </div>
   <div class="table-responsive">
     <table class="table table-sm table-hover" id="maintenance-jobs-table" data-status-url="{% url 'admin_cars_standard_jobs_status' username=username %}" data-fill-again-url="{% url 'admin_cars_standard_fill_again' username=username %}">
       <thead>
@@ -525,6 +568,21 @@
       </tbody>
     </table>
   </div>
+  <div id="maintenance-jobs-pagination">
+    {% if maintenance_jobs_page.has_other_pages %}
+      <nav aria-label="recent operations pagination">
+        <ul class="pagination justify-content-center mt-3">
+          {% if maintenance_jobs_page.has_previous %}
+            <li class="page-item"><a class="page-link" href="?jobs_page={{ maintenance_jobs_page.previous_page_number }}&jobs_per_page={{ jobs_page_size }}">Previous</a></li>
+          {% endif %}
+          <li class="page-item active"><span class="page-link">Page {{ maintenance_jobs_page.number }} of {{ maintenance_jobs_page.paginator.num_pages }}</span></li>
+          {% if maintenance_jobs_page.has_next %}
+            <li class="page-item"><a class="page-link" href="?jobs_page={{ maintenance_jobs_page.next_page_number }}&jobs_per_page={{ jobs_page_size }}">Next</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
+  </div>
 </div>
 
 {% if delete_preview %}
@@ -584,7 +642,7 @@
     </h3>
   </div>
   <form method="get" class="row g-3 mb-3" id="cars-standard-filter-form">
-    <div class="col-md-2">
+    <div class="col-md-1">
       <label for="id_filter" class="form-label">id</label>
       <input type="number" name="id" id="id_filter" class="form-control" value="{{ table_filters.id }}" placeholder="ID" min="1">
     </div>
@@ -599,6 +657,14 @@
     <div class="col-md-3">
       <label for="variant_norm" class="form-label">variant_norm</label>
       <input type="text" name="variant_norm" id="variant_norm" class="form-control" value="{{ table_filters.variant_norm }}" placeholder="Variant">
+    </div>
+    <div class="col-md-1">
+      <label for="cars_standard_per_page" class="form-label">Rows</label>
+      <select name="per_page" id="cars_standard_per_page" class="form-select">
+        <option value="10" {% if table_page_size == 10 %}selected{% endif %}>10</option>
+        <option value="50" {% if table_page_size == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if table_page_size == 100 %}selected{% endif %}>100</option>
+      </select>
     </div>
     <div class="col-md-2 d-flex align-items-end">
       <button type="submit" class="btn-admin btn-primary me-2"><i class="fas fa-search"></i> Filter</button>
@@ -677,7 +743,7 @@
         <ul class="pagination justify-content-center mt-3">
           {% if page_obj.has_previous %}
             <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if table_filters.id %}&id={{ table_filters.id|urlencode }}{% endif %}{% if table_filters.brand_norm %}&brand_norm={{ table_filters.brand_norm|urlencode }}{% endif %}{% if table_filters.model_norm %}&model_norm={{ table_filters.model_norm|urlencode }}{% endif %}{% if table_filters.variant_norm %}&variant_norm={{ table_filters.variant_norm|urlencode }}{% endif %}">Previous</a>
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}&per_page={{ table_page_size }}{% if table_filters.id %}&id={{ table_filters.id|urlencode }}{% endif %}{% if table_filters.brand_norm %}&brand_norm={{ table_filters.brand_norm|urlencode }}{% endif %}{% if table_filters.model_norm %}&model_norm={{ table_filters.model_norm|urlencode }}{% endif %}{% if table_filters.variant_norm %}&variant_norm={{ table_filters.variant_norm|urlencode }}{% endif %}">Previous</a>
             </li>
           {% endif %}
           <li class="page-item active">
@@ -685,7 +751,7 @@
           </li>
           {% if page_obj.has_next %}
             <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if table_filters.id %}&id={{ table_filters.id|urlencode }}{% endif %}{% if table_filters.brand_norm %}&brand_norm={{ table_filters.brand_norm|urlencode }}{% endif %}{% if table_filters.model_norm %}&model_norm={{ table_filters.model_norm|urlencode }}{% endif %}{% if table_filters.variant_norm %}&variant_norm={{ table_filters.variant_norm|urlencode }}{% endif %}">Next</a>
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}&per_page={{ table_page_size }}{% if table_filters.id %}&id={{ table_filters.id|urlencode }}{% endif %}{% if table_filters.brand_norm %}&brand_norm={{ table_filters.brand_norm|urlencode }}{% endif %}{% if table_filters.model_norm %}&model_norm={{ table_filters.model_norm|urlencode }}{% endif %}{% if table_filters.variant_norm %}&variant_norm={{ table_filters.variant_norm|urlencode }}{% endif %}">Next</a>
             </li>
           {% endif %}
         </ul>
@@ -802,6 +868,7 @@
   sizeInputs(table);
   document.getElementById('add-row-above')?.addEventListener('click', () => placeCreateRow(false));
   document.getElementById('add-row-below')?.addEventListener('click', () => placeCreateRow(true));
+  filterForm?.querySelector('#cars_standard_per_page')?.addEventListener('change', () => filterForm.requestSubmit());
   filterForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     const url = `${window.location.pathname}?${new URLSearchParams(new FormData(filterForm)).toString()}`;
@@ -1117,8 +1184,12 @@
   const fillAgainUrl = table.dataset.fillAgainUrl;
   const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
   const tbody = table.querySelector('tbody');
+  const pageSizeSelect = document.getElementById('maintenance-jobs-page-size');
+  const jobsPagination = document.getElementById('maintenance-jobs-pagination');
   const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/cars-standard/jobs/`;
   let jobs = [];
+  let jobsPage = Number('{{ maintenance_jobs_page.number|default:1 }}');
+  let jobsPageSize = Number(pageSizeSelect?.value || 10);
   let socket;
   let pollTimer;
   const formatDate = (value) => value ? new Date(value).toLocaleString() : '-';
@@ -1156,6 +1227,23 @@
     wrapper.appendChild(bar);
     cell.appendChild(wrapper);
     appendText(cell, 'text-muted', progressStats(progress));
+  };
+  const renderJobsPagination = (pagination) => {
+    if (!jobsPagination || !pagination) return;
+    if (!pagination.has_previous && !pagination.has_next) {
+      jobsPagination.innerHTML = '';
+      return;
+    }
+    jobsPagination.innerHTML = `<nav aria-label="recent operations pagination"><ul class="pagination justify-content-center mt-3">${pagination.has_previous ? `<li class="page-item"><a class="page-link" href="#" data-page="${pagination.previous_page_number}">Previous</a></li>` : ''}<li class="page-item active"><span class="page-link">Page ${pagination.number} of ${pagination.num_pages}</span></li>${pagination.has_next ? `<li class="page-item"><a class="page-link" href="#" data-page="${pagination.next_page_number}">Next</a></li>` : ''}</ul></nav>`;
+  };
+  const renderJobsResponse = (data) => {
+    if (data.pagination) {
+      jobsPage = data.pagination.number || jobsPage;
+      jobsPageSize = data.per_page || data.pagination.per_page || jobsPageSize;
+      if (pageSizeSelect) pageSizeSelect.value = String(jobsPageSize);
+      renderJobsPagination(data.pagination);
+    }
+    renderJobs(data.jobs);
   };
   const renderJobs = (nextJobs) => {
     jobs = Array.isArray(nextJobs) ? nextJobs : [];
@@ -1214,21 +1302,34 @@
   const upsertJob = (job) => {
     jobs = [job, ...jobs.filter((item) => item.id !== job.id)]
       .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-      .slice(0, 10);
+      .slice(0, jobsPageSize);
     renderJobs(jobs);
   };
   const refreshJobs = () => {
-    fetch(statusUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+    const url = `${statusUrl}?page=${jobsPage}&per_page=${jobsPageSize}`;
+    fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
       .then((response) => response.ok ? response.json() : null)
-      .then((data) => { if (data && data.success) renderJobs(data.jobs); })
+      .then((data) => { if (data && data.success) renderJobsResponse(data); })
       .catch(() => {});
   };
   const startPolling = (delay) => {
     clearInterval(pollTimer);
     pollTimer = setInterval(refreshJobs, delay);
   };
+  pageSizeSelect?.addEventListener('change', () => {
+    jobsPageSize = Number(pageSizeSelect.value || 10);
+    jobsPage = 1;
+    refreshJobs();
+  });
+  jobsPagination?.addEventListener('click', (event) => {
+    const link = event.target.closest('a[data-page]');
+    if (!link) return;
+    event.preventDefault();
+    jobsPage = Number(link.dataset.page || 1);
+    refreshJobs();
+  });
   window.addEventListener('cars-standard-job-update', (event) => {
-    if (event.detail) upsertJob(event.detail);
+    if (event.detail && jobsPage === 1) upsertJob(event.detail);
   });
   const connectSocket = () => {
     if (!('WebSocket' in window)) {
@@ -1245,8 +1346,13 @@
       } catch (error) {
         return;
       }
-      if (data.type === 'initial' || data.type === 'jobs_update') renderJobs(data.jobs);
-      if (data.type === 'job_update' || data.type === 'update') upsertJob(data.job);
+      if (data.type === 'initial' || data.type === 'jobs_update') {
+        if (jobsPage === 1 && jobsPageSize === 10) renderJobs(data.jobs);
+        else refreshJobs();
+      }
+      if (data.type === 'job_update' || data.type === 'update') {
+        if (jobsPage === 1) upsertJob(data.job);
+      }
     };
     socket.onclose = () => startPolling(5000);
     socket.onerror = () => socket.close();

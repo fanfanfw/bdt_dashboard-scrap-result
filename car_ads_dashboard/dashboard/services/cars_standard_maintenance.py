@@ -339,6 +339,13 @@ def get_recent_maintenance_jobs(limit=10):
     return [decorate_maintenance_job(job) for job in CarsStandardMaintenanceJob.objects.select_related('requested_by').order_by('-created_at')[:limit]]
 
 
+def get_maintenance_jobs_page(page=1, per_page=10):
+    paginator = Paginator(CarsStandardMaintenanceJob.objects.select_related('requested_by').order_by('-created_at'), per_page)
+    page_obj = paginator.get_page(page)
+    page_obj.object_list = [decorate_maintenance_job(job) for job in page_obj.object_list]
+    return page_obj
+
+
 def serialize_job_progress(job):
     progress = dict(job.progress or {})
     current = progress.get('current')
@@ -942,6 +949,7 @@ STANDARD_MATCH_COLUMN_GROUPS = {
 
 FILL_FAILED_RECORD_LIMIT = 1000
 FILL_PREVIEW_ROW_CAP = 1000
+FILL_PROGRESS_ROW_INTERVAL = 500
 NULL_INSPECTOR_PREVIEW_LIMIT = 500
 NULL_INSPECTOR_MAX_PREVIEW_LIMIT = 10000
 
@@ -1389,6 +1397,17 @@ def execute_fill_standard_id(table_name, sources, user, batch_size=500, preview_
                         total_failed += 1
                         if len(failed_records) < FILL_FAILED_RECORD_LIMIT:
                             failed_records.append(source_record)
+                    if progress_callback and total_seen % FILL_PROGRESS_ROW_INTERVAL == 0:
+                        progress_callback({
+                            'current': total_seen,
+                            'total': total_rows,
+                            'percent': round(total_seen * 100 / total_rows) if total_rows else 100,
+                            'message': f"Scanned {total_seen} of {total_rows} rows.",
+                            'source': source,
+                            'updated': total_updated,
+                            'unmatched': total_failed,
+                            'ambiguous': total_ambiguous,
+                        })
                     if len(update_batch) >= batch_size:
                         cursor.executemany(update_sql, update_batch)
                         update_batch = []

@@ -116,6 +116,8 @@ INSERT_MISSING_PREVIEW_TOKEN_MAX_AGE = 15 * 60
 INSERT_MISSING_PREVIEW_TOKEN_SALT = 'dashboard.cars_standard.insert_missing_preview'
 FILL_PREVIEW_TOKEN_MAX_AGE = 15 * 60
 FILL_PREVIEW_TOKEN_SALT = 'dashboard.cars_standard.fill_preview'
+UNUSED_STANDARDS_PREVIEW_TOKEN_MAX_AGE = 15 * 60
+UNUSED_STANDARDS_PREVIEW_TOKEN_SALT = 'dashboard.cars_standard.unused_standards_preview'
 MODEL_GROUP_DEFAULT = 'NO MODEL GROUP'
 NULLISH_VALUES = ('', '-', 'N/A', 'NA', 'NULL', 'NONE')
 MATCH_NULLISH_VALUES = {'', '-', 'N/A', 'NULL'}
@@ -229,6 +231,140 @@ def get_cars_standard_total_count():
         return CarsStandard.objects.count()
     except DatabaseError:
         return 0
+
+
+def validate_unused_standards_limit(display_limit):
+    try:
+        display_limit = int(display_limit)
+    except (TypeError, ValueError):
+        return 10
+    return display_limit if display_limit in {10, 50, 100} else 10
+
+
+def _unused_standards_where_sql():
+    clauses = []
+    for table_name in ALLOWED_TARGET_TABLES:
+        clauses.append(f'''NOT EXISTS (
+            SELECT 1
+            FROM {quote_identifier(table_name)} source_table
+            WHERE source_table.{quote_identifier('cars_standard_id')} = cs.{quote_identifier('id')}
+        )''')
+    return ' AND '.join(clauses)
+
+
+def _unused_standards_ids(display_limit=None):
+    params = []
+    limit_sql = ''
+    if display_limit is not None:
+        params.append(validate_unused_standards_limit(display_limit))
+        limit_sql = ' LIMIT %s'
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f'''
+            SELECT cs.{quote_identifier('id')}
+            FROM {quote_identifier(CarsStandard._meta.db_table)} cs
+            WHERE {_unused_standards_where_sql()}
+            ORDER BY cs.{quote_identifier('id')}
+            {limit_sql}
+            ''',
+            params,
+        )
+        return [row[0] for row in cursor.fetchall()]
+
+
+def get_unused_standards_preview(display_limit=10):
+    display_limit = validate_unused_standards_limit(display_limit)
+    columns = get_available_cars_standard_columns()
+    select_columns = ', '.join(f'cs.{quote_identifier(column)}' for column in columns)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f'''
+            SELECT COUNT(*)
+            FROM {quote_identifier(CarsStandard._meta.db_table)} cs
+            WHERE {_unused_standards_where_sql()}
+            '''
+        )
+        total_count = cursor.fetchone()[0]
+        cursor.execute(
+            f'''
+            SELECT {select_columns}
+            FROM {quote_identifier(CarsStandard._meta.db_table)} cs
+            WHERE {_unused_standards_where_sql()}
+            ORDER BY cs.{quote_identifier('id')}
+            LIMIT %s
+            ''',
+            [display_limit],
+        )
+        rows = _fetch_dicts(cursor)
+    return {
+        'status': 'preview',
+        'display_limit': display_limit,
+        'total_count': total_count,
+        'rows': rows,
+        'row_ids': [row['id'] for row in rows],
+        'columns': columns,
+        'message': f'Found {total_count} unused cars_standard rows.',
+    }
+
+
+def build_unused_standards_preview_token(row_ids, total_count, user_id):
+    payload = {
+        'row_ids': [int(row_id) for row_id in row_ids],
+        'total_count': int(total_count),
+        'user_id': int(user_id),
+        'nonce': secrets.token_urlsafe(8),
+    }
+    return TimestampSigner(salt=UNUSED_STANDARDS_PREVIEW_TOKEN_SALT).sign(json.dumps(payload, sort_keys=True, separators=(',', ':')))
+
+
+def validate_unused_standards_preview_token(token, user_id):
+    try:
+        value = TimestampSigner(salt=UNUSED_STANDARDS_PREVIEW_TOKEN_SALT).unsign(token, max_age=UNUSED_STANDARDS_PREVIEW_TOKEN_MAX_AGE)
+        payload = json.loads(value)
+    except (BadSignature, SignatureExpired, json.JSONDecodeError):
+        raise ValueError('Unused standards preview expired or invalid. Preview again before deleting.')
+    if payload.get('user_id') != int(user_id):
+        raise ValueError('Unused standards preview token does not match this user.')
+    row_ids = payload.get('row_ids') or []
+    if not isinstance(row_ids, list) or not row_ids:
+        raise ValueError('Unused standards preview token has no rows to delete.')
+    return [int(row_id) for row_id in row_ids]
+
+
+def delete_unused_standards(user, preview_token=None, delete_all=False):
+    with transaction.atomic():
+        if delete_all:
+            row_ids = _unused_standards_ids()
+        else:
+            row_ids = validate_unused_standards_preview_token(preview_token, user.id)
+            currently_unused = set(_unused_standards_ids())
+            row_ids = [row_id for row_id in row_ids if row_id in currently_unused]
+        if not row_ids:
+            return {'deleted': 0, 'row_ids': [], 'message': 'No currently unused cars_standard rows to delete.'}
+        old_rows = list(CarsStandard.objects.filter(id__in=row_ids).values(*get_available_cars_standard_columns()))
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f'''
+                DELETE FROM {quote_identifier(CarsStandard._meta.db_table)} cs
+                WHERE cs.{quote_identifier('id')} = ANY(%s::bigint[])
+                  AND {_unused_standards_where_sql()}
+                RETURNING cs.{quote_identifier('id')}
+                ''',
+                [row_ids],
+            )
+            deleted_ids = [row[0] for row in cursor.fetchall()]
+        deleted = len(deleted_ids)
+        CarsStandardAuditLog.objects.create(
+            user=user,
+            action=CarsStandardAuditLog.ACTION_DELETE,
+            old_values={'rows': old_rows[:SAMPLE_LIMIT], 'deleted_ids_sample': deleted_ids[:SAMPLE_LIMIT]},
+            affected_references={'deleted_unused_count': deleted, 'delete_all': delete_all},
+        )
+    return {
+        'deleted': deleted,
+        'row_ids': deleted_ids,
+        'message': f'Deleted {deleted} unused cars_standard rows.',
+    }
 
 
 def search_cars_standard(query='', page=1, per_page=25, filters=None):

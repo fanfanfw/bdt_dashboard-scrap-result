@@ -9,13 +9,13 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Avg, F, Case, When, DecimalField
 from django.db.models.functions import Coalesce
 from .models import CarsInventory, PriceHistoryUnified, UserProfile, CarsStandard, CarsStandardMaintenanceJob, CarsUnified, Carsome
-from .services.cars_standard_maintenance import analyze_null_rows, build_fill_preview_token, build_insert_missing_preview_token, build_merge_preview_token, create_cars_standard, delete_cars_standard, execute_merge, get_admin_overview, get_ambiguous_resolver_groups, get_cars_standard_for_edit, get_delete_preview, get_fill_standard_id_preview, get_insert_missing_preview, get_maintenance_jobs_page, get_merge_preview, get_normalized_preview, serialize_alias_changes, serialize_cars_standard, serialize_maintenance_job, update_cars_standard, validate_fill_preview_token, validate_insert_missing_preview_token
+from .services.cars_standard_maintenance import analyze_null_rows, build_fill_preview_token, build_insert_missing_preview_token, build_merge_preview_token, build_unused_standards_preview_token, create_cars_standard, delete_cars_standard, delete_unused_standards, execute_merge, get_admin_overview, get_ambiguous_resolver_groups, get_cars_standard_for_edit, get_delete_preview, get_fill_standard_id_preview, get_insert_missing_preview, get_maintenance_jobs_page, get_merge_preview, get_normalized_preview, get_unused_standards_preview, serialize_alias_changes, serialize_cars_standard, serialize_maintenance_job, update_cars_standard, validate_fill_preview_token, validate_insert_missing_preview_token
 from .services.cars_standard_maintenance import search_cars_standard
 from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_GET, require_POST
 from django.db import models
 from django import forms
-from .forms import AdminProfileForm, AdminPasswordChangeForm, CARS_STANDARD_EDIT_FIELDS, CarsStandardAmbiguousResolverForm, CarsStandardCreateForm, CarsStandardDeleteForm, CarsStandardFillExecuteForm, CarsStandardFillPreviewForm, CarsStandardInsertMissingExecuteForm, CarsStandardInsertMissingPreviewForm, CarsStandardMaintenanceJobForm, CarsStandardMergeExecuteForm, CarsStandardMergePreviewForm, CarsStandardNullInspectorForm, CarsStandardUpdateForm, CustomAuthenticationForm, CustomUserCreationForm, UserProfileForm, UserPasswordChangeForm
+from .forms import AdminProfileForm, AdminPasswordChangeForm, CARS_STANDARD_EDIT_FIELDS, CarsStandardAmbiguousResolverForm, CarsStandardCreateForm, CarsStandardDeleteForm, CarsStandardFillExecuteForm, CarsStandardFillPreviewForm, CarsStandardInsertMissingExecuteForm, CarsStandardInsertMissingPreviewForm, CarsStandardMaintenanceJobForm, CarsStandardMergeExecuteForm, CarsStandardMergePreviewForm, CarsStandardNullInspectorForm, CarsStandardUnusedCleanerDeleteForm, CarsStandardUnusedCleanerPreviewForm, CarsStandardUpdateForm, CustomAuthenticationForm, CustomUserCreationForm, UserProfileForm, UserPasswordChangeForm
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.utils import timezone
@@ -593,6 +593,7 @@ def admin_cars_standard(request, username):
         'maintenance_job_form': CarsStandardMaintenanceJobForm(),
         'null_inspector_form': CarsStandardNullInspectorForm(),
         'ambiguous_resolver_form': CarsStandardAmbiguousResolverForm(),
+        'unused_cleaner_preview_form': CarsStandardUnusedCleanerPreviewForm(),
         'insert_missing_preview_form': CarsStandardInsertMissingPreviewForm(),
         'fill_preview_form': CarsStandardFillPreviewForm(),
         'create_form': CarsStandardCreateForm(),
@@ -807,6 +808,7 @@ def admin_cars_standard_merge_preview(request, username):
         'maintenance_job_form': CarsStandardMaintenanceJobForm(),
         'null_inspector_form': CarsStandardNullInspectorForm(),
         'ambiguous_resolver_form': CarsStandardAmbiguousResolverForm(),
+        'unused_cleaner_preview_form': CarsStandardUnusedCleanerPreviewForm(),
         'insert_missing_preview_form': CarsStandardInsertMissingPreviewForm(),
         'fill_preview_form': CarsStandardFillPreviewForm(),
         'page_obj': search_result['page_obj'],
@@ -908,6 +910,65 @@ def admin_cars_standard_ambiguous_resolver(request, username):
         messages.error(request, f'Failed to queue Ambiguous Resolver scan #{job.id}: {error}')
     else:
         messages.success(request, f'Queued Ambiguous Resolver scan #{job.id}.')
+    return redirect('admin_cars_standard', username=request.user.username)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_POST
+def admin_cars_standard_unused_cleaner_preview(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+    is_ajax = _is_ajax(request)
+    form = CarsStandardUnusedCleanerPreviewForm(request.POST)
+    if not form.is_valid():
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'Unused standards preview failed. Check display limit.'}, status=400)
+        messages.error(request, 'Unused standards preview failed. Check display limit.')
+        return redirect('admin_cars_standard', username=request.user.username)
+    try:
+        preview = get_unused_standards_preview(form.cleaned_data['display_limit'])
+        preview['preview_token'] = build_unused_standards_preview_token(preview['row_ids'], preview['total_count'], request.user.id)
+    except Exception as exc:
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': f'Unused standards preview failed: {exc}'}, status=400)
+        messages.error(request, f'Unused standards preview failed: {exc}')
+        return redirect('admin_cars_standard', username=request.user.username)
+    if is_ajax:
+        return JsonResponse({'success': True, 'preview': preview})
+    messages.success(request, preview['message'])
+    return redirect('admin_cars_standard', username=request.user.username)
+
+
+@login_required
+@group_required('Admin')
+@user_is_owner_or_admin
+@require_POST
+def admin_cars_standard_unused_cleaner_delete(request, username):
+    if request.user.username != username:
+        return redirect('admin_cars_standard', username=request.user.username)
+    is_ajax = _is_ajax(request)
+    form = CarsStandardUnusedCleanerDeleteForm(request.POST)
+    if not form.is_valid():
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'Delete requires explicit confirmation and a recent preview.'}, status=400)
+        messages.error(request, 'Delete requires explicit confirmation and a recent preview.')
+        return redirect('admin_cars_standard', username=request.user.username)
+    try:
+        result = delete_unused_standards(
+            request.user,
+            preview_token=form.cleaned_data.get('preview_token'),
+            delete_all=form.cleaned_data.get('delete_all'),
+        )
+    except Exception as exc:
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+        messages.error(request, f'Unused standards delete failed: {exc}')
+        return redirect('admin_cars_standard', username=request.user.username)
+    if is_ajax:
+        return JsonResponse({'success': True, 'result': result})
+    messages.success(request, result['message'])
     return redirect('admin_cars_standard', username=request.user.username)
 
 

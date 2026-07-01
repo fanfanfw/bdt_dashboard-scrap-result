@@ -8,7 +8,7 @@ from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import Group, User
 from django.core.paginator import Paginator
-from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
+from django.test import Client, SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
 from . import tasks
@@ -520,6 +520,54 @@ class CarsStandardCrudServiceTests(TestCase):
                 cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE cars_standard_id IS NULL')
                 self.assertEqual(cursor.fetchone()[0], 1)
 
+    def test_unused_cleaner_preview_and_delete_keep_referenced_rows(self):
+        used = service.create_cars_standard(
+            {'brand_norm': 'TOYOTA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'COROLLA', 'variant_norm': 'G'},
+            self.user,
+        )
+        unused = service.create_cars_standard(
+            {'brand_norm': 'HONDA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'CITY', 'variant_norm': 'V'},
+            self.user,
+        )
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_unified (cars_standard_id, brand, model, variant) VALUES (%s, 'Toyota', 'Corolla', 'G')", [used.id])
+
+        preview = service.get_unused_standards_preview(10)
+        token = service.build_unused_standards_preview_token(preview['row_ids'], preview['total_count'], self.user.id)
+        result = service.delete_unused_standards(self.user, preview_token=token)
+
+        self.assertEqual(preview['total_count'], 1)
+        self.assertEqual(preview['row_ids'], [unused.id])
+        self.assertEqual(result['deleted'], 1)
+        self.assertTrue(service.CarsStandard.objects.filter(pk=used.id).exists())
+        self.assertFalse(service.CarsStandard.objects.filter(pk=unused.id).exists())
+
+    def test_unused_cleaner_display_limit_supports_allowed_values(self):
+        for index in range(3):
+            service.create_cars_standard(
+                {'brand_norm': f'UNUSED{index}', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'MODEL', 'variant_norm': 'V'},
+                self.user,
+            )
+
+        self.assertEqual(service.get_unused_standards_preview(50)['display_limit'], 50)
+        self.assertEqual(service.get_unused_standards_preview(100)['display_limit'], 100)
+        self.assertEqual(service.get_unused_standards_preview(999)['display_limit'], 10)
+
+    def test_unused_cleaner_token_deletes_only_still_unused_rows(self):
+        row = service.create_cars_standard(
+            {'brand_norm': 'MAZDA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': '3', 'variant_norm': 'HIGH'},
+            self.user,
+        )
+        preview = service.get_unused_standards_preview(10)
+        token = service.build_unused_standards_preview_token(preview['row_ids'], preview['total_count'], self.user.id)
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_unified (cars_standard_id, brand, model, variant) VALUES (%s, 'Mazda', '3', 'High')", [row.id])
+
+        result = service.delete_unused_standards(self.user, preview_token=token)
+
+        self.assertEqual(result['deleted'], 0)
+        self.assertTrue(service.CarsStandard.objects.filter(pk=row.id).exists())
+
 
 class CarsStandardAdminCrudEndpointTests(TestCase):
     def setUp(self):
@@ -721,6 +769,56 @@ class CarsStandardAdminCrudEndpointTests(TestCase):
         self.assertEqual(delete_response.status_code, 200)
         self.assertFalse(service.CarsStandard.objects.filter(pk=row_id).exists())
 
+    def test_unused_cleaner_ajax_preview_and_delete(self):
+        used = service.create_cars_standard(
+            {'brand_norm': 'TOYOTA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'COROLLA', 'variant_norm': 'G'},
+            self.admin_user,
+        )
+        unused = service.create_cars_standard(
+            {'brand_norm': 'HONDA', 'model_group_norm': 'NO MODEL GROUP', 'model_norm': 'CITY', 'variant_norm': 'V'},
+            self.admin_user,
+        )
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO carsome (cars_standard_id, brand, model, variant) VALUES (%s, 'Toyota', 'Corolla', 'G')", [used.id])
+
+        preview_response = self.client.post(
+            reverse('admin_cars_standard_unused_cleaner_preview', kwargs={'username': self.admin_user.username}),
+            {'display_limit': 10},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        preview = preview_response.json()['preview']
+        delete_response = self.client.post(
+            reverse('admin_cars_standard_unused_cleaner_delete', kwargs={'username': self.admin_user.username}),
+            {'preview_token': preview['preview_token'], 'confirm': 'on'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(preview_response.status_code, 200)
+        self.assertEqual(preview['total_count'], 1)
+        self.assertEqual(preview['row_ids'], [unused.id])
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertEqual(delete_response.json()['result']['deleted'], 1)
+        self.assertTrue(service.CarsStandard.objects.filter(pk=used.id).exists())
+        self.assertFalse(service.CarsStandard.objects.filter(pk=unused.id).exists())
+
+    def test_unused_cleaner_endpoints_require_csrf(self):
+        csrf_client = Client(enforce_csrf_checks=True, HTTP_HOST='testserver')
+        csrf_client.force_login(self.admin_user)
+
+        preview_response = csrf_client.post(
+            reverse('admin_cars_standard_unused_cleaner_preview', kwargs={'username': self.admin_user.username}),
+            {'display_limit': 10},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        delete_response = csrf_client.post(
+            reverse('admin_cars_standard_unused_cleaner_delete', kwargs={'username': self.admin_user.username}),
+            {'preview_token': 'token', 'confirm': 'on'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(preview_response.status_code, 403)
+        self.assertEqual(delete_response.status_code, 403)
+
 
 class CarsStandardDryRunServiceTests(TestCase):
     @patch('dashboard.services.cars_standard_maintenance.CarsStandardAuditLog.objects.create')
@@ -814,6 +912,8 @@ class CarsStandardAccessControlTests(TestCase):
             ('post', reverse('admin_cars_standard_merge_execute', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_null_inspector', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_ambiguous_resolver', kwargs={'username': self.regular_user.username}), {}),
+            ('post', reverse('admin_cars_standard_unused_cleaner_preview', kwargs={'username': self.regular_user.username}), {}),
+            ('post', reverse('admin_cars_standard_unused_cleaner_delete', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_insert_missing_preview', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_insert_missing_execute', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_fill_preview', kwargs={'username': self.regular_user.username}), {}),

@@ -16,6 +16,7 @@ urlpatterns = [
     path('admin/<str:username>/cars-standard/merge/preview/', views.admin_cars_standard_merge_preview, name='admin_cars_standard_merge_preview'),
     path('admin/<str:username>/cars-standard/merge/execute/', views.admin_cars_standard_merge_execute, name='admin_cars_standard_merge_execute'),
     path('admin/<str:username>/cars-standard/null-inspector/', views.admin_cars_standard_null_inspector, name='admin_cars_standard_null_inspector'),
+    path('admin/<str:username>/cars-standard/ambiguous-resolver/', views.admin_cars_standard_ambiguous_resolver, name='admin_cars_standard_ambiguous_resolver'),
     path('admin/<str:username>/cars-standard/insert-missing/preview/', views.admin_cars_standard_insert_missing_preview, name='admin_cars_standard_insert_missing_preview'),
     path('admin/<str:username>/cars-standard/insert-missing/execute/', views.admin_cars_standard_insert_missing_execute, name='admin_cars_standard_insert_missing_execute'),
     path('admin/<str:username>/cars-standard/fill/preview/', views.admin_cars_standard_fill_preview, name='admin_cars_standard_fill_preview'),

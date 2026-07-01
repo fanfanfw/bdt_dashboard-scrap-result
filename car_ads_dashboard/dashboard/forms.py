@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import PasswordChangeForm, AuthenticationForm
 from django.core.exceptions import ValidationError
 from .models import CarsStandardMaintenanceJob, UserProfile
-from .services.cars_standard_maintenance import ALLOWED_TARGET_TABLES, validate_fill_batch_size, validate_null_inspector_limit, validate_sources
+from .services.cars_standard_maintenance import ALLOWED_TARGET_TABLES, validate_ambiguous_resolver_limit, validate_fill_batch_size, validate_null_inspector_limit, validate_sources
 
 
 CARS_STANDARD_EDIT_FIELDS = [
@@ -98,6 +98,37 @@ class CarsStandardNullInspectorForm(forms.Form):
 
     def clean_preview_limit(self):
         return validate_null_inspector_limit(self.cleaned_data.get('preview_limit'))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        table_name = cleaned_data.get('target_table')
+        source = cleaned_data.get('source')
+        if table_name and source:
+            try:
+                cleaned_data['source'] = validate_sources(table_name, [source])[0]
+            except ValueError as exc:
+                raise ValidationError(str(exc))
+        return cleaned_data
+
+
+class CarsStandardAmbiguousResolverForm(forms.Form):
+    target_table = forms.ChoiceField(widget=forms.Select(attrs={'class': 'form-select'}))
+    source = forms.CharField(
+        required=True,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Source'}),
+    )
+    display_limit = forms.ChoiceField(
+        choices=[(10, '10'), (50, '50'), (100, '100')],
+        initial=10,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['target_table'].choices = [(table, table) for table in ALLOWED_TARGET_TABLES]
+
+    def clean_display_limit(self):
+        return validate_ambiguous_resolver_limit(self.cleaned_data.get('display_limit'))
 
     def clean(self):
         cleaned_data = super().clean()

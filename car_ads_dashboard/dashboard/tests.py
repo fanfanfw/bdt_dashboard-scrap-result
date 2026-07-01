@@ -375,6 +375,24 @@ class CarsStandardBulkAddServiceTests(TestCase):
             cursor.execute('SELECT cars_standard_id FROM cars_unified')
             self.assertIsNone(cursor.fetchone()[0])
 
+    def test_ambiguous_resolver_groups_all_null_rows(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_standard (brand_norm, model_group_norm, model_norm, variant_norm) VALUES ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID'), ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID'), ('HONDA', 'NO MODEL GROUP', 'CITY', 'V'), ('HONDA', 'NO MODEL GROUP', 'CITY', 'V')")
+            cursor.execute("INSERT INTO cars_unified (source, cars_standard_id, brand, model_group, model, variant) VALUES ('carlistmy', NULL, 'Toyota', NULL, 'Corolla', 'Hybrid'), ('carlistmy', NULL, 'Toyota', NULL, 'Corolla', 'Hybrid'), ('carlistmy', NULL, 'Honda', NULL, 'City', 'V')")
+
+        result = service.get_ambiguous_resolver_groups('cars_unified', 'carlistmy', 10)
+
+        self.assertEqual(result['total_null_rows'], 3)
+        self.assertEqual(result['scanned_rows'], 3)
+        self.assertEqual(result['ambiguous_count'], 3)
+        self.assertEqual(result['group_count'], 2)
+        self.assertEqual(len(result['groups']), 2)
+        self.assertFalse(result['display_truncated'])
+        self.assertEqual(result['groups'][0]['row_count'], 2)
+        self.assertEqual(result['groups'][0]['source_brand'], 'Toyota')
+        self.assertEqual(result['groups'][0]['sample_source_row_ids'], [1, 2])
+        self.assertEqual(len(result['groups'][0]['candidates']), 2)
+
 
 class CarsStandardCrudServiceTests(TestCase):
     def setUp(self):
@@ -614,6 +632,24 @@ class CarsStandardAdminCrudEndpointTests(TestCase):
         self.assertContains(response, f'?delete_id={row.id}')
         self.assertContains(response, "table.addEventListener('focusin'")
 
+    def test_ambiguous_resolver_ajax_returns_grouped_candidates(self):
+        with service.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO cars_standard (brand_norm, model_group_norm, model_norm, variant_norm) VALUES ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID'), ('TOYOTA', 'NO MODEL GROUP', 'COROLLA', 'HYBRID')")
+            cursor.execute("INSERT INTO cars_unified (source, cars_standard_id, brand, model_group, model, variant) VALUES ('carlistmy', NULL, 'Toyota', NULL, 'Corolla', 'Hybrid')")
+
+        response = self.client.post(
+            reverse('admin_cars_standard_ambiguous_resolver', kwargs={'username': self.admin_user.username}),
+            {'target_table': 'cars_unified', 'source': 'carlistmy', 'display_limit': 10},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        data = response.json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['preview']['ambiguous_count'], 1)
+        self.assertEqual(data['preview']['groups'][0]['candidate_ids'], [1, 2])
+        self.assertEqual(len(data['preview']['groups'][0]['candidates']), 2)
+
     def test_admin_create_update_delete_ajax_endpoints_return_json(self):
         create_response = self.client.post(
             reverse('admin_cars_standard_create', kwargs={'username': self.admin_user.username}),
@@ -740,6 +776,7 @@ class CarsStandardAccessControlTests(TestCase):
             ('post', reverse('admin_cars_standard_merge_preview', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_merge_execute', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_null_inspector', kwargs={'username': self.regular_user.username}), {}),
+            ('post', reverse('admin_cars_standard_ambiguous_resolver', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_insert_missing_preview', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_insert_missing_execute', kwargs={'username': self.regular_user.username}), {}),
             ('post', reverse('admin_cars_standard_fill_preview', kwargs={'username': self.regular_user.username}), {}),

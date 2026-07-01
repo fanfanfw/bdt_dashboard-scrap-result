@@ -5,36 +5,44 @@
 
 {% block content %}
 <style>
-  #cars-standard-table-card .table-responsive {
+  #cars-standard-table-card .table-responsive,
+  #ambiguous-resolver-card .table-responsive {
     border: 1px solid #e5e7eb;
     border-radius: .75rem;
   }
-  #cars-standard-table {
+  #cars-standard-table,
+  .ambiguous-candidates-table {
     width: max-content;
     min-width: 100%;
     border-collapse: separate;
     border-spacing: 0;
   }
   #cars-standard-table th,
-  #cars-standard-table td {
+  #cars-standard-table td,
+  .ambiguous-candidates-table th,
+  .ambiguous-candidates-table td {
     white-space: nowrap;
     vertical-align: middle;
     padding: .55rem .6rem;
   }
-  #cars-standard-table thead th {
+  #cars-standard-table thead th,
+  .ambiguous-candidates-table thead th {
     position: sticky;
     top: 0;
     z-index: 2;
     background: #f8fafc;
     box-shadow: inset 0 -1px 0 #e5e7eb;
   }
-  #cars-standard-table tbody tr:nth-child(even) td {
+  #cars-standard-table tbody tr:nth-child(even) td,
+  .ambiguous-candidates-table tbody tr:nth-child(even) td {
     background: #fbfdff;
   }
-  #cars-standard-table tbody tr.table-active td {
+  #cars-standard-table tbody tr.table-active td,
+  .ambiguous-candidates-table tbody tr.table-active td {
     background: #eef6ff;
   }
-  #cars-standard-table td[data-field] input {
+  #cars-standard-table td[data-field] input,
+  .ambiguous-candidates-table td[data-field] input {
     min-width: 14ch;
     max-width: none;
     border-color: #d7dee8;
@@ -42,15 +50,22 @@
   }
   #cars-standard-table td[data-field*="brand"] input,
   #cars-standard-table td[data-field*="model"] input,
-  #cars-standard-table td[data-field*="variant"] input {
+  #cars-standard-table td[data-field*="variant"] input,
+  .ambiguous-candidates-table td[data-field*="brand"] input,
+  .ambiguous-candidates-table td[data-field*="model"] input,
+  .ambiguous-candidates-table td[data-field*="variant"] input {
     min-width: 18ch;
   }
   #cars-standard-table td[data-field="model_group_norm"] input,
-  #cars-standard-table td[data-field="model_group_raw"] input {
+  #cars-standard-table td[data-field="model_group_raw"] input,
+  .ambiguous-candidates-table td[data-field="model_group_norm"] input,
+  .ambiguous-candidates-table td[data-field="model_group_raw"] input {
     min-width: 22ch;
   }
   #cars-standard-table th:last-child,
-  #cars-standard-table td:last-child {
+  #cars-standard-table td:last-child,
+  .ambiguous-candidates-table th:last-child,
+  .ambiguous-candidates-table td:last-child {
     position: sticky;
     right: 0;
     z-index: 1;
@@ -58,11 +73,13 @@
     background: #fff;
     box-shadow: -8px 0 12px -12px rgba(15, 23, 42, .35);
   }
-  #cars-standard-table th:last-child {
+  #cars-standard-table th:last-child,
+  .ambiguous-candidates-table th:last-child {
     z-index: 3;
     background: #f8fafc;
   }
-  #cars-standard-table .cars-standard-form {
+  #cars-standard-table .cars-standard-form,
+  .ambiguous-candidates-table .ambiguous-candidate-form {
     display: flex;
     gap: .35rem;
     align-items: center;
@@ -244,6 +261,37 @@
       </div>
     </div>
   {% endif %}
+</div>
+
+<div class="admin-card" id="ambiguous-resolver-card" data-update-url="{% url 'admin_cars_standard_update' username=username %}" data-delete-url="{% url 'admin_cars_standard_delete' username=username %}">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-code-branch me-2"></i>
+      Ambiguous Resolver
+    </h3>
+  </div>
+  <form method="post" action="{% url 'admin_cars_standard_ambiguous_resolver' username=username %}" class="row g-3 mb-4" id="ambiguous-resolver-form">
+    {% csrf_token %}
+    <div class="col-md-3">
+      <label class="form-label" for="{{ ambiguous_resolver_form.target_table.id_for_label }}">Target table</label>
+      {{ ambiguous_resolver_form.target_table }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="{{ ambiguous_resolver_form.source.id_for_label }}">Source</label>
+      {{ ambiguous_resolver_form.source }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="{{ ambiguous_resolver_form.display_limit.id_for_label }}">Display groups</label>
+      {{ ambiguous_resolver_form.display_limit }}
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+      <button type="submit" class="btn-admin btn-primary mb-1 w-100">
+        <i class="fas fa-search"></i>
+        Find ambiguous
+      </button>
+    </div>
+  </form>
+  <div id="ambiguous-resolver-ajax-result"></div>
 </div>
 
 <div class="admin-card">
@@ -1012,6 +1060,13 @@
           if (tableInput) tableInput.value = preview.table_name;
           if (sourcesInput) sourcesInput.value = preview.source;
         }
+        const ambiguousForm = document.getElementById('ambiguous-resolver-form');
+        if (ambiguousForm) {
+          const tableInput = ambiguousForm.querySelector('[name="target_table"]');
+          const sourceInput = ambiguousForm.querySelector('[name="source"]');
+          if (tableInput) tableInput.value = preview.table_name;
+          if (sourceInput) sourceInput.value = preview.source;
+        }
       });
     });
   }
@@ -1051,6 +1106,128 @@
       });
     });
   }
+})();
+
+(function () {
+  const card = document.getElementById('ambiguous-resolver-card');
+  const form = document.getElementById('ambiguous-resolver-form');
+  const result = document.getElementById('ambiguous-resolver-ajax-result');
+  if (!card || !form || !result) return;
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
+  const fmt = (value) => Number(value || 0).toLocaleString();
+  const csrf = form.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+  const columns = ['id', 'brand_norm', 'brand_raw', 'brand_raw2', 'model_group_norm', 'model_group_raw', 'model_norm', 'model_raw', 'model_raw2', 'variant_norm', 'variant_raw', 'variant_raw2', 'variant_raw3', 'variant_raw4'];
+  const sizeInput = (input) => {
+    const length = Math.max(10, String(input.value || input.placeholder || '').length + 2);
+    input.style.width = `${length}ch`;
+  };
+  const sizeInputs = (root) => root.querySelectorAll('td[data-field] input').forEach(sizeInput);
+  const rowHtml = (row) => {
+    const id = row.id;
+    const cells = columns.map((column) => {
+      if (column === 'id') return `<td data-field="id">${escapeHtml(id)}</td>`;
+      const value = row[column] || '';
+      return `<td data-field="${escapeHtml(column)}"><input class="form-control form-control-sm" name="${escapeHtml(column)}" form="ambiguous-update-${escapeHtml(id)}" value="${escapeHtml(value)}" data-original="${escapeHtml(value)}"></td>`;
+    }).join('');
+    return `<tr data-row-id="${escapeHtml(id)}">${cells}<td><form method="post" action="${escapeHtml(card.dataset.updateUrl)}" id="ambiguous-update-${escapeHtml(id)}" class="ambiguous-candidate-form"><input type="hidden" name="csrfmiddlewaretoken" value="${escapeHtml(csrf)}"><input type="hidden" name="cars_standard_id" value="${escapeHtml(id)}"><button type="submit" class="btn btn-sm btn-primary">Save</button> <button type="button" class="btn btn-sm btn-secondary ambiguous-cancel-row">Cancel</button> <button type="button" class="btn btn-sm btn-outline-danger ambiguous-delete-row">Delete</button></form></td></tr>`;
+  };
+  const renderGroups = (preview) => {
+    const groups = Array.isArray(preview.groups) ? preview.groups : [];
+    const groupHtml = groups.length ? groups.map((group, index) => `
+      <details class="mb-3" ${index === 0 ? 'open' : ''}>
+        <summary><strong>${escapeHtml(group.source_brand)} / ${escapeHtml(group.source_model)} / ${escapeHtml(group.source_variant)}</strong> · ${fmt(group.row_count)} rows · candidates ${escapeHtml((group.candidate_ids || []).join(', '))} · samples ${escapeHtml((group.sample_source_row_ids || []).join(', '))}</summary>
+        <div class="table-responsive mt-2">
+          <table class="table table-sm table-hover ambiguous-candidates-table">
+            <thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}<th>Actions</th></tr></thead>
+            <tbody>${(group.candidates || []).map(rowHtml).join('') || `<tr><td colspan="15" class="text-muted">No candidates.</td></tr>`}</tbody>
+          </table>
+        </div>
+      </details>`).join('') : '<p class="text-muted">No ambiguous groups.</p>';
+    result.innerHTML = `
+      <hr>
+      <h4>Ambiguous Groups</h4>
+      <div class="alert ${preview.display_truncated ? 'alert-warning' : 'alert-info'}">${escapeHtml(preview.message)} Displaying ${fmt(groups.length)} of ${fmt(preview.group_count)} groups.</div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-2"><strong>Table</strong><br>${escapeHtml(preview.table_name)}</div>
+        <div class="col-md-2"><strong>Source</strong><br>${escapeHtml(preview.source)}</div>
+        <div class="col-md-2"><strong>Total NULL</strong><br>${fmt(preview.total_null_rows)}</div>
+        <div class="col-md-2"><strong>Scanned</strong><br>${fmt(preview.scanned_rows)}</div>
+        <div class="col-md-2"><strong>Ambiguous</strong><br>${fmt(preview.ambiguous_count)}</div>
+        <div class="col-md-2"><strong>Groups</strong><br>${fmt(preview.group_count)}</div>
+      </div>
+      ${groupHtml}`;
+    sizeInputs(result);
+  };
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const original = button ? button.innerHTML : '';
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+    }
+    fetch(form.action, {method: 'POST', body: new FormData(form), headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+      .then(({ok, data}) => {
+        if (!ok || !data.success) throw new Error(data.error || 'Ambiguous scan failed.');
+        renderGroups(data.preview);
+      })
+      .catch((error) => { result.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`; })
+      .finally(() => {
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = original;
+        }
+      });
+  });
+  result.addEventListener('input', (event) => {
+    if (event.target.matches('td[data-field] input')) sizeInput(event.target);
+  });
+  result.addEventListener('click', (event) => {
+    const tr = event.target.closest('tr[data-row-id]');
+    if (!tr) return;
+    if (event.target.classList.contains('ambiguous-cancel-row')) {
+      tr.querySelectorAll('input[data-original]').forEach((input) => {
+        input.value = input.dataset.original || '';
+        sizeInput(input);
+      });
+    }
+    if (event.target.classList.contains('ambiguous-delete-row')) {
+      if (!confirm(`Hard delete cars_standard #${tr.dataset.rowId}?`)) return;
+      const data = new FormData();
+      data.append('csrfmiddlewaretoken', csrf);
+      data.append('cars_standard_id', tr.dataset.rowId);
+      data.append('confirm_set_null', 'on');
+      fetch(card.dataset.deleteUrl, {method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'}})
+        .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+        .then(({ok, data}) => {
+          if (!ok || !data.success) throw new Error(data.error || 'Delete failed.');
+          tr.remove();
+        })
+        .catch((error) => { result.insertAdjacentHTML('afterbegin', `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`); });
+    }
+  });
+  result.addEventListener('submit', (event) => {
+    const candidateForm = event.target.closest('.ambiguous-candidate-form');
+    if (!candidateForm) return;
+    event.preventDefault();
+    fetch(candidateForm.action, {method: 'POST', body: new FormData(candidateForm), headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then((response) => response.json().then((data) => ({ok: response.ok, data})))
+      .then(({ok, data}) => {
+        if (!ok || !data.success) throw new Error(data.error || 'Save failed.');
+        const tr = candidateForm.closest('tr');
+        columns.forEach((column) => {
+          if (column === 'id') return;
+          const input = tr.querySelector(`input[name="${CSS.escape(column)}"]`);
+          if (input) {
+            input.value = data.row[column] || '';
+            input.dataset.original = data.row[column] || '';
+            sizeInput(input);
+          }
+        });
+      })
+      .catch((error) => { result.insertAdjacentHTML('afterbegin', `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`); });
+  });
 })();
 
 (function () {

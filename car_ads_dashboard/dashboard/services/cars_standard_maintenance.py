@@ -959,6 +959,7 @@ FILL_PREVIEW_ROW_CAP = 1000
 FILL_PROGRESS_ROW_INTERVAL = 500
 NULL_INSPECTOR_PREVIEW_LIMIT = 500
 NULL_INSPECTOR_MAX_PREVIEW_LIMIT = 10000
+AMBIGUOUS_RESOLVER_DISPLAY_LIMITS = {10, 50, 100}
 
 
 def normalize_match_value(value):
@@ -1109,6 +1110,14 @@ def validate_null_inspector_limit(preview_limit):
     return preview_limit
 
 
+def validate_ambiguous_resolver_limit(display_limit):
+    try:
+        display_limit = int(display_limit)
+    except (TypeError, ValueError):
+        return 10
+    return display_limit if display_limit in AMBIGUOUS_RESOLVER_DISPLAY_LIMITS else 10
+
+
 def _normalized_source_candidate(record):
     brand = normalize_match_value(record.get('brand'))
     model = normalize_match_value(record.get('model'))
@@ -1174,6 +1183,65 @@ def analyze_null_rows(table_name, source, preview_limit=None):
         'distinct_normalized_candidates': distinct_unmatched_candidates[:SAMPLE_LIMIT],
         'sample_limit': SAMPLE_LIMIT,
         'message': f"Analyzed {scanned_rows} of {total_null_rows} NULL rows for {table_name}/{source}.",
+    }
+
+
+def get_ambiguous_resolver_groups(table_name, source, display_limit=10):
+    validate_target_table(table_name)
+    source = validate_sources(table_name, [source])[0]
+    display_limit = validate_ambiguous_resolver_limit(display_limit)
+    ensure_fill_schema(table_name)
+    standard_columns = get_table_columns(CarsStandard._meta.db_table)
+    total_null_rows = _count_source_null_rows(table_name, source)
+    groups = {}
+    ambiguous_count = 0
+    with connection.cursor() as cursor:
+        cursor.execute(_source_select_sql(table_name), [source])
+        records = _fetch_dicts(cursor)
+        for record in records:
+            match_status, matches = _classify_fill_record(cursor, standard_columns, record)
+            if match_status != 'ambiguous':
+                continue
+            ambiguous_count += 1
+            source_record = _serialize_source_record(record)
+            candidate_ids = tuple(match['id'] for match in matches)
+            key = (
+                normalize_match_value(record.get('brand')) or '',
+                normalize_match_value(record.get('model')) or '',
+                normalize_match_value(record.get('variant')) or '',
+                candidate_ids,
+            )
+            group = groups.setdefault(
+                key,
+                {
+                    'source_brand': source_record['brand'] or '',
+                    'source_model': source_record['model'] or '',
+                    'source_variant': source_record['variant'] or '',
+                    'candidate_ids': list(candidate_ids),
+                    'row_count': 0,
+                    'sample_source_row_ids': [],
+                    'candidates': [
+                        {column: candidate.get(column) or '' for column in ['id', *STANDARD_EDIT_COLUMNS]}
+                        for candidate in matches
+                    ],
+                },
+            )
+            group['row_count'] += 1
+            if len(group['sample_source_row_ids']) < SAMPLE_LIMIT:
+                group['sample_source_row_ids'].append(source_record['id'])
+    sorted_groups = sorted(groups.values(), key=lambda item: (-item['row_count'], item['source_brand'], item['source_model'], item['source_variant'], item['candidate_ids']))
+    return {
+        'status': 'preview',
+        'table_name': table_name,
+        'source': source,
+        'total_null_rows': total_null_rows,
+        'scanned_rows': len(records),
+        'ambiguous_count': ambiguous_count,
+        'group_count': len(sorted_groups),
+        'display_limit': display_limit,
+        'groups': sorted_groups[:display_limit],
+        'display_truncated': len(sorted_groups) > display_limit,
+        'message': f"Scanned {len(records)} NULL rows and found {ambiguous_count} ambiguous rows in {len(sorted_groups)} groups.",
     }
 
 

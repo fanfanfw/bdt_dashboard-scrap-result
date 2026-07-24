@@ -396,7 +396,7 @@ def search_cars_standard(query='', page=1, per_page=25, filters=None):
                 queryset = queryset.filter(id__in=ids or [-1])
                 continue
             if field == 'source':
-                queryset = queryset.filter(source__overlap=[item.lower() for item in values])
+                queryset = queryset.filter(source__contains=[item.lower() for item in values])
                 continue
             field_query = Q()
             for item in values:

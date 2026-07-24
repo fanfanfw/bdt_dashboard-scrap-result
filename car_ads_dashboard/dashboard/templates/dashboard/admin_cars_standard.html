@@ -743,9 +743,13 @@
       <label for="model_norm" class="form-label">model_norm</label>
       <input type="text" name="model_norm" id="model_norm" class="form-control" value="{{ table_filters.model_norm }}" placeholder="Model A,Model B">
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label for="variant_norm" class="form-label">variant_norm</label>
       <input type="text" name="variant_norm" id="variant_norm" class="form-control" value="{{ table_filters.variant_norm }}" placeholder="STD,RS">
+    </div>
+    <div class="col-md-2">
+      <label for="source_filter" class="form-label">source</label>
+      <input type="text" name="source" id="source_filter" class="form-control" value="{{ table_filters.source }}" placeholder="mudahmy,carlistmy">
     </div>
     <div class="col-md-1">
       <label for="cars_standard_per_page" class="form-label">Rows</label>
@@ -783,6 +787,8 @@
             <td data-field="{{ column }}">
               {% if column == 'id' %}
                 <span class="text-muted">New</span>
+              {% elif column == 'source' %}
+                <span class="text-muted">—</span>
               {% else %}
                 <input class="form-control form-control-sm" name="{{ column }}" form="create-form-top" value="{% if column == 'model_group_norm' %}NO MODEL GROUP{% endif %}">
               {% endif %}
@@ -802,6 +808,12 @@
               <td data-field="{{ column }}">
                 {% if column == 'id' %}
                   {{ value }}
+                {% elif column == 'source' %}
+                  {% for item in value %}
+                    <span class="badge bg-info text-dark me-1">{{ item }}</span>
+                  {% empty %}
+                    <span class="text-muted">—</span>
+                  {% endfor %}
                 {% else %}
                   <input class="form-control form-control-sm" name="{{ column }}" form="update-form-{{ row.id }}" value="{{ value|default_if_none:'' }}" data-original="{{ value|default_if_none:'' }}">
                 {% endif %}
@@ -833,7 +845,7 @@
         <ul class="pagination justify-content-center mt-3">
           {% if page_obj.has_previous %}
             <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.previous_page_number }}&per_page={{ table_page_size }}{% if table_filters.id %}&id={{ table_filters.id|urlencode }}{% endif %}{% if table_filters.brand_norm %}&brand_norm={{ table_filters.brand_norm|urlencode }}{% endif %}{% if table_filters.model_norm %}&model_norm={{ table_filters.model_norm|urlencode }}{% endif %}{% if table_filters.variant_norm %}&variant_norm={{ table_filters.variant_norm|urlencode }}{% endif %}">Previous</a>
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}&per_page={{ table_page_size }}{% if table_filters.id %}&id={{ table_filters.id|urlencode }}{% endif %}{% if table_filters.brand_norm %}&brand_norm={{ table_filters.brand_norm|urlencode }}{% endif %}{% if table_filters.model_norm %}&model_norm={{ table_filters.model_norm|urlencode }}{% endif %}{% if table_filters.variant_norm %}&variant_norm={{ table_filters.variant_norm|urlencode }}{% endif %}{% if table_filters.source %}&source={{ table_filters.source|urlencode }}{% endif %}">Previous</a>
             </li>
           {% endif %}
           <li class="page-item active">
@@ -841,7 +853,7 @@
           </li>
           {% if page_obj.has_next %}
             <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.next_page_number }}&per_page={{ table_page_size }}{% if table_filters.id %}&id={{ table_filters.id|urlencode }}{% endif %}{% if table_filters.brand_norm %}&brand_norm={{ table_filters.brand_norm|urlencode }}{% endif %}{% if table_filters.model_norm %}&model_norm={{ table_filters.model_norm|urlencode }}{% endif %}{% if table_filters.variant_norm %}&variant_norm={{ table_filters.variant_norm|urlencode }}{% endif %}">Next</a>
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}&per_page={{ table_page_size }}{% if table_filters.id %}&id={{ table_filters.id|urlencode }}{% endif %}{% if table_filters.brand_norm %}&brand_norm={{ table_filters.brand_norm|urlencode }}{% endif %}{% if table_filters.model_norm %}&model_norm={{ table_filters.model_norm|urlencode }}{% endif %}{% if table_filters.variant_norm %}&variant_norm={{ table_filters.variant_norm|urlencode }}{% endif %}{% if table_filters.source %}&source={{ table_filters.source|urlencode }}{% endif %}">Next</a>
             </li>
           {% endif %}
         </ul>
@@ -904,10 +916,14 @@
     else table.querySelector('tbody').prepend(createRow);
     createRow.querySelector('input[name]')?.focus();
   };
+  const sourceHtml = (sources) => Array.isArray(sources) && sources.length
+    ? sources.map((source) => `<span class="badge bg-info text-dark me-1">${escapeHtml(source)}</span>`).join('')
+    : '<span class="text-muted">—</span>';
   const rowHtml = (row) => {
     const id = row.id;
     const cells = columns.map((column) => {
       if (column === 'id') return `<td data-field="id">${escapeHtml(id)}</td>`;
+      if (column === 'source') return `<td data-field="source">${sourceHtml(row.source)}</td>`;
       const value = row[column] || '';
       return `<td data-field="${escapeHtml(column)}"><input class="form-control form-control-sm" name="${escapeHtml(column)}" form="update-form-${escapeHtml(id)}" value="${escapeHtml(value)}" data-original="${escapeHtml(value)}"></td>`;
     }).join('');
@@ -916,6 +932,11 @@
   const syncRow = (tr, row) => {
     columns.forEach((column) => {
       if (column === 'id') return;
+      if (column === 'source') {
+        const cell = tr.querySelector('td[data-field="source"]');
+        if (cell) cell.innerHTML = sourceHtml(row.source);
+        return;
+      }
       const input = tr.querySelector(`input[name="${CSS.escape(column)}"]`);
       if (input) {
         input.value = row[column] || '';
@@ -928,6 +949,7 @@
   const createRowHtml = () => {
     const cells = columns.map((column) => {
       if (column === 'id') return '<td data-field="id"><span class="text-muted">New</span></td>';
+      if (column === 'source') return '<td data-field="source"><span class="text-muted">—</span></td>';
       const value = column === 'model_group_norm' ? 'NO MODEL GROUP' : '';
       return `<td data-field="${escapeHtml(column)}"><input class="form-control form-control-sm" name="${escapeHtml(column)}" form="create-form-top" value="${value}"></td>`;
     }).join('');

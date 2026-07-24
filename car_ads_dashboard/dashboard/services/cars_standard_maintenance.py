@@ -55,6 +55,7 @@ STANDARD_DISPLAY_COLUMNS = [
     'variant_raw2',
     'variant_raw3',
     'variant_raw4',
+    'source',
 ]
 
 STANDARD_SEARCH_COLUMNS = [
@@ -373,7 +374,7 @@ def search_cars_standard(query='', page=1, per_page=25, filters=None):
     filters = filters or {}
     field_filters = {
         field: str(filters.get(field) or '').strip()
-        for field in ('id', 'brand_norm', 'model_norm', 'variant_norm')
+        for field in ('id', 'brand_norm', 'model_norm', 'variant_norm', 'source')
     }
 
     try:
@@ -393,6 +394,9 @@ def search_cars_standard(query='', page=1, per_page=25, filters=None):
             if field == 'id':
                 ids = [int(item) for item in values if item.isdigit()]
                 queryset = queryset.filter(id__in=ids or [-1])
+                continue
+            if field == 'source':
+                queryset = queryset.filter(source__overlap=[item.lower() for item in values])
                 continue
             field_query = Q()
             for item in values:

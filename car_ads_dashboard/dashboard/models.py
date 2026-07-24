@@ -224,6 +224,7 @@ class CarsStandard(models.Model):
     variant_raw2 = models.CharField(max_length=100, blank=True, null=True)
     variant_raw3 = models.CharField(max_length=100, blank=True, null=True)
     variant_raw4 = models.CharField(max_length=100, blank=True, null=True)
+    source = ArrayField(models.TextField(), blank=True, default=list)
 
     class Meta:
         managed = False  # No migrations for this model

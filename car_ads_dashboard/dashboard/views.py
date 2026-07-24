@@ -555,7 +555,7 @@ def admin_cars_standard(request, username):
     search_query = request.GET.get('q', '')
     page_number = request.GET.get('page')
     table_page_size = _page_size(request.GET.get('per_page'), 10)
-    table_filters = {field: request.GET.get(field, '') for field in ('id', 'brand_norm', 'model_norm', 'variant_norm')}
+    table_filters = {field: request.GET.get(field, '') for field in ('id', 'brand_norm', 'model_norm', 'variant_norm', 'source')}
     search_result = search_cars_standard(search_query, page_number, per_page=table_page_size, filters=table_filters)
     if _is_ajax(request):
         return JsonResponse(_cars_standard_page_json(search_result))
@@ -604,7 +604,7 @@ def admin_cars_standard(request, username):
         'columns': search_result['columns'],
         'edit_columns': CARS_STANDARD_EDIT_FIELDS,
         'search_query': search_result['query'],
-        'table_filters': search_result.get('filters', {'id': '', 'brand_norm': '', 'model_norm': '', 'variant_norm': ''}),
+        'table_filters': search_result.get('filters', {'id': '', 'brand_norm': '', 'model_norm': '', 'variant_norm': '', 'source': ''}),
         'edit_form': edit_form,
         'edit_row': edit_row,
         'edit_normalized_preview': get_normalized_preview(serialize_cars_standard(edit_row)) if edit_row else None,
@@ -666,7 +666,10 @@ def _cars_standard_page_json(search_result):
     return {
         'success': True,
         'columns': search_result['columns'],
-        'rows': [{key: value or '' for key, value in row.items()} for row in page_obj],
+        'rows': [
+            {key: ([] if key == 'source' and not value else value or '') for key, value in row.items()}
+            for row in page_obj
+        ],
         'pagination': {
             'count': page_obj.paginator.count,
             'per_page': page_obj.paginator.per_page,
@@ -677,7 +680,7 @@ def _cars_standard_page_json(search_result):
             'previous_page_number': page_obj.previous_page_number() if page_obj.has_previous() else None,
             'next_page_number': page_obj.next_page_number() if page_obj.has_next() else None,
         },
-        'filters': search_result.get('filters', {'id': '', 'brand_norm': '', 'model_norm': '', 'variant_norm': ''}),
+        'filters': search_result.get('filters', {'id': '', 'brand_norm': '', 'model_norm': '', 'variant_norm': '', 'source': ''}),
     }
 
 

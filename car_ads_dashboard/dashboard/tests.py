@@ -8,7 +8,8 @@ from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import Group, User
 from django.core.paginator import Paginator
-from django.test import Client, SimpleTestCase, TestCase, TransactionTestCase, override_settings
+from django.middleware.csrf import CsrfViewMiddleware, get_token
+from django.test import Client, RequestFactory, SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
 from . import tasks
@@ -16,6 +17,45 @@ from .consumers import CarsStandardJobConsumer
 
 from .models import CarsStandardMaintenanceJob
 from .services import cars_standard_maintenance as service
+
+
+@override_settings(
+    DEBUG=True,
+    ALLOWED_HOSTS=['dashboard.example.com'],
+    CSRF_TRUSTED_ORIGINS=['https://dashboard.example.com'],
+)
+class ProxySecuritySettingsTests(SimpleTestCase):
+    def csrf_request(self, origin):
+        token_request = RequestFactory().get('/')
+        token = get_token(token_request)
+        request = RequestFactory().post(
+            '/',
+            {'csrfmiddlewaretoken': token},
+            HTTP_HOST='dashboard.example.com',
+            HTTP_ORIGIN=origin,
+            HTTP_X_FORWARDED_PROTO='https',
+        )
+        request.COOKIES['csrftoken'] = token_request.META['CSRF_COOKIE']
+        return request
+
+    def test_forwarded_proto_and_public_origin(self):
+        request = self.csrf_request('https://dashboard.example.com')
+
+        self.assertTrue(request.is_secure())
+        self.assertIsNone(CsrfViewMiddleware(lambda current_request: None).process_view(request, lambda current_request: None, (), {}))
+
+    def test_wrong_origin_is_forbidden(self):
+        request = self.csrf_request('https://wrong.example.com')
+
+        response = CsrfViewMiddleware(lambda current_request: None).process_view(request, lambda current_request: None, (), {})
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, 'Origin checking failed', status_code=403)
+
+    def test_forwarded_http_is_insecure(self):
+        request = RequestFactory().get('/', HTTP_X_FORWARDED_PROTO='http')
+
+        self.assertFalse(request.is_secure())
 
 
 class CarsStandardServiceValidationTests(TestCase):

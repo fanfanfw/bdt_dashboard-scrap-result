@@ -76,6 +76,7 @@ class TodayDataTableStructureTests(SimpleTestCase):
         self.assertEqual(len(re.findall(r'<th(?:\s|>)', thead)), 9)
         self.assertEqual(tbody.strip(), '')
         self.assertNotIn('colspan', tbody)
+        self.assertIn("{% static 'js/user_dashboard.js' %}?v=20260906", self.template)
 
     def test_javascript_keeps_empty_body_and_nine_cell_rows(self):
         load_today = self.javascript.split('function loadTodaysData()', 1)[1]

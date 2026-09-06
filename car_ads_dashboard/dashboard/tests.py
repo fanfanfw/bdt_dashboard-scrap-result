@@ -1,5 +1,7 @@
 import json
+import re
 from contextlib import nullcontext
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -56,6 +58,36 @@ class ProxySecuritySettingsTests(SimpleTestCase):
         request = RequestFactory().get('/', HTTP_X_FORWARDED_PROTO='http')
 
         self.assertFalse(request.is_secure())
+
+
+class TodayDataTableStructureTests(SimpleTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        dashboard_dir = Path(__file__).resolve().parent
+        cls.template = (dashboard_dir / 'templates/dashboard/user_dashboard.html').read_text()
+        cls.javascript = (dashboard_dir / 'static/js/user_dashboard.js').read_text()
+
+    def test_template_has_nine_headers_and_empty_body(self):
+        table = re.search(r'<table id="todayDataTable".*?</table>', self.template, re.DOTALL).group()
+        thead = re.search(r'<thead>(.*?)</thead>', table, re.DOTALL).group(1)
+        tbody = re.search(r'<tbody id="todayDataTableBody">(.*?)</tbody>', table, re.DOTALL).group(1)
+
+        self.assertEqual(len(re.findall(r'<th(?:\s|>)', thead)), 9)
+        self.assertEqual(tbody.strip(), '')
+        self.assertNotIn('colspan', tbody)
+
+    def test_javascript_keeps_empty_body_and_nine_cell_rows(self):
+        load_today = self.javascript.split('function loadTodaysData()', 1)[1]
+        populated = re.search(r'const row = `(.*?)`;', load_today, re.DOTALL).group(1)
+        success = load_today.split('\n      error:', 1)[0]
+        empty_branch = success.rsplit('\n        } else {', 1)[1]
+
+        self.assertEqual(len(re.findall(r'<td(?:\s|>)', populated)), 9)
+        self.assertIn('order: [[8, "desc"]]', self.javascript)
+        self.assertNotIn('<td', empty_branch)
+        self.assertNotIn('colspan', empty_branch)
+        self.assertIn('emptyTable: "Belum ada data scraping hari ini"', empty_branch)
 
 
 class CarsStandardServiceValidationTests(TestCase):

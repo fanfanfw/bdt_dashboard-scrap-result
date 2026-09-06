@@ -697,6 +697,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // source parameter removed - using unified data
       },
       success: function(response) {
+        if ($.fn.DataTable.isDataTable('#todayDataTable')) {
+          $('#todayDataTable').DataTable().destroy();
+        }
         tableBody.empty();
         
         if (response.data && response.data.length > 0) {
@@ -746,11 +749,6 @@ document.addEventListener('DOMContentLoaded', function() {
             tableBody.append(row);
           });
           
-          // Destroy existing DataTable if it exists
-          if ($.fn.DataTable.isDataTable('#todayDataTable')) {
-            $('#todayDataTable').DataTable().destroy();
-          }
-          
           // Initialize fresh DataTable
           $('#todayDataTable').DataTable({
             pageLength: 10,
@@ -781,23 +779,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           });
         } else {
-          tableBody.html(`
-            <tr>
-              <td colspan="9" class="text-center py-4">
-                <div class="text-muted">
-                  <i class="fas fa-info-circle mb-2" style="font-size: 2rem;"></i>
-                  <p class="mb-0">Belum ada data scraping hari ini</p>
-                  <small>Data akan muncul setelah proses scraping berjalan</small>
-                </div>
-              </td>
-            </tr>
-          `);
-          
-          // Still initialize DataTable for empty table
-          if ($.fn.DataTable.isDataTable('#todayDataTable')) {
-            $('#todayDataTable').DataTable().destroy();
-          }
-          
           $('#todayDataTable').DataTable({
             pageLength: 10,
             lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
@@ -823,17 +804,11 @@ document.addEventListener('DOMContentLoaded', function() {
       },
       error: function(xhr, error, thrown) {
         console.error('Error loading today\'s data:', error);
-        tableBody.html(`
-          <tr>
-            <td colspan="9" class="text-center py-4">
-              <div class="text-danger">
-                <i class="fas fa-exclamation-triangle mb-2" style="font-size: 2rem;"></i>
-                <p class="mb-0">Gagal memuat data hari ini</p>
-                <small>Silakan refresh halaman atau coba lagi nanti</small>
-              </div>
-            </td>
-          </tr>
-        `);
+        if ($.fn.DataTable.isDataTable('#todayDataTable')) {
+          $('#todayDataTable').DataTable().destroy();
+        }
+        tableBody.empty();
+        alert('Gagal memuat data hari ini. Silakan refresh halaman atau coba lagi nanti.');
       }
     });
   }

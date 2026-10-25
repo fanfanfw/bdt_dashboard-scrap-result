@@ -1,0 +1,104 @@
+# Context allowlist (M2-T1 / PG-A). Source-only: causes no build.
+# Defence in depth; the Dockerfile COPY lines are the primary allowlist.
+#
+# NOTE dockerignore differs from .gitignore: a bare name matches only at the
+# context ROOT, so nested trees need the explicit **/ form.
+
+# secrets / env files, root and nested
+.env
+.env.*
+**/.env
+**/.env.*
+
+# vcs and tooling state
+.git
+.gitignore
+.github
+graphify-out
+venv
+.venv
+env
+ENV
+env.bak
+venv.bak
+envdjango
+fastapienv
+**/venv
+**/.venv
+
+# python build/cache artifacts
+__pycache__
+**/__pycache__
+*.py[cod]
+*.egg-info
+.eggs
+build
+dist
+.pytest_cache
+.mypy_cache
+.coverage
+htmlcov
+coverage.xml
+
+# logs, local databases, dumps/backups -- nested forms included
+logs
+**/logs
+**/logs/**
+*.log
+**/*.log
+*.sqlite3
+**/*.sqlite3
+*.backup
+**/*.backup
+*.dump
+**/*.dump
+*.psql_history
+celerybeat-schedule
+note.txt
+skipped_*
+secret_keys.json
+
+# generated static output: not used at runtime -- asgi.py's
+# ASGIStaticFilesHandler resolves via the staticfiles finders over the source
+# tree (verified against installed Django 5.2.1), so STATIC_ROOT is unneeded.
+staticfiles
+**/staticfiles
+**/staticfiles/**
+/static
+media
+**/media
+
+# data archives / model artifacts -- nested forms; no runtime path reads these
+*.zip
+**/*.zip
+*.tar
+*.tar.gz
+**/*.tar.gz
+*.parquet
+*.pkl
+**/*.pkl
+*.joblib
+*.h5
+*.onnx
+*.pt
+*.ckpt
+models
+**/models
+**/models/**
+artifacts
+**/artifacts
+**/artifacts/**
+
+# data-import fixtures: read only by the operator-run `import_carsstandard`
+# command; no view, entrypoint or cron path reads them. Templates, static
+# assets, migrations and all Python sources stay included.
+car_ads_dashboard/dashboard/data/cars_standard.csv
+car_ads_dashboard/dashboard/management/data/cars_standard.csv
+failed_cars_standard_id_*.csv
+
+# docs / editor state
+README.md
+.vscode
+.idea
+.DS_Store
+Thumbs.db

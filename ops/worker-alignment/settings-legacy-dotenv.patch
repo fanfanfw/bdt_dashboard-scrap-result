@@ -1,0 +1,33 @@
+diff --git a/car_ads_dashboard/car_ads_dashboard/settings.py b/car_ads_dashboard/car_ads_dashboard/settings.py
+index 2e45a1b..57196ce 100644
+--- a/car_ads_dashboard/car_ads_dashboard/settings.py
++++ b/car_ads_dashboard/car_ads_dashboard/settings.py
+@@ -14,7 +14,27 @@ from pathlib import Path
+ import os
+ from dotenv import load_dotenv
+ 
+-load_dotenv(override=True)
++# Optional fail-closed dotenv selector. Unset keeps the existing
++# caller-source discovery; set loads exactly this file with override=True.
++# Invalid explicit values refuse startup and never fall back.
++_dashboard_dotenv_path = os.environ.get("DASHBOARD_DOTENV_PATH")
++if _dashboard_dotenv_path is None:
++    load_dotenv(override=True)
++else:
++    if not os.path.isabs(_dashboard_dotenv_path):
++        raise ValueError("DASHBOARD_DOTENV_PATH must be an absolute path")
++    if os.path.islink(_dashboard_dotenv_path):
++        raise ValueError("DASHBOARD_DOTENV_PATH must not be a symlink")
++    if not os.path.isfile(_dashboard_dotenv_path):
++        raise ValueError("DASHBOARD_DOTENV_PATH must point to an existing regular file")
++    # load_dotenv performs the real open/read exactly once (no os.access-only
++    # precheck, no duplicate read); read/decode failures are sanitised below so
++    # a malformed file can never leak its bytes into the traceback.
++    try:
++        if not load_dotenv(_dashboard_dotenv_path, override=True):
++            raise ValueError("DASHBOARD_DOTENV_PATH file defines no environment bindings")
++    except (OSError, UnicodeError):
++        raise ValueError("DASHBOARD_DOTENV_PATH file could not be loaded") from None
+ 
+ # Build paths inside the project like this: BASE_DIR / 'subdir'.
+ BASE_DIR = Path(__file__).resolve().parent.parent

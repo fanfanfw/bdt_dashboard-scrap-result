@@ -1,0 +1,86 @@
+# =============================================================================
+# SOURCE-ONLY TEMPLATE -- M2-T1 / PG-A.  *** PROPOSAL, NOT AN EXECUTION
+# APPROVAL. *** Presence of this file authorizes no `compose up`, build, push,
+# Dokploy deploy/API call, or change to the running UI unit.
+#
+# *** network_mode: host IS PROPOSED ONLY, NOT APPROVED. *** It preserves,
+# without changing any service, Redis loopback 127.0.0.1:6379 (broker, result
+# backend, Channels) and the exact 127.0.0.1:18111 bind. PROPOSED consequence,
+# not an accepted decision: reduced network isolation and no `ports:` mapping.
+# Bridge networking is a separate decision needing verified Redis/DB path plus
+# HBA/firewall/role proof.
+#
+# Validate config only, with a synthetic env file outside the repo:
+#   docker compose --env-file /tmp/synthetic.env -f compose.dokploy.yaml config
+# Never point Compose at the repository `.env`: that loads production values.
+# =============================================================================
+
+services:
+  dashboard:
+    # Required interpolation, no default, no `latest`: pass an immutable ref,
+    # e.g. repo@sha256:<digest>.
+    image: ${DASHBOARD_IMAGE:?DASHBOARD_IMAGE must be an immutable image reference}
+
+    # External env file, supplied at deploy time; never committed or baked.
+    env_file:
+      - ${DASHBOARD_ENV_FILE:?DASHBOARD_ENV_FILE must be an absolute path outside the repo}
+
+    # `environment` outranks `env_file`, so these two are pinned here: the
+    # production env file cannot re-enable DEBUG or disable the ASGI static path.
+    environment:
+      DEBUG: "False"
+      DJANGO_SERVE_STATIC: "true"
+      # Non-sensitive, required, must be a member of ALLOWED_HOSTS. Trusted
+      # deployment configuration, not client input; ALLOWED_HOSTS is unchanged.
+      DASHBOARD_HEALTH_HOST: ${DASHBOARD_HEALTH_HOST:?DASHBOARD_HEALTH_HOST must be set to a host in ALLOWED_HOSTS}
+
+    # Proposed only -- see the warning block above.
+    network_mode: host
+
+    # No command/entrypoint override: the image CMD is the single Daphne.
+    user: "1000:1000"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    privileged: false
+
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    # Longer than Daphne's graceful shutdown window.
+    stop_grace_period: 40s
+
+    # No ports (host mode, loopback bind), no pid: host, no volume mounts.
+
+    healthcheck:
+      # Stdlib inside the container, loopback-only. ProxyHandler({}) disables
+      # env proxies so an injected HTTP_PROXY cannot redirect the probe.
+      test:
+        - CMD
+        - python3
+        - -c
+        - |
+          import os, sys, urllib.request
+          host = os.environ["DASHBOARD_HEALTH_HOST"]
+          opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+          req = urllib.request.Request("http://127.0.0.1:18111/accounts/login/",
+                                       headers={"Host": host})
+          try:
+              with opener.open(req, timeout=5) as r:
+                  sys.exit(0 if r.status == 200 else 1)
+          except Exception:
+              sys.exit(1)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
